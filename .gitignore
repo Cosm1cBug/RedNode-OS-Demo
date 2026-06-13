@@ -1,0 +1,25 @@
+# node
+node_modules/
+dist/
+.next/
+out/
+# rust
+target/
+# python
+__pycache__/
+venv/
+# data
+*.db
+*.db-*
+data/
+qdrant_storage/
+postgres_data/
+# secrets
+age.key
+*.age
+secrets/*.enc
+!secrets/.sops.yaml
+# os
+.DS_Store
+.env
+*.log

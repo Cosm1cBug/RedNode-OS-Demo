@@ -1,0 +1,110 @@
+# RedNode-OS Tool Executor Seccomp Profile
+# JSON format for libseccomp / firejail --seccomp=/path/to/profile
+#
+# Default: allow
+# Deny dangerous syscalls that could escape sandbox, escalate, or damage host
+
+# Denylist – critical
+# kexec_load, open_by_handle_at, init_module, finit_module, delete_module,
+# iopl, ioperm, swapon, swapoff, syslog,
+# process_vm_readv, process_vm_writev,
+# ptrace,
+# mknod, mknodat,
+# mount, umount2,
+# clock_settime, settimeofday,
+# reboot,
+# acct,
+# bpf,
+# fanotify_init,
+# unshare,
+# pivot_root,
+# setns
+
+# For firejail, use built-in: firejail --seccomp
+# This file is for bwrap + seccomp-filter / libseccomp direct
+
+# Seccomp-BPF – allowlist mode (strict)
+# Allow only safe syscalls for typical CLI tools: ls, ps, cat, grep, df, etc.
+
+ALLOW {
+  read, write, open, openat, close,
+  stat, fstat, lstat, newfstatat,
+  poll, lseek,
+  mmap, mprotect, munmap, brk,
+  rt_sigaction, rt_sigprocmask, rt_sigreturn,
+  ioctl,
+  pread64, pwrite64,
+  readv, writev,
+  access, pipe, pipe2,
+  select, sched_yield,
+  mremap, msync,
+  mincore, madvise,
+  dup, dup2, dup3,
+  nanosleep, clock_gettime, clock_nanosleep,
+  getpid, getppid, getuid, geteuid, getgid, getegid,
+  gettid,
+  exit, exit_group,
+  uname,
+  fcntl,
+  getcwd,
+  getdents64,
+  getrandom,
+  clock_getres,
+  kill,
+  rt_sigpending,
+  sigaltstack,
+  arch_prctl,
+  set_tid_address,
+  set_robust_list,
+  prlimit64,
+  getrusage,
+  futex,
+  sched_getaffinity,
+  epoll_create1, epoll_ctl, epoll_pwait,
+  eventfd2,
+  timerfd_create, timerfd_settime,
+  inotify_init1,
+  ftruncate,
+  statx,
+  rseq,
+  clone, clone3,
+  wait4,
+  execve,
+  # networking – DENIED by default in RedNode sandbox
+  # socket, connect, accept, bind, listen – blocked
+}
+
+# For Network Agent tools that NEED network – use separate profile:
+# rednode-tool-net.seccomp – allows: socket, connect, sendto, recvfrom, etc.
+# with egress filtering via Network Agent proxy only
+
+# Deny explicitly:
+DENY {
+  kexec_load,
+  open_by_handle_at,
+  init_module, finit_module, delete_module,
+  iopl, ioperm,
+  swapon, swapoff,
+  syslog,
+  process_vm_readv, process_vm_writev,
+  ptrace,
+  mknod, mknodat,
+  mount, umount2,
+  clock_settime, settimeofday, adjtimex,
+  reboot,
+  acct,
+  bpf,
+  fanotify_init,
+  unshare,
+  pivot_root,
+  setns,
+  sethostname,
+  setdomainname,
+  # network – default deny for most tools
+  socket, connect, accept, accept4, bind, listen,
+  sendto, recvfrom, sendmsg, recvmsg,
+  setsockopt, getsockopt, shutdown
+}
+
+# Default action: kill process, log to audit
+DEFAULT KILL

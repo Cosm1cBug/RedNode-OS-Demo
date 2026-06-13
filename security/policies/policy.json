@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "default_deny": true,
+  "rules": [
+    {"risk":"low","allow":true,"roles":["owner","agent","readonly"]},
+    {"risk":"medium","allow":true,"roles":["owner","agent"],"log":true},
+    {"risk":"high","allow":false,"require_approval":true,"roles":["owner"]},
+    {"risk":"critical","allow":false,"require_approval":true,"mfa":true,"roles":["owner"]}
+  ],
+  "deny_patterns":["rm -rf /","dd if=","mkfs",":(){ :|:& };","chmod 777 /"]
+}

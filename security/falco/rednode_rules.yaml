@@ -1,0 +1,10 @@
+- rule: RedNode Shell Spawn
+  desc: Detect unexpected shell in agent context
+  condition: spawned_process and shell_procs and container
+  output: Shell spawned in RedNode container (user=%user.name cmd=%proc.cmdline)
+  priority: WARNING
+- rule: RedNode Egress Violation
+  desc: Unexpected outbound connection
+  condition: outbound and not allowed_egress_domains
+  output: Egress violation (fd=%fd.name)
+  priority: NOTICE

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "RedNode",
+  "version": "0.2.0",
+  "identifier": "os.rednode.desktop",
+  "build": { "beforeDevCommand": "", "devUrl": "http://localhost:3000", "beforeBuildCommand": "", "frontendDist": "../dist" },
+  "app": { "windows": [{ "title": "RedNode-OS", "width": 1200, "height": 800 }], "security": { "csp": null } },
+  "bundle": { "active": true, "targets": "all", "icon": ["icons/icon.png"] }
+}

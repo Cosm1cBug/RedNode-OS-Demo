@@ -1,0 +1,63 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+    // Firebase – add after running flutterfire configure
+    // id "com.google.gms.google-services"
+}
+
+android {
+    namespace = "os.rednode.mobile"
+    compileSdk = 34
+    ndkVersion = "25.1.8937393"
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+    defaultConfig {
+        applicationId = "os.rednode.mobile"
+        minSdk = 24  // Android 7.0 – required for BiometricPrompt, FCM, secure storage
+        targetSdk = 34
+        versionCode = 1
+        versionName = "0.3.0"
+    }
+
+    signingConfigs {
+        release {
+            // TODO: set up keystore for Play Store / sideload
+            // storeFile file(System.getenv("REDNODE_KEYSTORE") ?: "rednode.jks")
+            // storePassword System.getenv("REDNODE_KEYSTORE_PASSWORD")
+            // keyAlias System.getenv("REDNODE_KEY_ALIAS")
+            // keyPassword System.getenv("REDNODE_KEY_PASSWORD")
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.debug
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            applicationIdSuffix ".debug"
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    // Biometric – AndroidX Biometric
+    implementation "androidx.biometric:biometric:1.1.0"
+    // Firebase BoM – uncomment after flutterfire configure
+    // implementation platform('com.google.firebase:firebase-bom:32.8.0')
+    // implementation 'com.google.firebase:firebase-messaging'
+}

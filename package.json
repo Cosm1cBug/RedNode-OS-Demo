@@ -1,0 +1,17 @@
+{
+  "name": "rednode-os",
+  "version": "0.3.0",
+  "private": true,
+  "description": "RedNode-OS – The Personal Autonomous Operating System",
+  "packageManager": "pnpm@9.1.0",
+  "workspaces": [
+    "agents/*",
+    "interfaces/web",
+    "interfaces/cli"
+  ],
+  "scripts": {
+    "agents": "pnpm -r --filter \"@rednode/*-agent\" --parallel dev",
+    "web": "pnpm --filter @rednode/web dev",
+    "cli": "pnpm --filter @rednode/cli dev"
+  }
+}

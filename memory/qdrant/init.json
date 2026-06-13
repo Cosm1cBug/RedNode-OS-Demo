@@ -1,0 +1,4 @@
+{
+  "collection": "rednode_docs",
+  "vectors": { "size": 768, "distance": "Cosine" }
+}
