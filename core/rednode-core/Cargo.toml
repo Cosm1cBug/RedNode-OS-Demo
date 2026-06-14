@@ -35,11 +35,12 @@ gethostname = "0.4"
 kuzu = { version = "0.4", optional = true }
 
 # RedNode-OS init – PID1 – optional
-nix = { version = "0.28", optional = true }
+nix = { version = "0.28", features = ["mount", "signal", "process", "reboot", "fs"], optional = true }
+libc = { version = "0.2", optional = true }
 
 [features]
 default = []
-init = ["dep:nix"]
+init = ["dep:nix", "dep:libc"]
 kuzu = ["dep:kuzu"]
 
 [[bin]]

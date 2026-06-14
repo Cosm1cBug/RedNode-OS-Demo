@@ -34,10 +34,62 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices: [{capabilities: [gpu]}]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # MQTT Broker — for Frigate event bridge
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: rednode-mosquitto
+    ports: ["1883:1883"]
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+      - ../deployment/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+
+  # Frigate NVR — AI-powered camera monitoring
+  # Connects to your standalone NVR via RTSP (cross-VLAN)
+  # GPU for TensorRT detection, or use Coral USB
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:stable
+    container_name: rednode-frigate
+    privileged: true  # needed for USB Coral access
+    ports:
+      - "5000:5000"   # Web UI
+      - "8554:8554"   # RTSP restream (go2rtc)
+      - "8555:8555"   # WebRTC
+    volumes:
+      - frigate_config:/config
+      - frigate_media:/media/frigate
+      # Mount your frigate config.yml:
+      # - ../deployment/frigate.yml:/config/config.yml:ro
+    environment:
+      FRIGATE_RTSP_PASSWORD: "password"
+      FRIGATE_MQTT_HOST: mosquitto
+      FRIGATE_MQTT_PORT: "1883"
+      FRIGATE_MQTT_USER: frigate
+      FRIGATE_MQTT_PASSWORD: rednode-mqtt
+    shm_size: "256mb"  # for detection shared memory
+    devices:
+      # Coral USB Accelerator (if you have one):
+      # - /dev/bus/usb:/dev/bus/usb
+      # Intel GPU (for VAAPI hardware decoding):
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on: [mosquitto]
+    restart: unless-stopped
 
   # Observability
   loki:
@@ -47,6 +99,7 @@ services:
     volumes:
       - ../observability/loki/loki.yaml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
 
   prometheus:
     image: prom/prometheus:v2.52
@@ -80,20 +133,35 @@ services:
     depends_on: [loki, prometheus]
     restart: unless-stopped
 
-  # RedNode Core
-  rednode-core:
-    build:
-      context: ../core/rednode-core
-      dockerfile: Dockerfile
-    container_name: rednode-core
-    ports: ["8787:8787"]
+  # RedNode Core — can also run natively (cargo run)
+  # Uncomment this if you want to run CNS in Docker instead of bare metal
+  # rednode-core:
+  #   build:
+  #     context: ../core/rednode-core
+  #     dockerfile: Dockerfile
+  #   container_name: rednode-core
+  #   ports: ["8787:8787"]
+  #   environment:
+  #     DATABASE_URL: postgres://rednode:rednode@postgres:5432/rednode
+  #     NATS_URL: nats://nats:4222
+  #     QDRANT_URL: http://qdrant:6334
+  #     OLLAMA_URL: http://ollama:11434
+  #     RUST_LOG: info
+  #     REDNODE_SENTIENCE: "on"
+  #     OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  #   depends_on: [nats, postgres, qdrant, ollama, mosquitto]
+  #   restart: unless-stopped
+
+  # SearXNG — Private meta-search engine (no tracking, self-hosted)
+  # Used by: Research Agent → research.search tool
+  searxng:
+    image: searxng/searxng:latest
+    container_name: rednode-searxng
+    ports: ["8888:8080"]
     environment:
-      DATABASE_URL: postgres://rednode:rednode@postgres:5432/rednode
-      NATS_URL: nats://nats:4222
-      QDRANT_URL: http://qdrant:6334
-      RUST_LOG: info
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-    depends_on: [nats, postgres, qdrant]
+      SEARXNG_BASE_URL: "http://localhost:8888/"
+    volumes:
+      - searxng_data:/etc/searxng
     restart: unless-stopped
 
 volumes:
@@ -102,3 +170,8 @@ volumes:
   ollama_data: {}
   prometheus_data: {}
   grafana_data: {}
+  mosquitto_data: {}
+  mosquitto_log: {}
+  frigate_config: {}
+  frigate_media: {}
+  searxng_data: {}

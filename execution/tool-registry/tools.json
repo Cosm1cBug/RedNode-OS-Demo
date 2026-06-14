@@ -1,25 +1,686 @@
 [
-  {"name":"fs.read","agent":"system-agent","risk":"low"},
-  {"name":"process.list","agent":"system-agent","risk":"low"},
-  {"name":"docker.ps","agent":"system-agent","risk":"low"},
-  {"name":"service.status","agent":"system-agent","risk":"low"},
-  {"name":"shell.run_safe","agent":"system-agent","risk":"medium"},
-  {"name":"sec.triage","agent":"security-agent","risk":"low"},
-  {"name":"sec.cve_check","agent":"security-agent","risk":"low"},
-  {"name":"sec.ssh_audit","agent":"security-agent","risk":"medium"},
-  {"name":"sec.harden_ssh","agent":"security-agent","risk":"high"},
-  {"name":"sec.patch","agent":"security-agent","risk":"high"},
-  {"name":"sec.yara","agent":"security-agent","risk":"medium"},
-  {"name":"code.generate","agent":"coding-agent","risk":"medium"},
-  {"name":"code.test","agent":"coding-agent","risk":"medium"},
-  {"name":"code.analyze","agent":"coding-agent","risk":"low"},
-  {"name":"research.search","agent":"research-agent","risk":"low"},
-  {"name":"research.query","agent":"research-agent","risk":"low"},
-  {"name":"kb.query","agent":"research-agent","risk":"low"},
-  {"name":"workflow.create","agent":"automation-agent","risk":"medium"},
-  {"name":"workflow.run","agent":"automation-agent","risk":"medium"},
-  {"name":"net.status","agent":"network-agent","risk":"low"},
-  {"name":"firewall.rules","agent":"network-agent","risk":"high"},
-  {"name":"vpn.connect","agent":"network-agent","risk":"medium"},
-  {"name":"dns.check","agent":"network-agent","risk":"low"}
+  {
+    "name": "fs.read",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Read a file from disk"
+  },
+  {
+    "name": "process.list",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "List running processes sorted by CPU"
+  },
+  {
+    "name": "docker.ps",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "List Docker containers and status"
+  },
+  {
+    "name": "service.status",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Check systemd service status"
+  },
+  {
+    "name": "shell.run_safe",
+    "agent": "system-agent",
+    "risk": "medium",
+    "description": "Run allowlisted shell command"
+  },
+  {
+    "name": "sec.triage",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Check system logs for warnings"
+  },
+  {
+    "name": "sec.cve_check",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Scan for known CVEs"
+  },
+  {
+    "name": "sec.ssh_audit",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Audit SSH configuration"
+  },
+  {
+    "name": "sec.harden_ssh",
+    "agent": "security-agent",
+    "risk": "high",
+    "description": "Apply SSH hardening"
+  },
+  {
+    "name": "sec.patch",
+    "agent": "security-agent",
+    "risk": "high",
+    "description": "Apply security patches with rollback"
+  },
+  {
+    "name": "sec.yara",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Run YARA malware scan"
+  },
+  {
+    "name": "code.generate",
+    "agent": "coding-agent",
+    "risk": "medium",
+    "description": "Generate code using local LLM"
+  },
+  {
+    "name": "code.test",
+    "agent": "coding-agent",
+    "risk": "medium",
+    "description": "Run project tests"
+  },
+  {
+    "name": "code.analyze",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Analyze code quality (clippy/eslint)"
+  },
+  {
+    "name": "code.refactor",
+    "agent": "coding-agent",
+    "risk": "medium",
+    "description": "Refactor code with LLM"
+  },
+  {
+    "name": "git.status",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Show git repository status"
+  },
+  {
+    "name": "research.search",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Search web via SearXNG"
+  },
+  {
+    "name": "research.query",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Query knowledge base (RAG)"
+  },
+  {
+    "name": "kb.query",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Query knowledge graph (Kuzu)"
+  },
+  {
+    "name": "kb.ingest",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Ingest document into memory"
+  },
+  {
+    "name": "workflow.create",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Create a named workflow"
+  },
+  {
+    "name": "workflow.run",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Execute a saved workflow"
+  },
+  {
+    "name": "schedule.add",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Schedule recurring task"
+  },
+  {
+    "name": "trigger.fire",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Fire an event trigger"
+  },
+  {
+    "name": "net.status",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Show network connections"
+  },
+  {
+    "name": "firewall.rules",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "View/modify firewall rules"
+  },
+  {
+    "name": "vpn.connect",
+    "agent": "network-agent",
+    "risk": "medium",
+    "description": "Connect to WireGuard/Tailscale"
+  },
+  {
+    "name": "dns.check",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Check DNS and Pi-hole status"
+  },
+  {
+    "name": "traffic.analyze",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Analyze network traffic"
+  },
+  {
+    "name": "pihole.stats",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "Pi-hole DNS statistics"
+  },
+  {
+    "name": "pihole.top_blocked",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "Top blocked domains"
+  },
+  {
+    "name": "pihole.top_clients",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "Most active DNS clients"
+  },
+  {
+    "name": "pihole.query_log",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "Recent DNS query log"
+  },
+  {
+    "name": "pihole.disable",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Temporarily disable blocking"
+  },
+  {
+    "name": "pihole.enable",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "Re-enable blocking"
+  },
+  {
+    "name": "pihole.add_block",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Block a domain"
+  },
+  {
+    "name": "pihole.remove_block",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Unblock a domain"
+  },
+  {
+    "name": "pihole.anomaly",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "Check for DNS anomalies"
+  },
+  {
+    "name": "nas.health",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "TrueNAS pool health + SMART"
+  },
+  {
+    "name": "nas.pools",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "List storage pools"
+  },
+  {
+    "name": "nas.datasets",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "List datasets with properties"
+  },
+  {
+    "name": "nas.usage",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Storage usage by dataset"
+  },
+  {
+    "name": "nas.disks",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Disk info, model, serial, temp"
+  },
+  {
+    "name": "nas.smart",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "SMART test results"
+  },
+  {
+    "name": "nas.alerts",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Active TrueNAS alerts"
+  },
+  {
+    "name": "nas.snapshot_create",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Create ZFS snapshot"
+  },
+  {
+    "name": "nas.snapshot_list",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "List ZFS snapshots"
+  },
+  {
+    "name": "nas.snapshot_delete",
+    "agent": "storage-agent",
+    "risk": "high",
+    "description": "Delete ZFS snapshot"
+  },
+  {
+    "name": "nas.share_create",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Create SMB/NFS share"
+  },
+  {
+    "name": "nas.share_list",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "List all shares"
+  },
+  {
+    "name": "nas.replicate",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Trigger replication job"
+  },
+  {
+    "name": "nas.backup_rednode",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Backup RedNode brain to TrueNAS"
+  },
+  {
+    "name": "cam.status",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Camera online/offline status"
+  },
+  {
+    "name": "cam.events",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Recent detection events"
+  },
+  {
+    "name": "cam.snapshot",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Latest frame from camera"
+  },
+  {
+    "name": "cam.clip",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Get event video clip"
+  },
+  {
+    "name": "cam.search",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Search events by object/time"
+  },
+  {
+    "name": "cam.zones",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "List configured detection zones"
+  },
+  {
+    "name": "cam.alert_config",
+    "agent": "surveillance-agent",
+    "risk": "medium",
+    "description": "Configure zone alerts"
+  },
+  {
+    "name": "cam.person_detect",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Recent person detections"
+  },
+  {
+    "name": "cam.anomaly",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Check for unusual activity"
+  },
+  {
+    "name": "cam.retain_event",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Permanently retain an event"
+  },
+  {
+    "name": "cam.review",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "AI-generated review summary"
+  },
+  {
+    "name": "service.restart",
+    "agent": "system-agent",
+    "risk": "high",
+    "description": "Restart a systemd service"
+  },
+  {
+    "name": "fw.block_ip",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "Block an IP address in firewall"
+  },
+  {
+    "name": "fw.unblock_ip",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "Unblock an IP address"
+  },
+  {
+    "name": "fw.isolate_device",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "Isolate a device by blocking all its traffic"
+  },
+  {
+    "name": "notes.create",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Create a Markdown note"
+  },
+  {
+    "name": "notes.search",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Semantic search notes via RAG"
+  },
+  {
+    "name": "notes.list",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "List all notes"
+  },
+  {
+    "name": "notes.read",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Read a note by name"
+  },
+  {
+    "name": "tasks.create",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Create a task with priority"
+  },
+  {
+    "name": "tasks.list",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "List tasks"
+  },
+  {
+    "name": "tasks.complete",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Mark task completed"
+  },
+  {
+    "name": "tasks.delete",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Delete a task"
+  },
+  {
+    "name": "bookmarks.save",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Save a bookmark with tags"
+  },
+  {
+    "name": "bookmarks.search",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Search bookmarks"
+  },
+  {
+    "name": "docs.ocr",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "OCR an image/document via Tesseract"
+  },
+  {
+    "name": "docs.ingest_pdf",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Extract and ingest PDF text"
+  },
+  {
+    "name": "media.search",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Search Jellyfin library"
+  },
+  {
+    "name": "media.library",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "List media libraries"
+  },
+  {
+    "name": "media.playing",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Show currently playing media"
+  },
+  {
+    "name": "media.play",
+    "agent": "media-agent",
+    "risk": "medium",
+    "description": "Play media (requires session)"
+  },
+  {
+    "name": "media.pause",
+    "agent": "media-agent",
+    "risk": "medium",
+    "description": "Pause media playback"
+  },
+  {
+    "name": "media.recent",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Recently added media"
+  },
+  {
+    "name": "media.sessions",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Active playback sessions"
+  },
+  {
+    "name": "home.lights",
+    "agent": "home-agent",
+    "risk": "medium",
+    "description": "Control smart lights"
+  },
+  {
+    "name": "home.switch",
+    "agent": "home-agent",
+    "risk": "medium",
+    "description": "Control smart switches"
+  },
+  {
+    "name": "home.status",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "Home Assistant status overview"
+  },
+  {
+    "name": "home.climate",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "Show thermostat/climate status"
+  },
+  {
+    "name": "home.scenes",
+    "agent": "home-agent",
+    "risk": "medium",
+    "description": "List or activate scenes"
+  },
+  {
+    "name": "home.entities",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "List entities by domain"
+  },
+  {
+    "name": "home.automation",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "List automations"
+  },
+  {
+    "name": "browser.read",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Extract article content from URL (reader mode)"
+  },
+  {
+    "name": "browser.scrape",
+    "agent": "browser-agent",
+    "risk": "medium",
+    "description": "Scrape structured data from webpage"
+  },
+  {
+    "name": "browser.screenshot",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Take screenshot of a webpage"
+  },
+  {
+    "name": "browser.download",
+    "agent": "browser-agent",
+    "risk": "medium",
+    "description": "Download a file from URL to local storage"
+  },
+  {
+    "name": "browser.search",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Search web via SearXNG"
+  },
+  {
+    "name": "browser.links",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Extract all links from a webpage"
+  },
+  {
+    "name": "browser.fill",
+    "agent": "browser-agent",
+    "risk": "high",
+    "description": "Fill a web form (requires approval)"
+  },
+  {
+    "name": "kg.entities",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "List entities in knowledge graph"
+  },
+  {
+    "name": "kg.relationships",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Query relationships in knowledge graph"
+  },
+  {
+    "name": "kg.add",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Add entity to knowledge graph"
+  },
+  {
+    "name": "sec.threat_intel",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Sync threat intelligence feeds (abuse.ch, OTX, ET)"
+  },
+  {
+    "name": "sec.ioc_check",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Check if IP/domain is in threat intel database"
+  },
+  {
+    "name": "social.post",
+    "agent": "social-agent",
+    "risk": "medium",
+    "description": "Post to social media (Twitter/Mastodon/Bluesky/LinkedIn)"
+  },
+  {
+    "name": "social.draft",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "Draft a social media post using LLM"
+  },
+  {
+    "name": "social.schedule",
+    "agent": "social-agent",
+    "risk": "medium",
+    "description": "Schedule a post for later"
+  },
+  {
+    "name": "social.feed",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "View social media feed"
+  },
+  {
+    "name": "social.analytics",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "View social media analytics"
+  },
+  {
+    "name": "social.reply",
+    "agent": "social-agent",
+    "risk": "medium",
+    "description": "Reply to a post"
+  },
+  {
+    "name": "social.dm",
+    "agent": "social-agent",
+    "risk": "medium",
+    "description": "Send a direct message (WhatsApp/etc.)"
+  },
+  {
+    "name": "social.platforms",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "List configured social platforms"
+  },
+  {
+    "name": "social.monitor",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "Monitor mentions and keywords"
+  }
 ]

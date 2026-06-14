@@ -1,8 +1,248 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
-const TOOLS = ["workflow.create","workflow.run","schedule.add","trigger.fire"];
-class AutomationAgent extends RedNodeAgent {
-  constructor(){ super("automation", TOOLS); }
+
+const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
+const TOOLS = ["workflow.create", "workflow.run", "schedule.add", "trigger.fire"];
+
+// ─── In-Memory Workflow Store (persists to CNS memory via RAG ingest) ───
+
+interface Workflow {
+  name: string;
+  description: string;
+  steps: { intent: string }[];
+  created_at: string;
 }
+
+const workflows = new Map<string, Workflow>();
+
+// ─── Built-in Workflows ───
+
+workflows.set("goodnight", {
+  name: "goodnight",
+  description: "Night mode — strict DNS blocking, camera alerts, storage snapshot, memory consolidation",
+  steps: [
+    { intent: "enable strict DNS blocking on Pi-hole for IoT devices" },
+    { intent: "check all cameras are online" },
+    { intent: "create a snapshot of documents dataset on TrueNAS" },
+    { intent: "show security events from today" },
+  ],
+  created_at: new Date().toISOString(),
+});
+
+workflows.set("morning", {
+  name: "morning",
+  description: "Morning brief — weather, system health, overnight events, DNS, storage, emails, tasks",
+  steps: [
+    { intent: "show system health and sentience drives" },
+    { intent: "show camera events from overnight" },
+    { intent: "show any unacknowledged security events" },
+    { intent: "show Pi-hole DNS stats" },
+    { intent: "check TrueNAS pool health and disk SMART status" },
+    { intent: "summarize my recent emails" },
+    { intent: "show my tasks" },
+    { intent: "show notification digest" },
+  ],
+  created_at: new Date().toISOString(),
+});
+
+workflows.set("focus", {
+  name: "focus",
+  description: "Focus mode — block social media DNS, minimize distractions",
+  steps: [
+    { intent: "block social media domains on Pi-hole" },
+  ],
+  created_at: new Date().toISOString(),
+});
+
+workflows.set("leaving", {
+  name: "leaving",
+  description: "Away mode — all cameras active, enable remote access",
+  steps: [
+    { intent: "check all cameras are online and active" },
+    { intent: "show current network status" },
+  ],
+  created_at: new Date().toISOString(),
+});
+
+// ─── Scheduler (simple cron-like) ───
+
+interface ScheduledTask {
+  name: string;
+  workflow: string;
+  cron: string; // simplified: "hourly" | "daily" | "6h" | etc.
+  last_run: string | null;
+  enabled: boolean;
+}
+
+const schedules = new Map<string, ScheduledTask>();
+
+function startScheduler() {
+  // Check every 60 seconds for due tasks
+  setInterval(async () => {
+    const now = new Date();
+    for (const [name, task] of schedules) {
+      if (!task.enabled) continue;
+
+      let isDue = false;
+      const lastRun = task.last_run ? new Date(task.last_run) : new Date(0);
+      const elapsedMs = now.getTime() - lastRun.getTime();
+
+      switch (task.cron) {
+        case "hourly":
+          isDue = elapsedMs >= 3600000;
+          break;
+        case "6h":
+          isDue = elapsedMs >= 21600000;
+          break;
+        case "daily":
+          isDue = elapsedMs >= 86400000;
+          break;
+        case "weekly":
+          isDue = elapsedMs >= 604800000;
+          break;
+        default:
+          // Try parsing as minutes
+          const mins = parseInt(task.cron);
+          if (!isNaN(mins)) isDue = elapsedMs >= mins * 60000;
+      }
+
+      if (isDue) {
+        console.log(`[automation-agent] Scheduled task '${name}' is due — running workflow '${task.workflow}'`);
+        task.last_run = now.toISOString();
+        const wf = workflows.get(task.workflow);
+        if (wf) {
+          await executeWorkflow(wf);
+        }
+      }
+    }
+  }, 60000);
+}
+
+async function executeWorkflow(wf: Workflow): Promise<string[]> {
+  const results: string[] = [];
+  console.log(`[automation-agent] Executing workflow: ${wf.name} (${wf.steps.length} steps)`);
+
+  for (let i = 0; i < wf.steps.length; i++) {
+    const step = wf.steps[i];
+    console.log(`[automation-agent]   Step ${i + 1}/${wf.steps.length}: ${step.intent}`);
+    try {
+      const resp = await fetch(`${CNS}/intent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: step.intent, session_id: `workflow-${wf.name}` }),
+      });
+      const data = await resp.json() as any;
+      const summary = data.ok ? `✅ ${step.intent}` : `❌ ${step.intent}: ${data.error || "failed"}`;
+      results.push(summary);
+    } catch (e: any) {
+      results.push(`❌ ${step.intent}: ${e.message}`);
+    }
+  }
+
+  return results;
+}
+
+// ─── Agent ───
+
+class AutomationAgent extends RedNodeAgent {
+  constructor() {
+    super("automation", TOOLS);
+  }
+
+  async handleTool(tool: string, args: any): Promise<any> {
+    switch (tool) {
+      case "workflow.create": {
+        const name = args.name;
+        const description = args.description || "";
+        const steps = args.steps || [];
+        if (!name) return { ok: false, error: "Missing 'name' argument" };
+        if (!steps.length) return { ok: false, error: "Missing 'steps' array (each with 'intent' string)" };
+
+        const wf: Workflow = {
+          name,
+          description,
+          steps: steps.map((s: any) => ({ intent: typeof s === "string" ? s : s.intent || "" })),
+          created_at: new Date().toISOString(),
+        };
+        workflows.set(name, wf);
+        return {
+          ok: true,
+          output: `Workflow '${name}' created with ${steps.length} steps`,
+          workflow: wf,
+        };
+      }
+
+      case "workflow.run": {
+        const name = args.name || args.workflow || "";
+        if (!name) {
+          // List available workflows
+          const list = [...workflows.entries()].map(([n, w]) =>
+            `  ${n}: ${w.description} (${w.steps.length} steps)`
+          );
+          return {
+            ok: true,
+            output: `Available workflows:\n${list.join("\n")}\n\nUsage: workflow.run {name: "workflow_name"}`,
+          };
+        }
+
+        const wf = workflows.get(name);
+        if (!wf) {
+          return { ok: false, error: `Workflow '${name}' not found. Available: ${[...workflows.keys()].join(", ")}` };
+        }
+
+        const results = await executeWorkflow(wf);
+        return {
+          ok: true,
+          output: `Workflow '${name}' completed:\n${results.join("\n")}`,
+          results,
+        };
+      }
+
+      case "schedule.add": {
+        const name = args.name;
+        const workflow = args.workflow;
+        const cron = args.cron || args.interval || "daily";
+        if (!name || !workflow) return { ok: false, error: "Missing 'name' and/or 'workflow' arguments" };
+
+        if (!workflows.has(workflow)) {
+          return { ok: false, error: `Workflow '${workflow}' not found` };
+        }
+
+        schedules.set(name, {
+          name,
+          workflow,
+          cron,
+          last_run: null,
+          enabled: true,
+        });
+
+        return {
+          ok: true,
+          output: `Scheduled '${name}': workflow '${workflow}' runs every ${cron}`,
+        };
+      }
+
+      case "trigger.fire": {
+        const workflow = args.workflow || args.name || "";
+        if (!workflow) return { ok: false, error: "Missing 'workflow' argument" };
+
+        const wf = workflows.get(workflow);
+        if (!wf) return { ok: false, error: `Workflow '${workflow}' not found` };
+
+        const results = await executeWorkflow(wf);
+        return {
+          ok: true,
+          output: `Trigger fired — workflow '${workflow}' executed:\n${results.join("\n")}`,
+          results,
+        };
+      }
+
+      default:
+        return null;
+    }
+  }
+}
+
 const agent = new AutomationAgent();
 await agent.connect();
+startScheduler();
 await agent.serve();

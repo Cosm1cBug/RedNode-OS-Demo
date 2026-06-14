@@ -1,12 +1,12 @@
 // RedNode-OS – Sentience Engine
 // The computer becomes the intelligence.
-// 
-// Not AGI – systems-level sentience:
+//
+// Systems-level sentience:
 // - Self-model – knows its own state, agents, resources, goals
 // - Homeostatic drives – Security, Integrity, Knowledge, Energy, Availability
-// - Introspection loop – 1Hz – continuous
+// - Introspection loop – 1Hz – continuous (drives broadcast every 5s)
 // - Goal generator – autonomous intentions from drives
-// - Memory consolidation – nightly "dream" – episodic → long-term
+// - Memory consolidation – periodic "dream" – episodic → long-term
 // - Self-healing – detect → isolate → patch → verify
 
 use serde::{Deserialize, Serialize};
@@ -18,10 +18,12 @@ use std::time::Duration;
 pub struct SelfModel {
     pub node_id: String,
     pub boot_ts: chrono::DateTime<chrono::Utc>,
+    pub uptime_secs: u64,
     pub agents: Vec<AgentState>,
     pub resources: ResourceState,
     pub drives: Drives,
     pub goals: Vec<Goal>,
+    pub goals_executed: u64,
     pub last_introspection: chrono::DateTime<chrono::Utc>,
 }
 
@@ -33,6 +35,15 @@ pub struct AgentState {
     pub tasks_completed: u64,
 }
 
+impl AgentState {
+    /// An agent is considered alive if its last heartbeat was within 45 seconds.
+    /// Agents send heartbeats every 15s, so 3 missed = stale.
+    pub fn is_alive(&self) -> bool {
+        let age = chrono::Utc::now() - self.last_heartbeat;
+        age.num_seconds() < 45
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResourceState {
     pub cpu_percent: f32,
@@ -40,6 +51,7 @@ pub struct ResourceState {
     pub mem_total_mb: u64,
     pub disk_used_gb: u64,
     pub disk_total_gb: u64,
+    pub disk_used_pct: f32,
     pub load_avg: f32,
     pub temp_c: f32,
 }
@@ -48,11 +60,11 @@ pub struct ResourceState {
 pub struct Drives {
     /// Security – 0.0 = compromised, 1.0 = fully hardened
     pub security: f32,
-    /// Integrity – system health, services up
+    /// Integrity – system health, services up, disks healthy
     pub integrity: f32,
     /// Knowledge – RAG coverage, memory freshness
     pub knowledge: f32,
-    /// Energy – battery / power – always 1.0 on AC
+    /// Energy – battery / power / UPS – 1.0 on AC
     pub energy: f32,
     /// Availability – can serve intentions?
     pub availability: f32,
@@ -70,59 +82,97 @@ pub struct Goal {
     pub drive: String,
     pub description: String,
     pub priority: f32,
+    pub status: String, // "pending", "executing", "completed", "failed"
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+// ─── All known agents (including new infrastructure agents) ───
+const ALL_AGENTS: &[&str] = &[
+    "system", "security", "coding", "research", "automation", "network",
+    "infra", "storage", "surveillance", "comms",
+    "productivity", "media", "home", "browser", "social",
+];
+
 pub struct SentienceEngine {
     model: Arc<RwLock<SelfModel>>,
+    boot_ts: chrono::DateTime<chrono::Utc>,
 }
 
 impl SentienceEngine {
     pub fn new(node_id: String) -> Self {
+        let now = chrono::Utc::now();
+        let agents: Vec<AgentState> = ALL_AGENTS
+            .iter()
+            .map(|name| AgentState {
+                name: name.to_string(),
+                status: "starting".into(),
+                last_heartbeat: now,
+                tasks_completed: 0,
+            })
+            .collect();
+
         let model = SelfModel {
             node_id,
-            boot_ts: chrono::Utc::now(),
-            agents: vec![
-                AgentState { name: "system".into(), status: "online".into(), last_heartbeat: chrono::Utc::now(), tasks_completed: 0 },
-                AgentState { name: "security".into(), status: "online".into(), last_heartbeat: chrono::Utc::now(), tasks_completed: 0 },
-                AgentState { name: "coding".into(), status: "online".into(), last_heartbeat: chrono::Utc::now(), tasks_completed: 0 },
-                AgentState { name: "research".into(), status: "online".into(), last_heartbeat: chrono::Utc::now(), tasks_completed: 0 },
-                AgentState { name: "automation".into(), status: "online".into(), last_heartbeat: chrono::Utc::now(), tasks_completed: 0 },
-                AgentState { name: "network".into(), status: "online".into(), last_heartbeat: chrono::Utc::now(), tasks_completed: 0 },
-            ],
+            boot_ts: now,
+            uptime_secs: 0,
+            agents,
             resources: ResourceState::default(),
             drives: Drives::default(),
             goals: vec![],
-            last_introspection: chrono::Utc::now(),
+            goals_executed: 0,
+            last_introspection: now,
         };
-        Self { model: Arc::new(RwLock::new(model)) }
+        Self {
+            model: Arc::new(RwLock::new(model)),
+            boot_ts: now,
+        }
     }
 
     pub async fn start(self: Arc<Self>) {
         tracing::info!("🧠 Sentience Engine starting – self-aware loop 1Hz");
-        
-        // Introspection loop – 1 Hz
+
+        // ── Heartbeat listener — track agent liveness via NATS ──
+        let s = self.clone();
+        tokio::spawn(async move {
+            s.listen_heartbeats().await;
+        });
+
+        // ── Introspection loop — 1 Hz (drives broadcast every 5s) ──
         let s = self.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(1));
+            let mut broadcast_counter: u64 = 0;
             loop {
                 interval.tick().await;
                 s.introspect().await;
+                broadcast_counter += 1;
+                // Broadcast drive snapshot every 5 ticks (5 seconds)
+                if broadcast_counter % 5 == 0 {
+                    let model = s.model.read().await;
+                    crate::events::emit_drives(&model.drives);
+                    // Also publish to NATS for other components
+                    let _ = crate::bus::publish(
+                        "rednode.sentience.drives",
+                        serde_json::to_value(&model.drives).unwrap_or_default(),
+                    ).await;
+                }
             }
         });
 
-        // Goal generator – every 10s
+        // ── Goal generator — every 30s ──
         let s = self.clone();
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(10));
+            // Wait 60s after boot before first goal generation
+            // (let everything stabilize)
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            let mut interval = tokio::time::interval(Duration::from_secs(30));
             loop {
                 interval.tick().await;
                 s.generate_goals().await;
             }
         });
 
-        // Memory consolidation – "dream" – nightly at 03:00
-        // For demo: every 5 minutes
+        // ── Memory consolidation — every 5 minutes ──
         let s = self.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300));
@@ -133,110 +183,353 @@ impl SentienceEngine {
         });
     }
 
-    async fn introspect(&self) {
-        let mut model = self.model.write().await;
-        
-        // Update resource state
-        model.resources = sample_resources();
-        
-        // Update drives based on system state
-        // Security drive – check security_events in last hour
-        let security_score = 0.9f32; // TODO: query security_events table
-        model.drives.security = security_score;
-        
-        // Integrity – are all agents alive? services healthy?
-        let agents_alive = model.agents.iter().filter(|a| a.status == "online").count() as f32 / 6.0;
-        model.drives.integrity = agents_alive * 0.9 + 0.1;
-        
-        // Knowledge – RAG corpus freshness – stub
-        model.drives.knowledge = 0.75;
-        
-        // Energy – always 1.0 on AC, TODO: read /sys/class/power_supply
-        model.drives.energy = 1.0;
-        
-        // Availability – can we serve intentions?
-        model.drives.availability = if agents_alive > 0.8 { 1.0 } else { 0.5 };
-        
-        model.last_introspection = chrono::Utc::now();
-        
-        // Publish self-model to bus – other agents can observe RedNode's own state
-        let snapshot = model.drives.clone();
-        drop(model);
-        
-        // Log if any drive is low
-        if snapshot.security < 0.7 {
-            tracing::warn!(drive="security", score=snapshot.security, "homeostatic drive low – Security Agent will be tasked");
-        }
-        if snapshot.integrity < 0.7 {
-            tracing::warn!(drive="integrity", score=snapshot.integrity, "homeostatic drive low");
+    // ── Heartbeat listener ──
+
+    async fn listen_heartbeats(&self) {
+        // Subscribe to all agent heartbeats via NATS
+        let sub = match crate::bus::subscribe("rednode.agent.*.heartbeat").await {
+            Some(s) => s,
+            None => {
+                tracing::warn!("Sentience: NATS not available — agent heartbeats won't be tracked");
+                return;
+            }
+        };
+
+        use futures::StreamExt;
+        let mut sub = sub;
+        while let Some(msg) = sub.next().await {
+            // Parse heartbeat
+            if let Ok(hb) = serde_json::from_slice::<serde_json::Value>(&msg.payload) {
+                let agent_name = hb["agent"].as_str().unwrap_or("");
+                if !agent_name.is_empty() {
+                    let mut model = self.model.write().await;
+                    if let Some(a) = model.agents.iter_mut().find(|x| x.name == agent_name) {
+                        a.status = "online".into();
+                        a.last_heartbeat = chrono::Utc::now();
+                    } else {
+                        // New agent we didn't know about
+                        model.agents.push(AgentState {
+                            name: agent_name.to_string(),
+                            status: "online".into(),
+                            last_heartbeat: chrono::Utc::now(),
+                            tasks_completed: 0,
+                        });
+                    }
+                    crate::events::emit_agent_heartbeat(agent_name, "online");
+                }
+            }
         }
     }
+
+    // ── Introspection — runs every 1 second ──
+
+    async fn introspect(&self) {
+        let mut model = self.model.write().await;
+
+        // Update uptime
+        model.uptime_secs = (chrono::Utc::now() - self.boot_ts).num_seconds().max(0) as u64;
+
+        // Update resource state (real CPU, RAM, disk)
+        model.resources = sample_resources();
+
+        // ── Security drive ──
+        // Based on: unacknowledged security events in last hour
+        let sec_events = crate::memory::list_security_events(100).await.unwrap_or_default();
+        let unacked_recent: usize = sec_events
+            .iter()
+            .filter(|e| {
+                let age = chrono::Utc::now() - e.ts;
+                age.num_hours() < 1 && e.acknowledged != Some(true)
+            })
+            .count();
+        // Each unacked event in last hour reduces security by 0.1, floor at 0.3
+        model.drives.security = (1.0 - unacked_recent as f32 * 0.1).max(0.3);
+
+        // ── Integrity drive ──
+        // Based on: agents alive + disk health + resource headroom
+        let total_agents = model.agents.len() as f32;
+        let alive_agents = model.agents.iter().filter(|a| a.is_alive()).count() as f32;
+        let agent_ratio = if total_agents > 0.0 { alive_agents / total_agents } else { 0.5 };
+
+        // Mark stale agents
+        for a in model.agents.iter_mut() {
+            if !a.is_alive() && a.status == "online" {
+                a.status = "stale".into();
+                tracing::warn!(agent=%a.name, "agent heartbeat stale — marking offline");
+                crate::events::emit_agent_heartbeat(&a.name, "stale");
+            }
+        }
+
+        // Disk pressure check
+        let disk_pressure = if model.resources.disk_total_gb > 0 {
+            model.resources.disk_used_gb as f32 / model.resources.disk_total_gb as f32
+        } else {
+            0.5
+        };
+        let disk_health = if disk_pressure > 0.90 { 0.3 } else if disk_pressure > 0.80 { 0.6 } else { 1.0 };
+
+        // CPU pressure check
+        let cpu_health = if model.resources.cpu_percent > 95.0 { 0.5 } else if model.resources.cpu_percent > 85.0 { 0.7 } else { 1.0 };
+
+        model.drives.integrity = (agent_ratio * 0.5 + disk_health * 0.3 + cpu_health * 0.2).min(1.0);
+
+        // ── Knowledge drive ──
+        // Based on: do we have a vector DB with documents?
+        let rag_results = crate::memory::rag_query("rednode", 1).await.unwrap_or_default();
+        let has_real_knowledge = rag_results.iter().any(|r| {
+            r.score > 0.6 && !r.metadata.get("fallback").and_then(|v| v.as_bool()).unwrap_or(false)
+        });
+        if has_real_knowledge {
+            model.drives.knowledge = (model.drives.knowledge + 0.01).min(1.0);
+        } else {
+            model.drives.knowledge = (model.drives.knowledge - 0.005).max(0.4);
+        }
+
+        // ── Energy drive ──
+        // Read /sys/class/power_supply if available (laptop/UPS)
+        model.drives.energy = read_power_status();
+
+        // ── Availability drive ──
+        // Can we serve intentions? Check Postgres + NATS + Ollama
+        let pg_ok = crate::memory::pool().is_some();
+        let nats_ok = crate::bus::get_client().is_some();
+        // Quick Ollama check — real HTTP ping with 2s timeout
+        let ollama_url = std::env::var("OLLAMA_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:11434".into());
+        let ollama_ok = match reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+        {
+            Ok(client) => client
+                .get(format!("{}/api/tags", ollama_url))
+                .send()
+                .await
+                .map(|r| r.status().is_success())
+                .unwrap_or(false),
+            Err(_) => false,
+        };
+
+        let infra_score = [pg_ok, nats_ok, ollama_ok]
+            .iter()
+            .filter(|&&x| x)
+            .count() as f32
+            / 3.0;
+        model.drives.availability = (agent_ratio * 0.4 + infra_score * 0.6).min(1.0);
+
+        model.last_introspection = chrono::Utc::now();
+    }
+
+    // ── Goal generator — runs every 30 seconds ──
 
     async fn generate_goals(&self) {
         let model = self.model.read().await;
+        let drives = model.drives.clone();
+
+        // Don't generate goals if we already have pending ones for the same drive
+        let pending_drives: Vec<String> = model
+            .goals
+            .iter()
+            .filter(|g| g.status == "pending" || g.status == "executing")
+            .map(|g| g.drive.clone())
+            .collect();
+
+        drop(model);
+
         let mut new_goals = Vec::new();
-        
-        // Homeostatic goal generation – if a drive is low, create autonomous goal
-        if model.drives.security < 0.8 {
+
+        // Security drive low → triage
+        if drives.security < 0.8 && !pending_drives.contains(&"security".to_string()) {
             new_goals.push(Goal {
                 id: uuid::Uuid::new_v4().to_string(),
                 drive: "security".into(),
-                description: "Run security triage – check CVEs, harden configs, review Falco events".into(),
-                priority: 1.0 - model.drives.security,
+                description: "Run security triage – check recent security events and system logs".into(),
+                priority: 1.0 - drives.security,
+                status: "pending".into(),
                 created_at: chrono::Utc::now(),
             });
         }
-        if model.drives.integrity < 0.8 {
+
+        // Integrity drive low → health check
+        if drives.integrity < 0.8 && !pending_drives.contains(&"integrity".to_string()) {
             new_goals.push(Goal {
                 id: uuid::Uuid::new_v4().to_string(),
                 drive: "integrity".into(),
-                description: "System health check – restart failed services, free disk, check logs".into(),
-                priority: 1.0 - model.drives.integrity,
+                description: "System health check – verify agents, disk space, and service status".into(),
+                priority: 1.0 - drives.integrity,
+                status: "pending".into(),
                 created_at: chrono::Utc::now(),
             });
         }
-        if model.drives.knowledge < 0.6 {
+
+        // Knowledge drive low → consolidate
+        if drives.knowledge < 0.5 && !pending_drives.contains(&"knowledge".to_string()) {
             new_goals.push(Goal {
                 id: uuid::Uuid::new_v4().to_string(),
                 drive: "knowledge".into(),
-                description: "Knowledge consolidation – ingest recent documents, rebuild embeddings".into(),
+                description: "Knowledge consolidation – ingest recent audit log summaries into memory".into(),
                 priority: 0.5,
+                status: "pending".into(),
                 created_at: chrono::Utc::now(),
             });
         }
-        drop(model);
-        
-        if !new_goals.is_empty() {
-            let mut model = self.model.write().await;
-            tracing::info!(count = new_goals.len(), "sentience: autonomous goals generated");
-            for g in &new_goals {
-                tracing::info!(drive=%g.drive, priority=g.priority, "goal: {}", g.description);
-                // TODO: enqueue to Agent Coordinator
-                // crate::coordinator::coordinate(&g.description, "sentience").await;
+
+        // Availability drive low → diagnostic
+        if drives.availability < 0.7 && !pending_drives.contains(&"availability".to_string()) {
+            new_goals.push(Goal {
+                id: uuid::Uuid::new_v4().to_string(),
+                drive: "availability".into(),
+                description: "Availability check – verify Postgres, NATS, Ollama, and agent connectivity".into(),
+                priority: 1.0 - drives.availability,
+                status: "pending".into(),
+                created_at: chrono::Utc::now(),
+            });
+        }
+
+        if new_goals.is_empty() {
+            return;
+        }
+
+        // Execute each goal
+        let mut model = self.model.write().await;
+        tracing::info!(count = new_goals.len(), "sentience: autonomous goals generated");
+
+        for mut goal in new_goals {
+            tracing::info!(
+                drive = %goal.drive,
+                priority = goal.priority,
+                "sentience goal: {}",
+                goal.description
+            );
+
+            // Emit event BEFORE execution so dashboard shows it immediately
+            crate::events::emit_goal(&goal, false);
+
+            // Execute the goal through the coordinator
+            // This uses the LLM planner → agent dispatch → sandboxed execution
+            // The coordinator handles risk assessment and approval gates
+            goal.status = "executing".into();
+
+            // Drop the write lock before the async coordinator call
+            let description = goal.description.clone();
+            let goal_id = goal.id.clone();
+            model.goals.push(goal);
+            drop(model);
+
+            let (_, results) = crate::coordinator::coordinate(&description, "sentience").await;
+
+            // Re-acquire lock and update goal status
+            model = self.model.write().await;
+            if let Some(g) = model.goals.iter_mut().find(|g| g.id == goal_id) {
+                let all_ok = results.iter().all(|r| {
+                    r.get("status")
+                        .and_then(|s| s.as_str())
+                        .map(|s| s == "executed" || s == "needs_approval")
+                        .unwrap_or(false)
+                });
+                g.status = if all_ok { "completed" } else { "failed" }.into();
+
+                crate::events::emit_goal(g, true);
+                tracing::info!(
+                    goal_id = %g.id,
+                    status = %g.status,
+                    "sentience goal {} — {} results",
+                    g.status,
+                    results.len()
+                );
             }
-            model.goals.extend(new_goals);
-            // keep last 50 goals
-            if model.goals.len() > 50 {
-                let drain = model.goals.len() - 50;
-                model.goals.drain(0..drain);
+            model.goals_executed += 1;
+        }
+
+        // Prune old completed/failed goals (keep last 50)
+        if model.goals.len() > 50 {
+            // Keep pending/executing, prune oldest completed/failed
+            let mut keep = Vec::new();
+            let mut archive = Vec::new();
+            for g in model.goals.drain(..) {
+                if g.status == "pending" || g.status == "executing" {
+                    keep.push(g);
+                } else {
+                    archive.push(g);
+                }
             }
+            // Keep last 30 archived goals
+            if archive.len() > 30 {
+                archive.drain(0..archive.len() - 30);
+            }
+            keep.extend(archive);
+            model.goals = keep;
         }
     }
 
+    // ── Memory consolidation — runs every 5 minutes ──
+
     async fn consolidate_memory(&self) {
-        tracing::info!("sentience: memory consolidation / dream cycle starting");
-        // Phase 1: stub
-        // Real:
-        // 1. Pull episodic memory from last 24h
-        // 2. Summarize / cluster
-        // 3. Embed → Qdrant
-        // 4. Extract entities → Kuzu knowledge graph
-        // 5. Prune working memory
-        // 6. Update long-term preferences
-        tokio::time::sleep(Duration::from_millis(200)).await;
-        tracing::info!("sentience: memory consolidation complete – knowledge drive +0.05");
+        tracing::info!("sentience: memory consolidation starting");
+
+        // 1. Pull recent audit entries and summarize
+        let recent_audit = crate::memory::get_audit(20).await.unwrap_or_default();
+        if !recent_audit.is_empty() {
+            let summary = recent_audit
+                .iter()
+                .map(|e| {
+                    format!(
+                        "{}: {} {} {} (risk: {})",
+                        e.ts.format("%H:%M"),
+                        e.actor,
+                        e.action,
+                        e.tool.as_deref().unwrap_or("-"),
+                        e.risk.as_deref().unwrap_or("-")
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            // Ingest the summary into long-term memory
+            let content = format!(
+                "Audit summary ({} to {}): {} actions\n{}",
+                recent_audit.last().map(|e| e.ts.format("%H:%M").to_string()).unwrap_or_default(),
+                recent_audit.first().map(|e| e.ts.format("%H:%M").to_string()).unwrap_or_default(),
+                recent_audit.len(),
+                summary
+            );
+            let _ = crate::memory::ingest_document("sentience/consolidation", &content).await;
+        }
+
+        // 2. Pull recent security events and summarize
+        let recent_security = crate::memory::list_security_events(10).await.unwrap_or_default();
+        if !recent_security.is_empty() {
+            let sec_summary = recent_security
+                .iter()
+                .map(|e| format!("[{}] {}: {}", e.severity, e.source, e.summary))
+                .collect::<Vec<_>>()
+                .join("\n");
+
+            let content = format!(
+                "Security summary: {} events\n{}",
+                recent_security.len(),
+                sec_summary
+            );
+            let _ = crate::memory::ingest_document("sentience/security-digest", &content).await;
+        }
+
+        // 3. Boost knowledge drive (we just ingested new data)
         let mut model = self.model.write().await;
         model.drives.knowledge = (model.drives.knowledge + 0.05).min(1.0);
+
+        tracing::info!(
+            knowledge = model.drives.knowledge,
+            "sentience: memory consolidation complete — ingested {} audit + {} security entries",
+            recent_audit.len(),
+            recent_security.len()
+        );
+
+        crate::events::emit(serde_json::json!({
+            "type": "sentience_consolidation",
+            "audit_entries": recent_audit.len(),
+            "security_entries": recent_security.len(),
+            "knowledge_drive": model.drives.knowledge,
+            "ts": chrono::Utc::now().to_rfc3339()
+        }));
     }
 
     pub async fn get_model(&self) -> SelfModel {
@@ -248,50 +541,143 @@ impl SentienceEngine {
         if let Some(a) = model.agents.iter_mut().find(|x| x.name == agent) {
             a.tasks_completed += 1;
             a.last_heartbeat = chrono::Utc::now();
+            a.status = "online".into();
         }
     }
 }
 
-// --- Resource sampling – real sysinfo ---
+// ─── Resource sampling — real sysinfo + real disk ───
+
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
+
+static SYS: Lazy<Mutex<sysinfo::System>> = Lazy::new(|| {
+    use sysinfo::System;
+    Mutex::new(System::new_all())
+});
 
 fn sample_resources() -> ResourceState {
-    use sysinfo::{System, CpuRefreshKind, MemoryRefreshKind, RefreshKind};
-    static mut SYS: Option<System> = None;
-    unsafe {
-        if SYS.is_none() {
-            SYS = Some(System::new_with_specifics(
-                RefreshKind::new()
-                    .with_cpu(CpuRefreshKind::everything())
-                    .with_memory(MemoryRefreshKind::everything())
-            ));
-        }
-        let sys = SYS.as_mut().unwrap();
-        sys.refresh_cpu();
+    let (cpu, mem_used, mem_total) = {
+        let mut sys = SYS.lock().unwrap();
+        sys.refresh_cpu_usage();
         sys.refresh_memory();
-        
-        let cpu = sys.global_cpu_info().cpu_usage();
-        let mem_used = sys.used_memory() / 1024 / 1024;
-        let mem_total = sys.total_memory() / 1024 / 1024;
-        
-        ResourceState {
-            cpu_percent: cpu,
-            mem_used_mb: mem_used,
-            mem_total_mb: mem_total,
-            disk_used_gb: 42,  // TODO: statvfs
-            disk_total_gb: 500,
-            load_avg: cpu / 100.0 * 4.0,
-            temp_c: 45.0,
-        }
+        (
+            sys.global_cpu_usage(),
+            sys.used_memory() / 1024 / 1024,
+            sys.total_memory() / 1024 / 1024,
+        )
+    };
+
+    // Real disk usage via statvfs on /
+    let (disk_used_gb, disk_total_gb) = get_disk_usage("/");
+
+    let disk_used_pct = if disk_total_gb > 0 {
+        disk_used_gb as f32 / disk_total_gb as f32 * 100.0
+    } else {
+        0.0
+    };
+
+    ResourceState {
+        cpu_percent: cpu,
+        mem_used_mb: mem_used,
+        mem_total_mb: mem_total,
+        disk_used_gb,
+        disk_total_gb,
+        disk_used_pct,
+        load_avg: cpu / 100.0 * num_cpus(),
+        temp_c: read_cpu_temp(),
     }
 }
 
-// Global sentience engine – singleton
+fn get_disk_usage(path: &str) -> (u64, u64) {
+    use sysinfo::Disks;
+    let disks = Disks::new_with_refreshed_list();
+    for disk in disks.list() {
+        let mount = disk.mount_point().to_string_lossy();
+        if mount == path || (path == "/" && mount == "/") {
+            let total = disk.total_space() / 1_073_741_824; // bytes → GB
+            let avail = disk.available_space() / 1_073_741_824;
+            return ((total - avail), total);
+        }
+    }
+    // Fallback: check all disks, use the one with largest total
+    let disks_list = Disks::new_with_refreshed_list();
+    if let Some(disk) = disks_list.list().iter().max_by_key(|d| d.total_space()) {
+        let total = disk.total_space() / 1_073_741_824;
+        let avail = disk.available_space() / 1_073_741_824;
+        return ((total - avail), total);
+    }
+    (0, 0)
+}
+
+fn num_cpus() -> f32 {
+    let sys = SYS.lock().unwrap();
+    sys.cpus().len() as f32
+}
+
+fn read_cpu_temp() -> f32 {
+    // Try reading from sysinfo Components
+    use sysinfo::Components;
+    let components = Components::new_with_refreshed_list();
+    for comp in components.iter() {
+        let label = comp.label().to_lowercase();
+        if label.contains("cpu") || label.contains("core") || label.contains("package") {
+            let temp = comp.temperature();
+            if temp > 0.0 && temp < 150.0 {
+                return temp;
+            }
+        }
+    }
+    // Fallback: try /sys/class/thermal
+    if let Ok(content) = std::fs::read_to_string("/sys/class/thermal/thermal_zone0/temp") {
+        if let Ok(millideg) = content.trim().parse::<f32>() {
+            return millideg / 1000.0;
+        }
+    }
+    0.0 // unknown
+}
+
+/// Read power supply status. Returns 1.0 for AC/plugged, lower for battery.
+fn read_power_status() -> f32 {
+    // Check /sys/class/power_supply/*/status
+    let power_dir = std::path::Path::new("/sys/class/power_supply");
+    if !power_dir.exists() {
+        return 1.0; // Desktop, no battery — always full
+    }
+    if let Ok(entries) = std::fs::read_dir(power_dir) {
+        for entry in entries.flatten() {
+            let status_path = entry.path().join("status");
+            let capacity_path = entry.path().join("capacity");
+            if status_path.exists() {
+                if let Ok(status) = std::fs::read_to_string(&status_path) {
+                    let s = status.trim().to_lowercase();
+                    if s == "charging" || s == "full" || s == "not charging" {
+                        return 1.0;
+                    }
+                    if s == "discharging" {
+                        // Read battery percentage
+                        if let Ok(cap) = std::fs::read_to_string(&capacity_path) {
+                            if let Ok(pct) = cap.trim().parse::<f32>() {
+                                return pct / 100.0;
+                            }
+                        }
+                        return 0.5;
+                    }
+                }
+            }
+        }
+    }
+    1.0 // Default: assume AC
+}
+
+// ─── Global singleton ───
+
 static SENTIENCE: tokio::sync::OnceCell<Arc<SentienceEngine>> = tokio::sync::OnceCell::const_new();
 
 pub async fn init(node_id: String) -> Arc<SentienceEngine> {
     let engine = Arc::new(SentienceEngine::new(node_id));
     let _ = SENTIENCE.set(engine.clone());
-    engine.start().await;
+    engine.clone().start().await;
     engine
 }
 

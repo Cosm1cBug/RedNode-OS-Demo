@@ -2,3 +2,6 @@ packages:
   - 'agents/*'
   - 'interfaces/web'
   - 'interfaces/cli'
+  # New infrastructure agents
+  # agents/infra-agent, agents/storage-agent, agents/surveillance-agent
+  # are auto-included by agents/* glob

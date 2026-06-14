@@ -219,10 +219,9 @@ pub async fn ack_security_event(id: uuid::Uuid) -> Result<bool> {
 // Vector Memory – Qdrant + Ollama Embeddings – RAG
 // ============================================================================
 
-use std::sync::OnceLock;
+// OnceLock already imported at top of file
 use qdrant_client::qdrant::{CreateCollection, VectorParams, Distance, SearchPoints, UpsertPoints, PointStruct};
 use qdrant_client::Qdrant;
-use serde::{Deserialize, Serialize};
 
 static QDRANT: OnceLock<Option<Qdrant>> = OnceLock::new();
 static OLLAMA_URL: &str = "http://127.0.0.1:11434";
@@ -403,14 +402,25 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
             ..Default::default()
         }).await;
     }
+    // Extract entities and build knowledge graph
+    extract_and_store_entities(source, content);
+
     Ok(doc_id.to_string())
 }
 
-// Qdrant Value import helper – already imported above in scope
-
 // ============================================================================
-// Knowledge Graph – Kuzu
+// Knowledge Graph – Kuzu (native) OR Postgres fallback
 // ============================================================================
+//
+// The knowledge graph stores entities and relationships extracted from
+// ingested documents. It enriches RAG queries with structured context.
+//
+// Two backends:
+//   1. Kuzu (compile with --features kuzu) — embedded graph DB, Cypher queries
+//   2. Postgres fallback (default) — JSON entities table, SQL relationship queries
+//
+// Entity types: Person, Project, Technology, Concept, Tool, Service, Device
+// Relationship types: USES, RELATED_TO, PART_OF, DEPENDS_ON, RUNS_ON
 
 #[cfg(feature = "kuzu")]
 mod kg_kuzu {
@@ -422,8 +432,8 @@ mod kg_kuzu {
     pub fn init(path: &str) -> Result<()> {
         let db = kuzu::Database::new(path, kuzu::SystemConfig::default())?;
         let conn = kuzu::Connection::new(&db)?;
-        // Create schema – idempotent
         let schema = [
+            "CREATE NODE TABLE IF NOT EXISTS Entity(name STRING, kind STRING, properties STRING, PRIMARY KEY(name))",
             "CREATE NODE TABLE IF NOT EXISTS Project(name STRING, path STRING, PRIMARY KEY(name))",
             "CREATE NODE TABLE IF NOT EXISTS Technology(name STRING, PRIMARY KEY(name))",
             "CREATE NODE TABLE IF NOT EXISTS Repo(url STRING, PRIMARY KEY(url))",
@@ -432,6 +442,7 @@ mod kg_kuzu {
             "CREATE REL TABLE IF NOT EXISTS USES(FROM Project TO Technology)",
             "CREATE REL TABLE IF NOT EXISTS CONTAINS(FROM Repo TO File)",
             "CREATE REL TABLE IF NOT EXISTS DEFINES(FROM File TO Function)",
+            "CREATE REL TABLE IF NOT EXISTS RELATED_TO(FROM Entity TO Entity, relation STRING)",
         ];
         for s in schema { let _ = conn.query(s); }
         DB.set(Mutex::new(db)).ok();
@@ -440,7 +451,8 @@ mod kg_kuzu {
     }
 
     pub fn query(cypher: &str) -> Result<Vec<serde_json::Value>> {
-        let db_guard = DB.get().ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?.lock().unwrap();
+        let db_guard = DB.get().ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?.lock()
+            .map_err(|e| anyhow::anyhow!("kuzu lock poisoned: {}", e))?;
         let conn = kuzu::Connection::new(&*db_guard)?;
         let mut result = conn.query(cypher)?;
         let mut rows = Vec::new();
@@ -451,39 +463,261 @@ mod kg_kuzu {
         }
         Ok(rows)
     }
+
+    pub fn add_entity(name: &str, kind: &str, properties: &str) -> Result<()> {
+        let db_guard = DB.get().ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?.lock()
+            .map_err(|e| anyhow::anyhow!("kuzu lock poisoned: {}", e))?;
+        let conn = kuzu::Connection::new(&*db_guard)?;
+        let cypher = format!(
+            "MERGE (e:Entity {{name: '{}', kind: '{}', properties: '{}'}})",
+            name.replace('\'', "''"),
+            kind.replace('\'', "''"),
+            properties.replace('\'', "''")
+        );
+        let _ = conn.query(&cypher);
+        Ok(())
+    }
+
+    pub fn add_relationship(from: &str, to: &str, relation: &str) -> Result<()> {
+        let db_guard = DB.get().ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?.lock()
+            .map_err(|e| anyhow::anyhow!("kuzu lock poisoned: {}", e))?;
+        let conn = kuzu::Connection::new(&*db_guard)?;
+        let cypher = format!(
+            "MATCH (a:Entity {{name: '{}'}}), (b:Entity {{name: '{}'}}) \
+             MERGE (a)-[:RELATED_TO {{relation: '{}'}}]->(b)",
+            from.replace('\'', "''"),
+            to.replace('\'', "''"),
+            relation.replace('\'', "''")
+        );
+        let _ = conn.query(&cypher);
+        Ok(())
+    }
 }
 
 #[cfg(feature = "kuzu")]
-pub use kg_kuzu::{init as kg_init, query as kg_query};
+pub use kg_kuzu::{init as kg_init, query as kg_query, add_entity as kg_add_entity, add_relationship as kg_add_rel};
+
+// ─── Postgres-based knowledge graph fallback ───
+// When Kuzu is not compiled, use Postgres JSON tables for entity storage.
+// This gives you a working knowledge graph without the Kuzu dependency.
 
 #[cfg(not(feature = "kuzu"))]
-pub mod kg_stub {
+pub mod kg_postgres {
     use super::*;
+
     pub fn init(_path: &str) -> Result<()> {
-        tracing::info!("Kuzu feature disabled – knowledge graph falling back to Postgres JSON");
+        // Create the knowledge graph tables in Postgres if they don't exist
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                if let Some(pool) = super::pool() {
+                    let _ = sqlx::query(
+                        r#"CREATE TABLE IF NOT EXISTS kg_entities (
+                            name TEXT PRIMARY KEY,
+                            kind TEXT NOT NULL,
+                            properties JSONB DEFAULT '{}',
+                            created_at TIMESTAMPTZ DEFAULT now(),
+                            updated_at TIMESTAMPTZ DEFAULT now()
+                        )"#
+                    ).execute(pool).await;
+
+                    let _ = sqlx::query(
+                        r#"CREATE TABLE IF NOT EXISTS kg_relationships (
+                            id BIGSERIAL PRIMARY KEY,
+                            from_entity TEXT NOT NULL REFERENCES kg_entities(name) ON DELETE CASCADE,
+                            to_entity TEXT NOT NULL REFERENCES kg_entities(name) ON DELETE CASCADE,
+                            relation TEXT NOT NULL,
+                            properties JSONB DEFAULT '{}',
+                            created_at TIMESTAMPTZ DEFAULT now(),
+                            UNIQUE(from_entity, to_entity, relation)
+                        )"#
+                    ).execute(pool).await;
+
+                    let _ = sqlx::query(
+                        "CREATE INDEX IF NOT EXISTS idx_kg_entities_kind ON kg_entities(kind)"
+                    ).execute(pool).await;
+
+                    let _ = sqlx::query(
+                        "CREATE INDEX IF NOT EXISTS idx_kg_rel_from ON kg_relationships(from_entity)"
+                    ).execute(pool).await;
+
+                    tracing::info!("Knowledge graph initialized (Postgres fallback mode)");
+                } else {
+                    tracing::warn!("Knowledge graph: no Postgres — graph features unavailable");
+                }
+            });
+        });
         Ok(())
     }
-    pub fn query(cypher: &str) -> Result<Vec<serde_json::Value>> {
-        // Fallback: return empty – RAG will use Qdrant/Postgres
-        Ok(vec![serde_json::json!({
-            "note": "Kuzu not enabled – build with --features kuzu",
-            "cypher": cypher,
-            "fallback": true
-        })])
+
+    pub fn query(cypher_like: &str) -> Result<Vec<serde_json::Value>> {
+        // Parse simplified Cypher-like queries into SQL
+        // Supports: MATCH (e:Entity) WHERE e.kind = 'X' RETURN e
+        //           MATCH (a)-[r]->(b) WHERE a.name = 'X' RETURN b
+        //           Simple entity and relationship lookups
+
+        let q = cypher_like.trim().to_lowercase();
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let Some(pool) = super::pool() else {
+                    return Ok(vec![serde_json::json!({"error": "no database"})]);
+                };
+
+                // Entity search by kind
+                if q.contains("kind") || q.contains("type") {
+                    let kind = extract_quoted_value(cypher_like, "kind")
+                        .or_else(|| extract_quoted_value(cypher_like, "type"))
+                        .unwrap_or_default();
+
+                    let rows: Vec<(String, String, Option<serde_json::Value>)> = sqlx::query_as(
+                        "SELECT name, kind, properties FROM kg_entities WHERE kind ILIKE $1 ORDER BY name LIMIT 50"
+                    ).bind(format!("%{}%", kind)).fetch_all(pool).await.unwrap_or_default();
+
+                    return Ok(rows.iter().map(|(name, kind, props)| {
+                        serde_json::json!({"name": name, "kind": kind, "properties": props})
+                    }).collect());
+                }
+
+                // Entity search by name
+                if q.contains("name") {
+                    let name = extract_quoted_value(cypher_like, "name").unwrap_or_default();
+                    let rows: Vec<(String, String, Option<serde_json::Value>)> = sqlx::query_as(
+                        "SELECT name, kind, properties FROM kg_entities WHERE name ILIKE $1 ORDER BY name LIMIT 50"
+                    ).bind(format!("%{}%", name)).fetch_all(pool).await.unwrap_or_default();
+
+                    return Ok(rows.iter().map(|(name, kind, props)| {
+                        serde_json::json!({"name": name, "kind": kind, "properties": props})
+                    }).collect());
+                }
+
+                // Relationship query — find connected entities
+                if q.contains("related") || q.contains("relationship") || q.contains("->") {
+                    let entity = extract_quoted_value(cypher_like, "name")
+                        .or_else(|| extract_quoted_value(cypher_like, "from"))
+                        .unwrap_or_default();
+
+                    let rows: Vec<(String, String, String)> = sqlx::query_as(
+                        "SELECT r.from_entity, r.relation, r.to_entity FROM kg_relationships r \
+                         WHERE r.from_entity ILIKE $1 OR r.to_entity ILIKE $1 \
+                         ORDER BY r.created_at DESC LIMIT 50"
+                    ).bind(format!("%{}%", entity)).fetch_all(pool).await.unwrap_or_default();
+
+                    return Ok(rows.iter().map(|(from, rel, to)| {
+                        serde_json::json!({"from": from, "relation": rel, "to": to})
+                    }).collect());
+                }
+
+                // Default: list all entities
+                let rows: Vec<(String, String)> = sqlx::query_as(
+                    "SELECT name, kind FROM kg_entities ORDER BY updated_at DESC LIMIT 50"
+                ).fetch_all(pool).await.unwrap_or_default();
+
+                Ok(rows.iter().map(|(name, kind)| {
+                    serde_json::json!({"name": name, "kind": kind})
+                }).collect())
+            })
+        })
+    }
+
+    pub fn add_entity(name: &str, kind: &str, properties: &str) -> Result<()> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                if let Some(pool) = super::pool() {
+                    let props: serde_json::Value = serde_json::from_str(properties)
+                        .unwrap_or(serde_json::json!({"raw": properties}));
+                    let _ = sqlx::query(
+                        "INSERT INTO kg_entities (name, kind, properties, updated_at) VALUES ($1, $2, $3, now()) \
+                         ON CONFLICT (name) DO UPDATE SET kind = $2, properties = $3, updated_at = now()"
+                    ).bind(name).bind(kind).bind(props).execute(pool).await;
+                }
+                Ok(())
+            })
+        })
+    }
+
+    pub fn add_relationship(from: &str, to: &str, relation: &str) -> Result<()> {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                if let Some(pool) = super::pool() {
+                    // Ensure both entities exist
+                    let _ = sqlx::query(
+                        "INSERT INTO kg_entities (name, kind) VALUES ($1, 'unknown') ON CONFLICT DO NOTHING"
+                    ).bind(from).execute(pool).await;
+                    let _ = sqlx::query(
+                        "INSERT INTO kg_entities (name, kind) VALUES ($1, 'unknown') ON CONFLICT DO NOTHING"
+                    ).bind(to).execute(pool).await;
+                    // Add relationship
+                    let _ = sqlx::query(
+                        "INSERT INTO kg_relationships (from_entity, to_entity, relation) VALUES ($1, $2, $3) \
+                         ON CONFLICT (from_entity, to_entity, relation) DO NOTHING"
+                    ).bind(from).bind(to).bind(relation).execute(pool).await;
+                }
+                Ok(())
+            })
+        })
+    }
+
+    fn extract_quoted_value(text: &str, key: &str) -> Option<String> {
+        // Extract value after key = 'value' or key = "value"
+        let patterns = [
+            format!("{} = '", key),
+            format!("{} = \"", key),
+            format!("{}='", key),
+            format!("{}=\"", key),
+        ];
+        for pat in &patterns {
+            if let Some(start) = text.to_lowercase().find(&pat.to_lowercase()) {
+                let after = &text[start + pat.len()..];
+                let end_char = if pat.ends_with('\'') { '\'' } else { '"' };
+                if let Some(end) = after.find(end_char) {
+                    return Some(after[..end].to_string());
+                }
+            }
+        }
+        None
     }
 }
+
 #[cfg(not(feature = "kuzu"))]
-pub use kg_stub::{init as kg_init, query as kg_query};
+pub use kg_postgres::{init as kg_init, query as kg_query, add_entity as kg_add_entity, add_relationship as kg_add_rel};
+
+/// Extract entities from text and add to knowledge graph.
+/// Called during document ingestion to build the graph automatically.
+pub fn extract_and_store_entities(source: &str, content: &str) {
+    // Simple entity extraction — keywords → entities
+    // For production: use NER model via Ollama
+    let words: Vec<&str> = content.split_whitespace().collect();
+
+    // Extract technology names (common patterns)
+    let tech_keywords = [
+        "rust", "typescript", "python", "docker", "kubernetes", "nixos", "linux",
+        "postgresql", "postgres", "qdrant", "redis", "nats", "ollama", "whisper",
+        "piper", "grafana", "prometheus", "loki", "frigate", "pihole", "truenas",
+        "wireguard", "tailscale", "nginx", "react", "nextjs", "flutter", "tauri",
+        "git", "github", "ansible", "terraform", "mqtt", "signal",
+    ];
+
+    for keyword in &tech_keywords {
+        if content.to_lowercase().contains(keyword) {
+            let _ = kg_add_entity(keyword, "technology", "{}");
+            // Link to source document
+            let _ = kg_add_rel(source, keyword, "mentions");
+        }
+    }
+
+    // Add the source as an entity
+    let _ = kg_add_entity(source, "document", &format!("{{\"length\": {}}}", content.len()));
+}
 
 // Initialize vector + graph stores – call from memory::init()
 pub async fn init_vector_graph() {
     // Qdrant – lazy init on first query
     let _ = qdrant_client().await;
-    // Kuzu
+    // Kuzu / Postgres knowledge graph
     let kg_path = std::env::var("KUZU_PATH").unwrap_or("/var/lib/rednode/kuzu".into());
     let _ = std::fs::create_dir_all(std::path::Path::new(&kg_path).parent().unwrap_or(std::path::Path::new("/tmp")));
     if let Err(e) = kg_init(&kg_path) {
-        tracing::warn!("Kuzu init failed (build with --features kuzu for full graph): {}", e);
+        tracing::warn!("Knowledge graph init failed: {}", e);
     }
 }
 

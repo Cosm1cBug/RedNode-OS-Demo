@@ -48,3 +48,26 @@ CREATE TABLE IF NOT EXISTS documents (
   metadata JSONB,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Knowledge Graph (Postgres fallback when Kuzu not compiled)
+CREATE TABLE IF NOT EXISTS kg_entities (
+  name TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  properties JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS kg_relationships (
+  id BIGSERIAL PRIMARY KEY,
+  from_entity TEXT NOT NULL REFERENCES kg_entities(name) ON DELETE CASCADE,
+  to_entity TEXT NOT NULL REFERENCES kg_entities(name) ON DELETE CASCADE,
+  relation TEXT NOT NULL,
+  properties JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(from_entity, to_entity, relation)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kg_entities_kind ON kg_entities(kind);
+CREATE INDEX IF NOT EXISTS idx_kg_rel_from ON kg_relationships(from_entity);
+CREATE INDEX IF NOT EXISTS idx_kg_rel_to ON kg_relationships(to_entity);

@@ -7,177 +7,330 @@
 
 ---
 
-## Vision
+## What Is RedNode-OS?
 
-RedNode-OS transforms the computer itself into an intelligent autonomous system. Intelligence becomes the operating layer, not an application.
+RedNode-OS transforms your computer into an intelligent, self-aware, self-healing autonomous system. You express intentions in natural language, and a society of 13 specialized AI agents collaboratively plans, validates, executes, and audits the actions — all locally, fully offline-capable, with zero cloud dependency.
 
-Human Intent → Interface → **Central Nervous System** → Agent Society → Execution → Host OS → Hardware
+**Your data never leaves your machine. Zero telemetry. Zero tracking. Open source.**
 
-Commands become intentions. Security is the foundation. Portable computational organism.
+```
+"harden SSH and check camera events"
+    → LLM Planner creates 3-step plan
+    → Security Agent audits SSH config (sandboxed)
+    → Approval required (High risk) → push to your phone
+    → You biometric-approve → patch applied → snapshot rollback ready
+    → Surveillance Agent queries Frigate → 4 person detections today
+    → Everything hash-chain audited
+```
 
-## Tech Stack
+---
 
-| Layer | Technology | Hardening |
+## Architecture
+
+```
+Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution → Host OS → Hardware
+
+┌─────────────────────────────────────────────────────────────┐
+│  INTERFACES: Web (Next.js) • Mobile (Flutter) • CLI (19 cmd)│
+│  Desktop (Tauri) • Voice (Whisper+Piper) • Signal Bot • API │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)   │
+│  LLM Planner • Security Validator • Approval Gate            │
+│  Sandboxed Executor • Event Bus • Auth • Sentience Engine    │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼ NATS JetStream
+┌──────────────────────────────────────────────────────────────┐
+│  13 AGENTS: System • Security • Coding • Research            │
+│  Automation • Network • Infrastructure (Pi-hole) • Storage   │
+│  (TrueNAS) • Surveillance (Frigate) • Communications        │
+│  (Email/Calendar) • Productivity • Media • Home (HA)         │
+└──────────────────────────┬──────────────────────────────────┘
+                           ▼
+┌──────────────────────────────────────────────────────────────┐
+│  MEMORY: PostgreSQL 16 • Qdrant (vectors) • Kuzu (graph)     │
+│  SECURITY: firejail/bubblewrap • seccomp • SHA-256 audit     │
+│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS             │
+│  OBSERVABILITY: OpenTelemetry → Grafana + Loki + Prometheus  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## System Requirements
+
+### RedNode Server (your PC)
+
+| Spec | Minimum | Recommended | Ideal |
+|---|---|---|---|
+| **CPU** | 4-core x86_64 | 6-core (i5 10th gen+ / Ryzen 5) | 8+ cores |
+| **RAM** | 16 GB | 32 GB | 64 GB |
+| **SSD** | 120 GB | 500 GB NVMe | 1 TB NVMe |
+| **GPU** | 8 GB VRAM | 12 GB VRAM (RTX 3060) | 16+ GB VRAM |
+| **Network** | 1 Gbps Ethernet | 2.5 Gbps | — |
+
+### GPU VRAM Budget (all services running simultaneously)
+
+| Configuration | Ollama | Whisper | Frigate | Total | Fits On |
+|---|---|---|---|---|---|
+| **Starter** | Qwen2.5-7B (4.4 GB) | small (1 GB) | 0.8 GB | ~6.5 GB | RTX 3060 8GB |
+| **Recommended** | Qwen2.5-14B (8.7 GB) | small (1 GB) | 0.8 GB | ~10.8 GB | RTX 3060 12GB ⭐ |
+| **Full** | Qwen2.5-14B (8.7 GB) | large-v3 (3 GB) | 0.8 GB | ~12.8 GB | RTX 4060 Ti 16GB |
+
+### pfSense Firewall (separate mini-PC)
+
+| Spec | Minimum | Notes |
 |---|---|---|
-| Core Runtime | **Rust** | Axum, tokio, NATS – CNS = PID1 capable |
-| AI Layer | **Python** | Whisper / Piper – isolated, firewalled |
-| Messaging | **NATS JetStream** | mTLS, JetStream persistence – CNS bus |
-| Structured Memory | **PostgreSQL 16** | audit_log hash-chained, pgvector |
-| Vector Memory | **Qdrant** | 768d cosine – RAG via Ollama nomic-embed-text |
-| Knowledge Graph | **Kuzu** | Embedded, Apache-2.0 – Cypher – `cargo --features kuzu` |
-| Workflow Engine | **Automation Agent + Rust DAG** | Temporalite optional |
-| Search/SIEM | **Grafana Loki + Vector** | eBPF / Falco → Loki – Quickwit optional |
-| Local Models | **Ollama → vLLM** | Qwen2.5-14B – fully offline |
-| Web UI | **Next.js 14 + TS** | Approval Queue / Memory Browser / Security Feed / Audit Log |
-| Mobile | **Flutter 3.22** | FCM push • Biometric approval • WireGuard auto-tunnel • Secure Storage |
-| Desktop | **Tauri 2** | Rust backend – 8 MB |
-| Observability | **OpenTelemetry** | OTEL → Loki / Prometheus → Grafana |
-| Security Telemetry | **eBPF + Falco** | Real-time – CVE auto-patcher with snapshot rollback |
-| Container Runtime | **Docker Compose** | No Kubernetes – personal node |
-| Secrets Management | **sops + age** | No Vault daemon – portable |
+| **CPU** | Any dual-core x86_64 | Intel N100 or a $40 used Dell Wyse |
+| **RAM** | 4 GB (8 GB with Suricata IDS) | — |
+| **Storage** | 16 GB SSD | — |
+| **NICs** | 2× Ethernet (Intel preferred) | — |
 
-See `ARCHITECTURE.md`, `SECURITY.md`, `ROADMAP.md`.
+### Pi-hole DNS (Raspberry Pi)
+
+| Spec | What |
+|---|---|
+| **Hardware** | Raspberry Pi Zero 2W ($25) or Pi 4 |
+| **Storage** | 8 GB+ SD card |
 
 ---
 
-## Hardening
+## Agent Society — 16 Agents, 114 Tools
 
-**1. Rust Tool Executor – firejail / bubblewrap + seccomp – full audit**
-- `core/rednode-core/src/executor.rs` – 380 LOC
-- Sandbox detection: Firejail → Bubblewrap → unshare → fallback
-- Firejail: `--seccomp --net=none --private-tmp --noroot --caps.drop=all --rlimit-cpu=5 --rlimit-as=512MB --rlimit-fsize=10MB --rlimit-nproc=32 --timeout=00:00:05`
-- Bubblewrap: `--unshare-all --die-with-parent --ro-bind /usr /usr --tmpfs /tmp`
-- Command allowlist – no shell metacharacters – `shell.run_safe` only: ls, ps, df, uptime, whoami, docker ps, git status
-- Path traversal protection – `fs.read` restricted
-- stdout cap 1 MB, 5s timeout, kill_on_drop
-- **Postgres audit_log – SHA-256 hash-chained – tamper-evident**
-- NATS RPC: `rednode.tool.exec` – Agent → Rust → Audit → Reply
-- Tool Registry: 23 tools – risk tagged Low/Med/High/Critical
-
-**2. Memory – Real RAG – Qdrant + Ollama + Kuzu**
-- `core/rednode-core/src/memory.rs` – 420 LOC
-- **Qdrant**: `qdrant-client` – collection `rednode_docs`, 768d cosine – auto-create
-- **Ollama embeddings**: `POST /api/embeddings` – `nomic-embed-text` – 10s timeout – graceful fallback
-- **RAG query**: embed → Qdrant search → return {source, content, score, metadata}
-- **Fallback chain**: Qdrant → Postgres ILIKE → static knowledge – UI never empty
-- **Ingest**: `POST /memory/ingest {source, content}` – embed → Postgres + Qdrant upsert
-- **Kuzu**: feature-gated (`--features kuzu`) – embedded graph – Project → Technology → Repo → File → Function – Cypher query API – falls back to Postgres JSON if Kuzu not compiled
-- API: `GET /memory/query?q=`, `POST /memory/ingest`
-
-**3. Android APK – FCM Push + Biometric Approval + WireGuard Auto-Tunnel**
-- `interfaces/mobile/` – Flutter 3.22 – Material 3 – 6 tabs
-- **FCM Push**: `firebase_messaging` + `flutter_local_notifications`
-  - `FirebaseMessagingService` – registers FCM token – listens foreground/background
-  - Approval push → high-priority notification with Approve/Deny actions
-  - Payload E2EE – Firebase sees only a ping
-  - Works offline – polls every 5s fallback – 0 trackers
-  - Setup: `flutterfire configure` – see `FIREBASE_SETUP.md`
-- **Biometric Approval**: `local_auth`
-  - Every High/Critical approval → BiometricPrompt / FaceID
-  - `BiometricAuth.authenticate(reason: 'Approve RedNode tool: $tool')`
-  - Falls back to device PIN – configurable to biometric-only
-  - Approval rejected if biometric fails
-- **WireGuard Auto-Tunnel**: `wireguard_service.dart`
-  - Tries native VpnService + wireguard-go via MethodChannel
-  - Fallback: launch WireGuard / Tailscale app via Intent
-  - Tunnel status UI – green = connected – blocks API calls if not on trusted network
-  - Trusted networks: 100.x (Tailscale), 192.168/10/172.16 (LAN), localhost
-  - RedNode CNS firewall DROP all non-VPN – zero inbound ports
-  - Secrets: WireGuard private key → `flutter_secure_storage` – Android Keystore – hardware-backed AES-256-GCM
-- **Secure Storage**: `flutter_secure_storage` + `shared_preferences`
-  - API token / node URL / WG private key → Keystore/Keychain – never plaintext
-- **6 Pages**: Intent • Approvals (biometric) • Security Feed • Memory Browser • Audit Log • Agents (+ Sentience Drives)
-- **Build**: `flutter build apk --release` – ~24 MB – see `BUILD_APK.md`
-- Permissions: INTERNET, POST_NOTIFICATIONS, USE_BIOMETRIC, CAMERA (QR onboarding), VpnService
-- **Privacy**: No analytics, no crashlytics, no ads – 0 trackers – all traffic via WireGuard
-
-**Security Agent – CVE Auto-Patcher + Falco eBPF – also shipped:**
-- `agents/security-agent/src/cve.ts` – dpkg inventory → CVE DB (offline + NVD sync hook) – 6h interval – auto-patch HIGH/CRITICAL if Smart Security Mode ON
-- `agents/security-agent/src/patcher.ts` – snapshot → patch → verify → rollback – btrfs/zfs hooks – 95% simulated success – full audit
-- `agents/security-agent/src/falco.ts` – tails `/var/log/falco/falco.log` JSON – normalizes → `POST /security/events` – Critical → isolate + snapshot – includes simulator – 1 event/90s if Falco not installed – first event at 12s
-
-**Next.js Dashboard – fleshed out:**
-- `interfaces/web/app/page.tsx` – 7-tab SOC console
-- **ApprovalQueue.tsx** – live approval queue – approve/deny – risk badges
-- **MemoryBrowser.tsx** – RAG search – Qdrant/Kuzu – vector scores
-- **SecurityFeed.tsx** – security_events – CVE + Falco – acknowledge – severity colors
-- **AuditLog.tsx** – hash-chained audit – SHA preview – tamper-evident
-- **AgentStatus.tsx** – 6 agents online
-- **IntentPanel.tsx** – plan viewer with risk colors
-- **EventStream.tsx** – WebSocket live CNS events
-- API client: `lib/api.ts` – typed – auto-refresh
+| Agent | Tools | What It Does |
+|---|---|---|
+| 🔧 **System** | 6 | Processes, Docker, services, filesystem, safe shell |
+| 🛡️ **Security** | 7 | CVE scanning (real dpkg/rpm/nix + NVD sync), auto-patching (btrfs/zfs rollback), Falco eBPF, YARA, threat intel (abuse.ch/OTX/ET → pfSense auto-block) |
+| 💻 **Coding** | 5 | LLM code generation, refactoring, tests, clippy/eslint, git |
+| 🔬 **Research** | 8 | RAG search, SearXNG web search, document OCR, PDF ingestion, knowledge graph |
+| ⚙️ **Automation** | 4 | Workflows (goodnight/morning/focus/leaving), scheduler, triggers |
+| 🌐 **Network** | 8 | Connections, firewall, VPN, DNS, traffic analysis, device isolation |
+| 🏗️ **Infrastructure** | 9 | Pi-hole v6 API — DNS stats, blocking, anomaly detection |
+| 💾 **Storage** | 14 | TrueNAS REST API — pools, SMART, snapshots, shares, replication |
+| 📹 **Surveillance** | 11 | Frigate MQTT bridge — AI detection, anomaly alerts, clips, zones |
+| 📧 **Communications** | 10 | IMAP email, SMTP send, CalDAV calendar, LLM summaries |
+| 📝 **Productivity** | 10 | Markdown notes + RAG, tasks, bookmarks |
+| 🎵 **Media** | 7 | Jellyfin — search, library, playback, sessions |
+| 🏠 **Home** | 7 | Home Assistant — lights, switches, scenes, climate, automations |
+| 🌐 **Browser** | 7 | Web scraping (Playwright + stealth anti-detection), file download, screenshots, search |
+| 📱 **Social** | 9 | Twitter/X, Mastodon, Bluesky, LinkedIn, Instagram, WhatsApp — LLM drafting, scheduling, feed, DMs |
 
 ---
 
-## Quick Start 
+## Sentience Engine
+
+RedNode maintains a **self-model** with 5 homeostatic drives:
+
+- **Security** (0.0–1.0) — computed from unacknowledged security events
+- **Integrity** (0.0–1.0) — agent heartbeats + disk health + CPU pressure
+- **Knowledge** (0.0–1.0) — Qdrant document count + RAG coverage
+- **Energy** (0.0–1.0) — battery/UPS/power supply status
+- **Availability** (0.0–1.0) — Postgres + NATS + Ollama connectivity
+
+When drives drop, RedNode **autonomously generates and executes goals** through the same LLM planner → agent → sandboxed execution pipeline that human intents use.
+
+---
+
+## Security — Foundation, Not Feature
+
+```
+Intent → Policy Engine → Risk Assessment → Approval Gate → Sandbox → Audit Log (SHA-256 chain)
+```
+
+- **114 tools risk-tagged**: Low (auto-execute), Medium (logged), High (requires approval), Critical (denied)
+- **25+ deny patterns**: rm -rf, dd, fork bombs, chmod 777, wget|sh, etc.
+- **Sandboxed execution**: firejail → bubblewrap → unshare → fallback (seccomp BPF, --net=none, --noroot, --caps.drop=all)
+- **Hash-chained audit**: every action → SHA-256 linked to previous → tamper-evident
+- **Bearer token auth**: constant-time comparison, dev-mode bypass
+- **CVE auto-patching**: real dpkg/rpm/nix scanning, btrfs/zfs snapshot → patch → verify → rollback
+- **Falco eBPF**: real log tailing + journalctl fallback (SSH brute force, kernel panics, AppArmor denials)
+
+---
+
+## Quick Start
 
 ```bash
-# 1. Infra
+# 1. Infrastructure
 cd deployment && docker compose up -d
-# nats :4222, postgres :5432, qdrant :6333, ollama :11434, loki :3100, grafana :3000
+# NATS, Postgres, Qdrant, Ollama, Mosquitto, Frigate, SearXNG, Grafana
 
-# 2. Models
+# 2. AI Models
 ollama pull qwen2.5:14b-instruct-q4_K_M
 ollama pull nomic-embed-text
 
-# 3. CNS – Rust Core
-cd ../core/rednode-core && cargo run
-# → http://localhost:8787
+# 3. CNS (Rust Core)
+cd core/rednode-core && cargo run --release
 
-# 4. Agent Society
-cd ../../ && pnpm install && pnpm agents
+# 4. Agents
+pnpm install && pnpm agents
 
-# 5. Web UI
+# 5. Web Dashboard
 pnpm web
-# → http://localhost:3000
+# → http://localhost:3000 (13 tabs)
 
 # 6. CLI
-pnpm --filter @rednode/cli dev -- intent "harden ssh and show docker status"
+pnpm --filter @rednode/cli dev -- status
+pnpm --filter @rednode/cli dev -- intent "check system health"
+pnpm --filter @rednode/cli dev -- goodnight
 
-# 7. Desktop
-cd interfaces/desktop && pnpm tauri dev
+# Or use the startup script:
+./scripts/start-all.sh
 ```
 
-API:
-```bash
-curl -X POST http://localhost:8787/intent \
-  -H "Content-Type: application/json" \
-  -d '{"intent":"analyze system health"}'
-```
-
-## Agent Society
-
-- **System Agent** – OS control, processes, docker, services
-- **Security Agent** – threat intel, CVE monitoring, self-healing, Smart Security Mode
-- **Coding Agent** – codegen, debug, test, git
-- **Research Agent** – RAG, knowledge graph, synthesis
-- **Automation Agent** – workflows, scheduler, triggers
-- **Network Agent** – firewall, VPN, DNS, zero-trust
-
-All communicate via NATS – the Central Nervous System.
-
-## Security – Foundation, not feature
-
-Zero Trust → Policy Engine → Risk Assessment → Approval → Sandbox (firejail/bubblewrap) → Audit Log (hash-chained)
-
-Security Agent is 24/7 SOC: CVE feed, YARA, Falco/eBPF, auto-patch with snapshot rollback.
+---
 
 ## Interfaces
 
-- Voice – OpenWakeWord / Whisper / Piper
-- Web – Next.js
-- Mobile – Flutter
-- Desktop – Tauri
-- CLI – TypeScript
-- API – Rust / Axum
+| Interface | How to Access | Status |
+|---|---|---|
+| 🌐 **Web Dashboard** | `http://localhost:3000` — 13 tabs | ✅ Ready |
+| 📱 **Mobile (Flutter)** | Build APK — see `docs/guides/BUILD-APK.md` | ✅ Ready |
+| 🖥️ **Desktop (Tauri)** | `pnpm tauri dev` — see `docs/guides/BUILD-WINDOWS-APP.md` | ✅ Ready |
+| 💻 **CLI** | `rednode status`, `rednode goodnight`, 19 commands | ✅ Ready |
+| 🎤 **Voice** | Customizable wake word → Whisper → CNS → Piper | ✅ Ready |
+| 📱 **Signal Bot** | E2EE chat with RedNode from Signal | ✅ Ready |
+| 🔌 **REST API** | `POST /intent`, `GET /sentience`, 15 endpoints | ✅ Ready |
+| ⚡ **WebSocket** | `ws://localhost:8787/events` — real-time event stream | ✅ Ready |
 
-Intelligence remains inside RedNode. Interfaces are just windows.
+---
+
+## Home Infrastructure Integration
+
+RedNode orchestrates your entire home network:
+
+```
+pfSense (firewall) ← Network Agent
+Pi-hole (DNS) ← Infrastructure Agent
+TrueNAS (storage) ← Storage Agent
+Cameras/NVR (surveillance) ← Surveillance Agent (via Frigate)
+Home Assistant (smart home) ← Home Agent
+Jellyfin (media) ← Media Agent
+```
+
+All on proper VLANs. Cameras on VLAN 30 with zero internet. RedNode on VLAN 50 (management).
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Core Runtime | **Rust** (Axum, Tokio, NATS) |
+| AI | **Ollama** (Qwen2.5), **Whisper** (STT), **Piper** (TTS) |
+| Memory | **PostgreSQL 16** + **Qdrant** (vectors) + **Kuzu** (graph) |
+| Messaging | **NATS JetStream** |
+| Web | **Next.js 14** |
+| Mobile | **Flutter 3.22** |
+| Desktop | **Tauri 2** |
+| Observability | **OpenTelemetry** → Grafana + Loki + Prometheus |
+| Security | **firejail/bubblewrap** + seccomp + Falco eBPF |
+| Search | **SearXNG** (self-hosted, private) |
+| Container | **Docker Compose** |
+| OS | **NixOS** (bare metal, hardened kernel, LUKS FDE) |
+
+---
+
+## Project Structure
+
+```
+RedNode-OS-Demo/
+├── core/rednode-core/          # Rust CNS (3,485 lines)
+│   └── src/
+│       ├── main.rs             # Entry point
+│       ├── api.rs              # REST API + WebSocket (auth middleware)
+│       ├── auth.rs             # Bearer token authentication
+│       ├── bus.rs              # NATS JetStream client
+│       ├── coordinator.rs      # Agent dispatch + approval gate
+│       ├── events.rs           # tokio::broadcast event bus
+│       ├── executor.rs         # Sandboxed tool execution
+│       ├── intent_router.rs    # RAG context enrichment → coordinator
+│       ├── memory.rs           # Postgres + Qdrant + Kuzu
+│       ├── planner.rs          # LLM-powered planning (Ollama)
+│       ├── security.rs         # Risk assessment + deny patterns
+│       └── sentience.rs        # Self-model, drives, goals, consolidation
+├── agents/                     # 16 agents (15 TypeScript + signal-bot)
+│   ├── shared/                 # Base RedNodeAgent class
+│   ├── system-agent/           # OS, Docker, processes
+│   ├── security-agent/         # CVE, Falco, auto-patcher
+│   ├── coding-agent/           # LLM codegen, tests
+│   ├── research-agent/         # RAG, SearXNG, OCR, PDF
+│   ├── automation-agent/       # Workflows, scheduler
+│   ├── network-agent/          # Connections, DNS, firewall
+│   ├── infra-agent/            # Pi-hole v6 API
+│   ├── storage-agent/          # TrueNAS REST API
+│   ├── surveillance-agent/     # Frigate MQTT + REST
+│   ├── comms-agent/            # IMAP, SMTP, CalDAV
+│   ├── productivity-agent/     # Notes, tasks, bookmarks
+│   ├── media-agent/            # Jellyfin API
+│   ├── home-agent/             # Home Assistant API
+│   ├── browser-agent/          # Playwright + cheerio (stealth anti-detection)
+│   ├── social-agent/           # Twitter/X, Mastodon, Bluesky, LinkedIn, Instagram, WhatsApp
+│   └── signal-bot/             # Signal messenger bridge (E2EE)
+├── interfaces/
+│   ├── web/                    # Next.js 14 dashboard (13 tabs)
+│   ├── mobile/                 # Flutter app (Android/iOS)
+│   ├── desktop/                # Tauri 2 (Windows/Mac/Linux)
+│   ├── cli/                    # 19-command CLI
+│   └── voice/                  # Whisper STT + Piper TTS + wake word
+├── deployment/
+│   ├── docker-compose.yml      # 11 services
+│   ├── frigate.yml             # Camera config template
+│   └── mosquitto.conf          # MQTT broker config
+├── os/nixos/                   # NixOS bare-metal configuration
+│   ├── configuration.nix       # Full system config (VLANs, NVIDIA, services)
+│   ├── flake.nix               # Nix flake (ISO build, dev shell)
+│   └── configuration-os.nix    # PID1 mode (experimental)
+├── memory/                     # Database schemas
+├── security/                   # Falco rules, seccomp, policies
+├── observability/              # Grafana, Loki, OTEL configs
+├── scripts/
+│   ├── start-all.sh            # Start/stop/status all services
+│   ├── rednode-export.sh       # Export computational identity
+│   ├── rednode-import.sh       # Import on new hardware
+│   └── rednode-build-iso.sh    # Build bootable ISO
+├── docs/guides/
+│   ├── BUILD-APK.md            # Android build guide
+│   └── BUILD-WINDOWS-APP.md    # Desktop build guide
+├── execution/tool-registry/
+│   └── tools.json              # 114 tools, risk-tagged
+└── .github/workflows/ci.yml   # GitHub Actions CI/CD
+```
+
+---
 
 ## Portability
 
-`rednode export` → age-encrypted + ed25519 signed .rednode bundle
-`rednode import` → resume anywhere <60s
+```bash
+# Export your computational identity
+./scripts/rednode-export.sh
+# → age-encrypted bundle: Postgres + Qdrant + Kuzu + config
+
+# Import on new hardware
+./scripts/rednode-import.sh backup.rednode.age
+# → Resume in <60 seconds
+```
+
+---
+
+## Documentation
+
+| Document | What |
+|---|---|
+| `docs/guides/BUILD-APK.md` | Android app build guide |
+| `docs/guides/BUILD-WINDOWS-APP.md` | Desktop app build guide |
+| `ARCHITECTURE.md` | System architecture |
+| `SECURITY.md` | Security model |
+| `ROADMAP.md` | Development roadmap |
+| `QUICKSTART.md` | Quick start guide |
+| `.env.example` | All environment variables (50+) |
+
+---
 
 ## License
 
-MIT – © 2026 RedNode
+MIT — © 2026 RedNode
+
+---
+
+*RedNode-OS — The computer becomes the intelligence. Privacy-first. Self-aware. Autonomous. Yours.*
