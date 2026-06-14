@@ -1,6 +1,6 @@
 {
   "name": "rednode-os",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "RedNode-OS – The Personal Autonomous Operating System",
   "packageManager": "pnpm@9.1.0",
@@ -11,6 +11,8 @@
   ],
   "scripts": {
     "agents": "pnpm -r --filter \"@rednode/*-agent\" --parallel dev",
+    "agents:core": "pnpm -r --filter '@rednode/system-agent' --filter '@rednode/security-agent' --filter '@rednode/coding-agent' --filter '@rednode/research-agent' --filter '@rednode/automation-agent' --filter '@rednode/network-agent' --parallel dev",
+    "agents:infra": "pnpm -r --filter '@rednode/infra-agent' --filter '@rednode/storage-agent' --filter '@rednode/surveillance-agent' --parallel dev",
     "web": "pnpm --filter @rednode/web dev",
     "cli": "pnpm --filter @rednode/cli dev"
   }

@@ -1,40 +1,58 @@
 const CNS = process.env.NEXT_PUBLIC_CNS || 'http://localhost:8787';
 
-export async function sendIntent(intent: string, session_id = 'web') {
-  const r = await fetch(`${CNS}/intent`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ intent, session_id }) });
-  return r.json();
-}
-export async function getApprovals() {
-  const r = await fetch(`${CNS}/approvals`, { cache: 'no-store' });
-  return r.json();
-}
-export async function approve(id: string, approved: boolean) {
-  const r = await fetch(`${CNS}/approvals/${id}/approve`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ approved }) });
-  return r.json();
-}
-export async function getMemory(q: string) {
-  const r = await fetch(`${CNS}/memory/query?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
-  return r.json();
-}
-export async function getSecurityEvents() {
-  const r = await fetch(`${CNS}/security/events`, { cache: 'no-store' });
-  return r.json();
-}
-export async function ackSecurityEvent(id: string) {
-  const r = await fetch(`${CNS}/security/events/${id}/ack`, { method: 'POST' });
-  return r.json();
-}
-export async function getAudit(limit = 100) {
-  const r = await fetch(`${CNS}/audit?limit=${limit}`, { cache: 'no-store' });
-  return r.json();
-}
-export async function getAgents() {
-  const r = await fetch(`${CNS}/agents/status`, { cache: 'no-store' });
+async function f(path: string, opts?: RequestInit) {
+  const r = await fetch(`${CNS}${path}`, { cache: 'no-store', ...opts });
   return r.json();
 }
 
-export async function getSentience() {
-  const r = await fetch(`${CNS}/sentience`, { cache: 'no-store' });
-  return r.json();
-}
+// ─── Core ───
+export const sendIntent = (intent: string, session_id = 'web') =>
+  f('/intent', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ intent, session_id }) });
 
+export const getHealth = () => f('/health');
+export const getSentience = () => f('/sentience');
+export const getAgents = () => f('/agents/status');
+
+// ─── Security ───
+export const getSecurityEvents = () => f('/security/events');
+export const ackSecurityEvent = (id: string) =>
+  f(`/security/events/${id}/ack`, { method: 'POST' });
+
+// ─── Approvals ───
+export const getApprovals = () => f('/approvals');
+export const approve = (id: string, approved: boolean) =>
+  f(`/approvals/${id}/approve`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ approved }) });
+
+// ─── Memory ───
+export const getMemory = (q: string) => f(`/memory/query?q=${encodeURIComponent(q)}`);
+
+// ─── Audit ───
+export const getAudit = (limit = 100) => f(`/audit?limit=${limit}`);
+
+// ─── Infrastructure (Pi-hole) — via intent routing ───
+export const getPiholeStats = () =>
+  sendIntent('show pihole stats', 'dashboard');
+
+// ─── Storage (TrueNAS) — via intent routing ───
+export const getNasHealth = () =>
+  sendIntent('check TrueNAS pool health', 'dashboard');
+export const getNasUsage = () =>
+  sendIntent('show TrueNAS storage usage', 'dashboard');
+
+// ─── Cameras (Frigate) — via intent routing ───
+export const getCameraStatus = () =>
+  sendIntent('show camera status', 'dashboard');
+export const getCameraEvents = () =>
+  sendIntent('show recent camera person detections', 'dashboard');
+
+// ─── Email (Comms) — via intent routing ───
+export const getEmailSummary = () =>
+  sendIntent('summarize my recent emails', 'dashboard');
+export const getNotificationDigest = () =>
+  sendIntent('show notification digest', 'dashboard');
+
+// ─── Workflows — via intent routing ───
+export const runWorkflow = (name: string) =>
+  sendIntent(`run workflow ${name}`, 'dashboard');
+export const listWorkflows = () =>
+  sendIntent('list available workflows', 'dashboard');

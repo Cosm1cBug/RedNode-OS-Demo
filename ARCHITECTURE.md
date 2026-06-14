@@ -1,46 +1,81 @@
 # RedNode-OS Architecture
 
-Human Intent → Interface Layer → CNS (Rust) → Agent Society (TS) → Execution Layer → Host Adapter → Hardware
+```
+Human Intent → Interface Layer → CNS (Rust) → Agent Society (TS) → Execution Layer → Host OS → Hardware
+```
 
-## Central Nervous System – Rust – `core/rednode-core`
+## Central Nervous System — Rust — `core/rednode-core`
 
-- intent_router – NL → structured intention
-- planner – ReAct planner
-- coordinator – dispatches to NATS `rednode.agent.*`
-- security_validator – OPA-style policy, risk Low/Med/High/Critical
-- memory – Postgres + Qdrant + Kuzu
-- executor – firejail/bubblewrap sandbox
-- bus – NATS JetStream
-- api – Axum – POST /intent, WS /events
-- otel – OpenTelemetry tracing
+14 modules, 3,769 lines:
 
-## Agent Society – TypeScript – NATS
+| Module | Lines | What It Does |
+|---|---|---|
+| `planner.rs` | 337 | LLM-powered planning via Ollama (Qwen2.5) with keyword fallback |
+| `sentience.rs` | 686 | Self-model, 5 homeostatic drives (real data), autonomous goal execution, memory consolidation |
+| `memory.rs` | 550+ | PostgreSQL + Qdrant vectors + Kuzu/Postgres knowledge graph, RAG pipeline, entity extraction |
+| `executor.rs` | 380 | Sandboxed tool execution (firejail/bubblewrap/seccomp) with resource limits |
+| `api.rs` | 350+ | 17 REST endpoints + real-time WebSocket event streaming |
+| `security.rs` | 220+ | 114 tools risk-tagged, 25+ deny patterns, path traversal + injection protection |
+| `events.rs` | 137 | `tokio::broadcast` event bus — all modules publish, WebSocket subscribes |
+| `auth.rs` | 107 | Bearer token middleware with constant-time comparison |
+| `coordinator.rs` | 97 | Plan execution: security check → approval gate → NATS dispatch → audit |
+| `intent_router.rs` | 56 | RAG context enrichment before planning |
+| `bus.rs` | 66 | NATS JetStream client (safe, OnceCell) |
+| `init.rs` | 445 | PID1 mode: mount filesystems, supervise services, signal handling, watchdog |
+| `main.rs` | 49 | Entry point: events → memory → bus → executor → sentience → API |
+| `lib.rs` | 12 | Module declarations |
 
-`rednode.agent.system.*`, `rednode.agent.security.*`, `rednode.agent.coding.*`, `rednode.agent.research.*`, `rednode.agent.automation.*`, `rednode.agent.network.*`
+## Agent Society — 16 Agents — TypeScript — NATS
+
+Each agent connects to NATS, subscribes to `rednode.agent.{name}.task`, and dispatches tool calls to the Rust executor via `rednode.tool.exec`.
+
+| Agent | Subject | Tools | Integration |
+|---|---|---|---|
+| System | `rednode.agent.system.*` | 6 | OS, Docker, processes, filesystem |
+| Security | `rednode.agent.security.*` | 7 | CVE (NVD sync), Falco eBPF, threat intel (abuse.ch/OTX), auto-patcher |
+| Coding | `rednode.agent.coding.*` | 5 | Ollama codegen, clippy, tests, git |
+| Research | `rednode.agent.research.*` | 8 | RAG, SearXNG, OCR, PDF, knowledge graph |
+| Automation | `rednode.agent.automation.*` | 4 | Workflows, scheduler, triggers |
+| Network | `rednode.agent.network.*` | 8 | Connections, firewall, DNS, VPN, device isolation |
+| Infrastructure | `rednode.agent.infra.*` | 9 | Pi-hole v6 API |
+| Storage | `rednode.agent.storage.*` | 14 | TrueNAS REST API v2.0 |
+| Surveillance | `rednode.agent.surveillance.*` | 11 | Frigate MQTT + REST API |
+| Communications | `rednode.agent.comms.*` | 10 | IMAP, SMTP, CalDAV |
+| Productivity | `rednode.agent.productivity.*` | 10 | Notes, tasks, bookmarks |
+| Media | `rednode.agent.media.*` | 7 | Jellyfin API |
+| Home | `rednode.agent.home.*` | 7 | Home Assistant REST API |
+| Browser | `rednode.agent.browser.*` | 7 | Playwright + cheerio (stealth) |
+| Social | `rednode.agent.social.*` | 9 | Twitter/X, Mastodon, Bluesky, LinkedIn, Instagram, WhatsApp |
+| Signal Bot | (standalone) | — | E2EE messaging via signal-cli |
 
 ## Memory
 
-- PostgreSQL – intentions, tasks, audit_log, security_events, preferences
-- Qdrant – vector embeddings, 768d, collection `rednode_docs`
-- Kuzu – knowledge graph – Project→Tech→Repo→File→Function
+- **PostgreSQL 16** — intentions, audit_log (SHA-256 hash-chained), security_events, approvals, documents, knowledge graph (kg_entities, kg_relationships)
+- **Qdrant** — 768-dimensional vector embeddings, cosine similarity, collection `rednode_docs`
+- **Kuzu** (optional, `--features kuzu`) — embedded graph DB, Cypher queries. Falls back to Postgres JSON tables.
+- **Ollama** — `nomic-embed-text` for embeddings, `qwen2.5` for LLM planning/generation
 
 ## Execution
 
-Tool Registry – JSON Schema, risk-tagged. Sandboxed execution, audit log hash-chained.
+Tool Registry (`tools.json`) — 114 tools, each with name, agent, risk level, description. Executor runs commands inside firejail/bubblewrap sandbox with seccomp BPF, resource limits, and timeout. Every execution is hash-chain audited.
+
+## Event Bus
+
+`tokio::broadcast` channel (capacity 512). Publishers: sentience, coordinator, API handlers. Subscribers: WebSocket clients (dashboard). 9 typed emitters: intent, plan, tool_result, drives, goal, security_event, agent_heartbeat, approval_needed.
 
 ## Observability
 
-OpenTelemetry → OTEL Collector → Loki / Prometheus → Grafana
-
-Security Telemetry: eBPF + Falco
+OpenTelemetry → OTEL Collector → Loki (logs) + Prometheus (metrics) → Grafana (dashboards). Security telemetry: Falco eBPF + threat intel feeds.
 
 ## Interfaces
 
-- Web: Next.js 14 – localhost:3000
-- Desktop: Tauri 2 – Rust backend, Next.js frontend
-- Mobile: Flutter
-- CLI: TS / Commander
-- Voice: Python – faster-whisper / Piper
-- API: Axum – localhost:8787
+- **Web**: Next.js 14 — 13-tab dashboard (localhost:3000)
+- **Mobile**: Flutter 3.22 — biometric approvals, FCM push, WireGuard
+- **Desktop**: Tauri 2 — native window (~8 MB)
+- **CLI**: TypeScript — 19 commands
+- **Voice**: Whisper STT + Piper TTS + customizable wake word
+- **Signal Bot**: E2EE messaging via signal-cli
+- **REST API**: Axum — 17 endpoints (localhost:8787)
+- **WebSocket**: Real-time event stream (ws://localhost:8787/events)
 
-All thin clients. CNS is the brain.
+All interfaces are thin clients. Intelligence lives in the CNS.
