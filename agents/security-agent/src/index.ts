@@ -8,6 +8,7 @@ const TOOLS = [
   "sec.yara",
   "sec.threat_intel",
   "sec.ioc_check",
+  "sec.darkweb_search",
 ];
 
 class SecurityAgent extends RedNodeAgent {
@@ -34,6 +35,27 @@ class SecurityAgent extends RedNodeAgent {
           ? `⚠️ MATCH: ${value} — ${match.source} — ${match.severity} — ${match.description}`
           : `✅ ${value} — not found in threat intel database`,
         match,
+      };
+    }
+    if (tool === "sec.darkweb_search") {
+      const query = args.query || args.q || args.search || "";
+      if (!query) return { ok: false, error: "Missing 'query' — what to search for on the dark web" };
+      const { darkwebSearch } = await import("./darkweb.js");
+      const result = await darkwebSearch(query);
+      const resultLines = result.results.map((r, i) =>
+        `[${i + 1}] ${r.engine}: ${r.title}\n    ${r.url}\n    ${r.snippet}`
+      );
+      return {
+        ok: true,
+        output: `🕵️ Dark Web OSINT: "${query}"\n` +
+          `Tor: ${result.tor_connected ? "✅ connected" : "❌ not running (clearnet fallback)"}\n` +
+          `Engines searched: ${result.engines_searched}\n` +
+          `Results: ${result.results.length}\n\n` +
+          (resultLines.length > 0 ? resultLines.join("\n\n") + "\n\n" : "") +
+          `── Analysis ──\n${result.analysis}`,
+        results: result.results,
+        analysis: result.analysis,
+        tor_connected: result.tor_connected,
       };
     }
     // All other tools → fall through to Rust executor

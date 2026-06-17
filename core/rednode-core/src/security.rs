@@ -62,10 +62,10 @@ pub fn assess_risk(tool: &str) -> Risk {
     match tool {
         // Low — read-only, no side effects
         "fs.read" | "process.list" | "docker.ps" | "service.status"
-        | "net.status" | "dns.check" | "traffic.analyze"
+        | "net.status" | "dns.check" | "traffic.analyze" | "net.devices"
         | "sec.triage" | "sec.cve_check" | "sec.threat_intel" | "sec.ioc_check"
-        | "research.search" | "research.query" | "kb.query"
-        | "code.analyze" | "git.status"
+        | "research.search" | "research.query" | "research.deep" | "kb.query"
+        | "code.analyze" | "code.verify" | "code.review" | "git.status"
         | "pihole.stats" | "pihole.top_blocked" | "pihole.top_clients" | "pihole.enable"
         | "nas.health" | "nas.usage" | "nas.datasets" | "nas.disks"
         | "nas.smart" | "nas.alerts" | "nas.snapshot_list" | "nas.share_list"
@@ -96,7 +96,7 @@ pub fn assess_risk(tool: &str) -> Risk {
         // Medium — can execute code or make controlled changes
         "shell.run_safe" | "code.generate" | "code.test" | "code.refactor"
         | "workflow.create" | "workflow.run" | "schedule.add" | "trigger.fire"
-        | "vpn.connect" | "sec.ssh_audit" | "sec.yara"
+        | "vpn.connect" | "sec.ssh_audit" | "sec.yara" | "net.scan" | "sec.darkweb_search"
         | "kb.ingest"
         | "pihole.disable" | "pihole.add_block" | "pihole.remove_block"
         | "nas.snapshot_create" | "nas.share_create" | "nas.replicate" | "nas.backup_rednode"

@@ -9,7 +9,7 @@
 
 ## What Is RedNode-OS?
 
-RedNode-OS transforms your computer into an intelligent, self-aware, self-healing autonomous system. You express intentions in natural language, and a society of 13 specialized AI agents collaboratively plans, validates, executes, and audits the actions — all locally, fully offline-capable, with zero cloud dependency.
+RedNode-OS transforms your computer into an intelligent, self-aware, self-healing autonomous system. You express intentions in natural language, and a society of 16 specialized AI agents collaboratively plans, validates, executes, and audits the actions — all locally, fully offline-capable, with zero cloud dependency.
 
 **Your data never leaves your machine. Zero telemetry. Zero tracking. Open source.**
 
@@ -36,22 +36,22 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)   │
+│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)    │
 │  LLM Planner • Security Validator • Approval Gate            │
 │  Sandboxed Executor • Event Bus • Auth • Sentience Engine    │
-└──────────────────────────┬──────────────────────────────────┘
+└──────────────────────────┬───────────────────────────────────┘
                            ▼ NATS JetStream
 ┌──────────────────────────────────────────────────────────────┐
 │  13 AGENTS: System • Security • Coding • Research            │
 │  Automation • Network • Infrastructure (Pi-hole) • Storage   │
-│  (TrueNAS) • Surveillance (Frigate) • Communications        │
+│  (TrueNAS) • Surveillance (Frigate) • Communications         │
 │  (Email/Calendar) • Productivity • Media • Home (HA)         │
-└──────────────────────────┬──────────────────────────────────┘
+└──────────────────────────┬───────────────────────────────────┘
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  MEMORY: PostgreSQL 16 • Qdrant (vectors) • Kuzu (graph)     │
 │  SECURITY: firejail/bubblewrap • seccomp • SHA-256 audit     │
-│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS             │
+│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS              │
 │  OBSERVABILITY: OpenTelemetry → Grafana + Loki + Prometheus  │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -96,16 +96,16 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 
 ---
 
-## Agent Society — 16 Agents, 114 Tools
+## Agent Society — 16 Agents, 120 Tools
 
 | Agent | Tools | What It Does |
 |---|---|---|
 | 🔧 **System** | 6 | Processes, Docker, services, filesystem, safe shell |
-| 🛡️ **Security** | 7 | CVE scanning (real dpkg/rpm/nix + NVD sync), auto-patching (btrfs/zfs rollback), Falco eBPF, YARA, threat intel (abuse.ch/OTX/ET → pfSense auto-block) |
-| 💻 **Coding** | 5 | LLM code generation, refactoring, tests, clippy/eslint, git |
-| 🔬 **Research** | 8 | RAG search, SearXNG web search, document OCR, PDF ingestion, knowledge graph |
+| 🛡️ **Security** | 8 | CVE scanning (NVD sync), auto-patching (btrfs/zfs rollback), Falco eBPF, YARA, threat intel (abuse.ch/OTX/ET → pfSense auto-block), dark web OSINT (Tor) |
+| 💻 **Coding** | 7 | LLM code generation, refactoring, tests, clippy/eslint, git, verification gate, security code review |
+| 🔬 **Research** | 8 | RAG search, SearXNG web search, deep research (multi-source cited reports), document OCR, PDF ingestion, knowledge graph |
 | ⚙️ **Automation** | 4 | Workflows (goodnight/morning/focus/leaving), scheduler, triggers |
-| 🌐 **Network** | 8 | Connections, firewall, VPN, DNS, traffic analysis, device isolation |
+| 🌐 **Network** | 10 | Connections, firewall, VPN, DNS, traffic analysis, device isolation, Nmap network scanning, ARP device discovery |
 | 🏗️ **Infrastructure** | 9 | Pi-hole v6 API — DNS stats, blocking, anomaly detection |
 | 💾 **Storage** | 14 | TrueNAS REST API — pools, SMART, snapshots, shares, replication |
 | 📹 **Surveillance** | 11 | Frigate MQTT bridge — AI detection, anomaly alerts, clips, zones |
@@ -130,6 +130,11 @@ RedNode maintains a **self-model** with 5 homeostatic drives:
 
 When drives drop, RedNode **autonomously generates and executes goals** through the same LLM planner → agent → sandboxed execution pipeline that human intents use.
 
+Additional intelligence:
+- **Self-Improvement**: analyzes tool usage patterns, detects failures, suggests new workflows, flags approval bottlenecks — insights ingested into memory so the planner improves over time
+- **Agent Introspection**: when a goal fails, classifies the failure (timeout/permission/connectivity/not_found), generates a diagnostic report, and ingests it into memory to avoid repeating the same mistake
+- **Memory Consolidation**: every 5 minutes, summarizes recent audit + security events and ingests into long-term RAG memory
+
 ---
 
 ## Security — Foundation, Not Feature
@@ -138,7 +143,7 @@ When drives drop, RedNode **autonomously generates and executes goals** through 
 Intent → Policy Engine → Risk Assessment → Approval Gate → Sandbox → Audit Log (SHA-256 chain)
 ```
 
-- **114 tools risk-tagged**: Low (auto-execute), Medium (logged), High (requires approval), Critical (denied)
+- **120 tools risk-tagged**: Low (auto-execute), Medium (logged), High (requires approval), Critical (denied)
 - **25+ deny patterns**: rm -rf, dd, fork bombs, chmod 777, wget|sh, etc.
 - **Sandboxed execution**: firejail → bubblewrap → unshare → fallback (seccomp BPF, --net=none, --noroot, --caps.drop=all)
 - **Hash-chained audit**: every action → SHA-256 linked to previous → tamper-evident
@@ -266,6 +271,7 @@ RedNode-OS-Demo/
 │   ├── home-agent/             # Home Assistant API
 │   ├── browser-agent/          # Playwright + cheerio (stealth anti-detection)
 │   ├── social-agent/           # Twitter/X, Mastodon, Bluesky, LinkedIn, Instagram, WhatsApp
+│   ├── endpoint-agent/         # Lightweight agent for remote machines (Linux/Win/Mac)
 │   └── signal-bot/             # Signal messenger bridge (E2EE)
 ├── interfaces/
 │   ├── web/                    # Next.js 14 dashboard (13 tabs)
@@ -293,7 +299,7 @@ RedNode-OS-Demo/
 │   ├── BUILD-APK.md            # Android build guide
 │   └── BUILD-WINDOWS-APP.md    # Desktop build guide
 ├── execution/tool-registry/
-│   └── tools.json              # 114 tools, risk-tagged
+│   └── tools.json              # 120 tools, risk-tagged
 └── .github/workflows/ci.yml   # GitHub Actions CI/CD
 ```
 

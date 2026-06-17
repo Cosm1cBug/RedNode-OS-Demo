@@ -682,5 +682,41 @@
     "agent": "social-agent",
     "risk": "low",
     "description": "Monitor mentions and keywords"
+  },
+  {
+    "name": "code.verify",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Run verification gate (build+typecheck+lint+test+security)"
+  },
+  {
+    "name": "code.review",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "LLM security code review"
+  },
+  {
+    "name": "research.deep",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Deep multi-source research with cited report"
+  },
+  {
+    "name": "net.scan",
+    "agent": "network-agent",
+    "risk": "medium",
+    "description": "Nmap network scan \u2014 discover devices, ports, services"
+  },
+  {
+    "name": "net.devices",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "List devices on local network (ARP table)"
+  },
+  {
+    "name": "sec.darkweb_search",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Search dark web (.onion) via Tor for threat intelligence and OSINT"
   }
 ]

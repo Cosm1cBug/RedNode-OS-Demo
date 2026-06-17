@@ -426,6 +426,12 @@ impl SentienceEngine {
                         .map(|s| s == "executed" || s == "needs_approval")
                         .unwrap_or(false)
                 });
+
+                let failed_tools: Vec<String> = results.iter()
+                    .filter(|r| r.get("status").and_then(|s| s.as_str()) == Some("failed"))
+                    .filter_map(|r| r.get("tool").and_then(|t| t.as_str()).map(String::from))
+                    .collect();
+
                 g.status = if all_ok { "completed" } else { "failed" }.into();
 
                 crate::events::emit_goal(g, true);
@@ -436,6 +442,75 @@ impl SentienceEngine {
                     g.status,
                     results.len()
                 );
+
+                // ── Agent Self-Debugging ──
+                // If a goal failed, analyze WHY and create a diagnostic report.
+                // This helps RedNode learn from failures and avoid repeating them.
+                if !all_ok && !failed_tools.is_empty() {
+                    let errors: Vec<String> = results.iter()
+                        .filter_map(|r| {
+                            let tool = r.get("tool").and_then(|t| t.as_str()).unwrap_or("-");
+                            let error = r.get("result")
+                                .and_then(|res| res.get("error"))
+                                .and_then(|e| e.as_str())
+                                .or_else(|| r.get("error").and_then(|e| e.as_str()));
+                            error.map(|e| format!("{}: {}", tool, e))
+                        })
+                        .collect();
+
+                    // Classify failure type
+                    let error_text = errors.join(" ").to_lowercase();
+                    let failure_type = if error_text.contains("timeout") || error_text.contains("timed out") {
+                        "timeout"
+                    } else if error_text.contains("permission") || error_text.contains("denied") || error_text.contains("approval") {
+                        "permission"
+                    } else if error_text.contains("not found") || error_text.contains("no such") {
+                        "not_found"
+                    } else if error_text.contains("connection") || error_text.contains("refused") || error_text.contains("unreachable") {
+                        "connectivity"
+                    } else {
+                        "unknown"
+                    };
+
+                    let diagnostic = format!(
+                        "Goal failed — introspection report:\n\
+                         Goal: {}\n\
+                         Drive: {}\n\
+                         Failure type: {}\n\
+                         Failed tools: {}\n\
+                         Errors:\n{}\n\
+                         Recommendation: {}",
+                        g.description,
+                        g.drive,
+                        failure_type,
+                        failed_tools.join(", "),
+                        errors.join("\n"),
+                        match failure_type {
+                            "timeout" => "Service may be overloaded or down. Check resource usage. Consider increasing timeout.",
+                            "permission" => "Tool requires higher risk approval. User must approve via dashboard or mobile.",
+                            "not_found" => "Target resource doesn't exist. Check if service is running and path is correct.",
+                            "connectivity" => "Network issue. Check if target service (NATS/Postgres/Ollama/Pi-hole/TrueNAS) is reachable.",
+                            _ => "Unknown failure. Review the error details and check service logs.",
+                        }
+                    );
+
+                    tracing::warn!("sentience introspection:\n{}", diagnostic);
+
+                    // Ingest the diagnostic into memory so future planning can avoid the same failure
+                    drop(model);
+                    let _ = crate::memory::ingest_document("sentience/introspection", &diagnostic).await;
+
+                    crate::events::emit(serde_json::json!({
+                        "type": "sentience_introspection",
+                        "goal_id": goal_id,
+                        "failure_type": failure_type,
+                        "failed_tools": failed_tools,
+                        "errors": errors,
+                        "ts": chrono::Utc::now().to_rfc3339()
+                    }));
+
+                    model = self.model.write().await;
+                }
             }
             model.goals_executed += 1;
         }
@@ -464,27 +539,27 @@ impl SentienceEngine {
     // ── Memory consolidation — runs every 5 minutes ──
 
     async fn consolidate_memory(&self) {
-        tracing::info!("sentience: memory consolidation starting");
+        tracing::info!("sentience: memory consolidation + self-improvement cycle starting");
 
-        // 1. Pull recent audit entries and summarize
-        let recent_audit = crate::memory::get_audit(20).await.unwrap_or_default();
+        // ── Phase 1: Audit summarization (existing) ──
+        let recent_audit = crate::memory::get_audit(50).await.unwrap_or_default();
         if !recent_audit.is_empty() {
             let summary = recent_audit
                 .iter()
                 .map(|e| {
                     format!(
-                        "{}: {} {} {} (risk: {})",
+                        "{}: {} {} {} (risk: {}, ok: {})",
                         e.ts.format("%H:%M"),
                         e.actor,
                         e.action,
                         e.tool.as_deref().unwrap_or("-"),
-                        e.risk.as_deref().unwrap_or("-")
+                        e.risk.as_deref().unwrap_or("-"),
+                        e.approved.unwrap_or(false)
                     )
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
 
-            // Ingest the summary into long-term memory
             let content = format!(
                 "Audit summary ({} to {}): {} actions\n{}",
                 recent_audit.last().map(|e| e.ts.format("%H:%M").to_string()).unwrap_or_default(),
@@ -495,8 +570,8 @@ impl SentienceEngine {
             let _ = crate::memory::ingest_document("sentience/consolidation", &content).await;
         }
 
-        // 2. Pull recent security events and summarize
-        let recent_security = crate::memory::list_security_events(10).await.unwrap_or_default();
+        // ── Phase 2: Security event summarization (existing) ──
+        let recent_security = crate::memory::list_security_events(20).await.unwrap_or_default();
         if !recent_security.is_empty() {
             let sec_summary = recent_security
                 .iter()
@@ -512,7 +587,101 @@ impl SentienceEngine {
             let _ = crate::memory::ingest_document("sentience/security-digest", &content).await;
         }
 
-        // 3. Boost knowledge drive (we just ingested new data)
+        // ── Phase 3: Self-Improvement — Pattern Analysis ──
+        // Analyze the last 50 audit entries to find:
+        //   - Most frequently used tools → optimize their paths
+        //   - Tools that frequently fail → flag for investigation
+        //   - Common intent patterns → suggest new workflows
+        //   - Approval bottlenecks → suggest risk level adjustments
+
+        if recent_audit.len() >= 10 {
+            let mut tool_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+            let mut tool_failures: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+            let mut intent_patterns: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+            let mut approval_count: u32 = 0;
+
+            for entry in &recent_audit {
+                if let Some(tool) = &entry.tool {
+                    *tool_counts.entry(tool.clone()).or_insert(0) += 1;
+                    if entry.approved == Some(false) || entry.action == "tool_exec_failed" {
+                        *tool_failures.entry(tool.clone()).or_insert(0) += 1;
+                    }
+                }
+                if entry.action == "intent" {
+                    if let Some(args) = &entry.args {
+                        if let Some(intent) = args.get("intent").and_then(|v| v.as_str()) {
+                            // Extract first 3 words as pattern key
+                            let pattern: String = intent.split_whitespace().take(3).collect::<Vec<_>>().join(" ");
+                            *intent_patterns.entry(pattern).or_insert(0) += 1;
+                        }
+                    }
+                }
+                if entry.action == "approval_created" || entry.result.as_deref() == Some("needs_approval") {
+                    approval_count += 1;
+                }
+            }
+
+            // Generate self-improvement insights
+            let mut insights: Vec<String> = Vec::new();
+
+            // Top tools
+            let mut sorted_tools: Vec<_> = tool_counts.iter().collect();
+            sorted_tools.sort_by(|a, b| b.1.cmp(a.1));
+            if let Some((top_tool, count)) = sorted_tools.first() {
+                insights.push(format!("Most used tool: {} ({} times)", top_tool, count));
+            }
+
+            // Failing tools
+            for (tool, fail_count) in &tool_failures {
+                let total = tool_counts.get(tool).unwrap_or(&1);
+                let fail_rate = *fail_count as f32 / *total as f32;
+                if fail_rate > 0.3 && *fail_count >= 2 {
+                    insights.push(format!(
+                        "⚠️ Tool '{}' failing {:.0}% of the time ({}/{}) — investigate",
+                        tool, fail_rate * 100.0, fail_count, total
+                    ));
+                }
+            }
+
+            // Repeated intent patterns → suggest workflows
+            let mut sorted_patterns: Vec<_> = intent_patterns.iter().collect();
+            sorted_patterns.sort_by(|a, b| b.1.cmp(a.1));
+            for (pattern, count) in sorted_patterns.iter().take(3) {
+                if **count >= 3 {
+                    insights.push(format!(
+                        "💡 Repeated intent pattern: '{}...' ({} times) — consider creating a workflow",
+                        pattern, count
+                    ));
+                }
+            }
+
+            // Approval bottleneck
+            if approval_count > 5 {
+                insights.push(format!(
+                    "🔒 {} actions needed approval in recent history — review if any should be downgraded to Medium risk",
+                    approval_count
+                ));
+            }
+
+            if !insights.is_empty() {
+                let insight_text = format!(
+                    "Self-improvement insights (from {} actions):\n{}",
+                    recent_audit.len(),
+                    insights.join("\n")
+                );
+                tracing::info!("sentience self-improvement:\n{}", insight_text);
+                let _ = crate::memory::ingest_document("sentience/self-improvement", &insight_text).await;
+
+                crate::events::emit(serde_json::json!({
+                    "type": "sentience_self_improvement",
+                    "insights": insights,
+                    "actions_analyzed": recent_audit.len(),
+                    "ts": chrono::Utc::now().to_rfc3339()
+                }));
+            }
+        }
+
+        // ── Phase 4: Update drives ──
         let mut model = self.model.write().await;
         model.drives.knowledge = (model.drives.knowledge + 0.05).min(1.0);
 
