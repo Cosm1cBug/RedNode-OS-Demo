@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.3.1",
+        "version": "0.4.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.3.1",
+                "version": "0.4.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),

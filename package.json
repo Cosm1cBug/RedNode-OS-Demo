@@ -1,8 +1,8 @@
 {
   "name": "rednode-os",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
-  "description": "RedNode-OS – The Personal Autonomous Operating System",
+  "description": "RedNode-OS \u2013 The Personal Autonomous Operating System",
   "packageManager": "pnpm@9.1.0",
   "workspaces": [
     "agents/*",

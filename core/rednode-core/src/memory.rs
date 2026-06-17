@@ -362,7 +362,7 @@ pub async fn rag_query(query: &str, limit: u64) -> Result<Vec<RagHit>> {
 }
 
 pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
-    // Embed
+    // ── Step 1: Embed full document ──
     let embedding = match embed_ollama(content).await {
         Ok(v) => v,
         Err(e) => {
@@ -370,7 +370,8 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
             vec![0.0; 768]
         }
     };
-    // Store in Postgres
+
+    // ── Step 2: Store full document in Postgres ──
     let doc_id = uuid::Uuid::new_v4();
     if let Some(pool) = pool() {
         let _ = sqlx::query(
@@ -382,14 +383,15 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
         .bind(format!("[{}]", embedding.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",")))
         .execute(pool).await;
     }
-    // Upsert to Qdrant
+
+    // ── Step 3: Upsert full document to Qdrant ──
     if let Some(qd) = qdrant_client().await {
         use qdrant_client::qdrant::{PointStruct, UpsertPoints, value::Kind, Value};
         use std::collections::HashMap;
         let mut payload = HashMap::new();
         payload.insert("source".to_string(), Value { kind: Some(Kind::StringValue(source.to_string())) });
         payload.insert("content".to_string(), Value { kind: Some(Kind::StringValue(content.to_string())) });
-        // PointStruct::new – id, vectors, payload
+        payload.insert("type".to_string(), Value { kind: Some(Kind::StringValue("document".to_string())) });
         let point = PointStruct::new(
             doc_id.to_string(),
             embedding,
@@ -402,10 +404,142 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
             ..Default::default()
         }).await;
     }
-    // Extract entities and build knowledge graph
+
+    // ── Step 4: Extract and embed propositions (fine-grained memory) ──
+    // Propositions are atomic factual statements extracted from the document.
+    // Each proposition gets its own embedding → finer-grained RAG retrieval.
+    // Only for documents longer than 200 chars (short docs are already atomic).
+    if content.len() > 200 {
+        tokio::spawn(extract_and_embed_propositions(
+            source.to_string(),
+            content.to_string(),
+            doc_id.to_string(),
+        ));
+    }
+
+    // ── Step 5: Extract entities and build knowledge graph ──
     extract_and_store_entities(source, content);
 
     Ok(doc_id.to_string())
+}
+
+/// Extract propositions (atomic facts) from a document and embed each separately.
+/// Runs as a background task to not block the ingest response.
+async fn extract_and_embed_propositions(source: String, content: String, doc_id: String) {
+    let ollama_url = std::env::var("OLLAMA_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:11434".into());
+    let model = std::env::var("REDNODE_MODEL")
+        .unwrap_or_else(|_| "qwen2.5:14b-instruct-q4_K_M".into());
+
+    // Ask LLM to extract propositions
+    let prompt = format!(
+        "Extract 3-8 atomic factual propositions from this text. \
+         Each proposition should be a single, self-contained fact. \
+         Output ONLY a JSON array of strings. No explanation.\n\n\
+         Text: \"{}\"\n\nJSON array:",
+        content.chars().take(3000).collect::<String>()
+    );
+
+    let client = match reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+    {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    let resp = match client
+        .post(format!("{}/api/chat", ollama_url))
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                {"role": "system", "content": "Extract atomic facts as a JSON array of strings."},
+                {"role": "user", "content": prompt}
+            ],
+            "stream": false,
+            "options": {"temperature": 0.1, "num_predict": 1024}
+        }))
+        .send()
+        .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::debug!("proposition extraction failed: {}", e);
+            return;
+        }
+    };
+
+    let body: serde_json::Value = match resp.json().await {
+        Ok(b) => b,
+        Err(_) => return,
+    };
+
+    let response_text = body["message"]["content"].as_str().unwrap_or("[]");
+
+    // Parse propositions from LLM response
+    let json_str = {
+        let trimmed = response_text.trim()
+            .trim_start_matches("```json").trim_start_matches("```")
+            .trim_end_matches("```").trim();
+        if let Some(start) = trimmed.find('[') {
+            if let Some(end) = trimmed.rfind(']') {
+                trimmed[start..=end].to_string()
+            } else { return; }
+        } else { return; }
+    };
+
+    let propositions: Vec<String> = match serde_json::from_str(&json_str) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+
+    if propositions.is_empty() {
+        return;
+    }
+
+    tracing::info!(
+        source = %source,
+        count = propositions.len(),
+        "extracted {} propositions from document",
+        propositions.len()
+    );
+
+    // Embed and store each proposition
+    for (i, prop) in propositions.iter().enumerate() {
+        if prop.trim().is_empty() {
+            continue;
+        }
+
+        let prop_embedding = match embed_ollama(prop).await {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        let prop_id = uuid::Uuid::new_v4();
+
+        // Store in Qdrant with proposition type marker
+        if let Some(qd) = qdrant_client().await {
+            use qdrant_client::qdrant::{PointStruct, UpsertPoints, value::Kind, Value};
+            use std::collections::HashMap;
+            let mut payload = HashMap::new();
+            payload.insert("source".to_string(), Value { kind: Some(Kind::StringValue(format!("{}/prop-{}", source, i))) });
+            payload.insert("content".to_string(), Value { kind: Some(Kind::StringValue(prop.clone())) });
+            payload.insert("type".to_string(), Value { kind: Some(Kind::StringValue("proposition".to_string())) });
+            payload.insert("parent_doc".to_string(), Value { kind: Some(Kind::StringValue(doc_id.clone())) });
+
+            let point = PointStruct::new(
+                prop_id.to_string(),
+                prop_embedding,
+                payload,
+            );
+            let _ = qd.upsert_points(UpsertPoints {
+                collection_name: "rednode_docs".into(),
+                wait: Some(true),
+                points: vec![point],
+                ..Default::default()
+            }).await;
+        }
+    }
 }
 
 // ============================================================================

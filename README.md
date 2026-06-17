@@ -118,6 +118,16 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 
 ---
 
+## Performance Architecture
+
+- **Parallel execution**: Independent plan steps targeting different agents execute concurrently, making multi-step intents 2-5x faster
+- **Execution state caching**: Step results are cached within a session — later steps can access earlier results without re-fetching
+- **Proposition-level memory**: Documents are decomposed into atomic factual statements, each embedded separately — enables finer-grained RAG retrieval
+- **Event bus backpressure**: `tokio::broadcast` with capacity 512 — slow clients drop old events without blocking
+- **Resource sandboxing**: Every tool execution: 5s CPU, 512MB RAM, 1MB stdout, kill_on_drop
+
+---
+
 ## Sentience Engine
 
 RedNode maintains a **self-model** with 5 homeostatic drives:

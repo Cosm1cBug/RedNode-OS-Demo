@@ -2,7 +2,7 @@
 
 > *The computer does not contain intelligence. The computer becomes the intelligence.*
 >
-> **Current State**: v0.3.1 — 16 agents, 114 tools, Rust CNS, Sentience Engine, LLM planner, RAG memory, knowledge graph, 13-tab dashboard, Flutter mobile, Tauri desktop, 19-command CLI, voice (Whisper+Piper), Signal bot, threat intel, NVD sync, PID1 init  
+> **Current State**: v0.4.0 — 16 agents, 120 tools, Rust CNS, Sentience Engine (self-improvement + introspection), LLM planner, RAG memory, knowledge graph, 13-tab dashboard, Flutter mobile, Tauri desktop, 19-command CLI, voice (Whisper+Piper), Signal bot, threat intel, NVD sync, deep research, verification gate, PID1 init  
 > **Target**: Production deployment, commercial product
 
 ---
@@ -300,7 +300,7 @@
 | Spec | Minimum | Recommended | Notes |
 |---|---|---|---|
 | **CPU** | Any dual-core x86_64 | Intel N100 / Celeron J6412 | Even a 10yr old i3 handles 1Gbps fine |
-| **RAM** | 2 GB | 4 GB (8 GB with Suricata IDS) | ECC not required but nice for 24/7 |
+| **RAM** | 2 GB | 4 GB (8 GB with Suricata IDS) | Not required but nice for 24/7 |
 | **Storage** | 16 GB SSD | 32 GB SSD | SSD mandatory — HDD risks corruption |
 | **NICs** | 2× Ethernet (Intel preferred) | 2× Intel i225/i226-V 2.5GbE | Avoid Realtek — driver issues on FreeBSD |
 | **Power** | ~6–12W idle | Fanless preferred | Silent, always-on |
