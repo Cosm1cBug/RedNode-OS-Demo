@@ -166,6 +166,16 @@ Intent → Policy Engine → Risk Assessment → Approval Gate → Sandbox → A
 ## Quick Start
 
 ```bash
+# First time? One script does everything:
+cd ~/RedNode-OS-Demo
+./scripts/setup-first-boot.sh
+# → Auto-detects GPU/VRAM → selects best model → pulls → builds → starts → verifies
+# → Dashboard ready at http://YOUR-IP:3000
+```
+
+### Or manually:
+
+```bash
 # 1. Infrastructure
 cd deployment && docker compose up -d
 # NATS, Postgres, Qdrant, Ollama, Mosquitto, Frigate, SearXNG, Grafana

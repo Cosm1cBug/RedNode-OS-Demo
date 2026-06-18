@@ -1,6 +1,32 @@
 # RedNode-OS Quick Start
 
-## Option A: One-Command Start (recommended)
+## First Time? Run the Setup Script
+
+After installing NixOS and booting for the first time:
+
+```bash
+cd ~/RedNode-OS-Demo
+./scripts/setup-first-boot.sh
+```
+
+This automatically:
+1. Detects your GPU and VRAM
+2. Selects the best LLM model for your hardware
+3. Pulls models via Ollama
+4. Creates your `.env` with auto-detected settings
+5. Starts all Docker services
+6. Builds the Rust CNS
+7. Installs Node.js dependencies
+8. Starts everything
+9. Verifies the system is working
+
+**After setup, your dashboard is at `http://YOUR-IP:3000`**
+
+---
+
+## Already Set Up? Start Services
+
+### Option A: One-Command Start (recommended)
 
 ```bash
 # 1. Start infrastructure
