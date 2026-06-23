@@ -176,42 +176,72 @@ Intent → Policy Engine → Risk Assessment → Approval Gate → Sandbox → A
 
 ## Quick Start
 
+### Option A: NixOS Bare-Metal (Recommended — fully autonomous)
+
 ```bash
-# First time? One script does everything:
-cd ~/RedNode-OS-Demo
-./scripts/setup-first-boot.sh
-# → Auto-detects GPU/VRAM → selects best model → pulls → builds → starts → verifies
-# → Dashboard ready at http://YOUR-IP:3000
+# 1. Install NixOS on your machine using the standard installer
+#    https://nixos.org/manual/nixos/stable/#sec-installation
+
+# 2. Clone RedNode's NixOS config
+git clone https://github.com/Cosm1cBug/RedNode-OS-Demo.git ~/RedNode-OS-Demo
+cd ~/RedNode-OS-Demo/os/nixos
+
+# 3. Apply the NixOS configuration
+sudo nixos-rebuild switch --flake .#rednode
+
+# 4. Reboot
+sudo reboot
+
+# THAT'S IT. On reboot:
+#   → rednode-deploy.service auto-clones repo to /var/lib/rednode/source
+#   → Detects GPU, selects best LLM model, pulls it
+#   → Builds Rust CNS, installs Node.js deps, creates .env
+#   → Starts all 16 agents + dashboard + CNS
+#   → rednode-selfheal.service monitors every 5 minutes
+#   → If ANYTHING crashes → auto-repairs within 5 minutes
+#   → Checks for git updates once per day
+#
+# Nothing to clone manually. Nothing to build manually.
+# The OS deploys and heals itself.
 ```
 
-### Or manually:
+### After first boot — check status:
+```bash
+rednode status     # full health check (12 subsystems)
+rednode repair     # auto-fix any broken service
+rednode intent "check system health"   # talk to RedNode
+rednode logs       # self-heal log
+```
+
+### Option B: Docker on existing Linux (manual)
 
 ```bash
-# 1. Infrastructure
+# 1. Clone
+git clone https://github.com/Cosm1cBug/RedNode-OS-Demo.git
+cd RedNode-OS-Demo
+
+# 2. One-command setup (detects GPU, pulls models, builds, starts)
+./scripts/setup-first-boot.sh
+# → Dashboard ready at http://YOUR-IP:3000
+
+# Or manually:
 cd deployment && docker compose up -d
-# NATS, Postgres, Qdrant, Ollama, Mosquitto, Frigate, SearXNG, Grafana
-
-# 2. AI Models
-ollama pull qwen2.5:14b-instruct-q4_K_M
-ollama pull nomic-embed-text
-
-# 3. CNS (Rust Core)
-cd core/rednode-core && cargo run --release
-
-# 4. Agents
-pnpm install && pnpm agents
-
-# 5. Web Dashboard
+ollama pull qwen2.5:14b-instruct-q4_K_M && ollama pull nomic-embed-text
+cd ../core/rednode-core && cargo run --release &
+pnpm install && pnpm agents &
 pnpm web
-# → http://localhost:3000 (13 tabs)
+```
 
-# 6. CLI
-pnpm --filter @rednode/cli dev -- status
-pnpm --filter @rednode/cli dev -- intent "check system health"
-pnpm --filter @rednode/cli dev -- goodnight
+### Self-Healing (works on both options):
+```bash
+# Diagnose all 12 subsystems
+./scripts/rednode-selfheal.sh diagnose
 
-# Or use the startup script:
-./scripts/start-all.sh
+# Auto-repair anything broken (retries with backoff, pattern-matches errors)
+./scripts/rednode-selfheal.sh repair
+
+# Continuous watchdog (runs as systemd service on NixOS)
+./scripts/rednode-selfheal.sh watch
 ```
 
 ---

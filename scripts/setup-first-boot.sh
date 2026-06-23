@@ -36,7 +36,7 @@ step()  { echo -e "\n${BLUE}${BOLD}═══ $1 ═══${NC}\n"; }
 
 echo ""
 echo -e "${BOLD}  ╔══════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}  ║  🧠 RedNode-OS v0.4.0 — First Boot Setup ║${NC}"
+echo -e "${BOLD}  ║  🧠 RedNode-OS v0.7.0 — First Boot Setup ║${NC}"
 echo -e "${BOLD}  ╚══════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -240,7 +240,7 @@ fi
 
 echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}  🧠 RedNode-OS v0.4.0 — Setup Complete${NC}"
+echo -e "${BOLD}  🧠 RedNode-OS v0.7.0 — Setup Complete${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${BOLD}Dashboard:${NC}    http://$IP:3000"

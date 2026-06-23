@@ -8,6 +8,7 @@
   imports = [
     ./hardware.nix
     ./disk-encryption.nix
+    ./rednode-deploy.nix      # Autonomous deployment + self-healing
   ];
 
   # ──────────────────────────────────────────────
