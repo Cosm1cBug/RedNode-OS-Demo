@@ -209,7 +209,12 @@ check_docker() {
 }
 
 check_rust_binary() {
+  # Check 1: compiled binary in source tree
   if [ -f "${REDNODE_SOURCE}/core/rednode-core/target/release/rednode-core" ]; then
+    return 0
+  fi
+  # Check 2: Nix-built binary on PATH (from flake.nix — baked into ISO)
+  if command -v rednode-core >/dev/null 2>&1; then
     return 0
   fi
   return 1
@@ -274,24 +279,70 @@ repair_network() {
 }
 
 repair_clone_source() {
-  log FIX "Cloning RedNode source to ${REDNODE_SOURCE}..."
+  log FIX "Deploying RedNode source to ${REDNODE_SOURCE}..."
   
   mkdir -p "$(dirname "$REDNODE_SOURCE")" 2>/dev/null || true
   
-  if [ -d "${REDNODE_SOURCE}" ] && [ ! -d "${REDNODE_SOURCE}/.git" ]; then
-    # Directory exists but isn't a git repo — back up and re-clone
-    log WARN "Source directory exists but is not a git repo — backing up"
+  # ── Strategy 1: Baked-in source from ISO (no internet needed) ──
+  # When built with `nix build .#iso`, the source tree is pre-baked
+  # into the Nix store at $REDNODE_BAKED_SOURCE
+  if [ -n "${REDNODE_BAKED_SOURCE:-}" ] && [ -d "$REDNODE_BAKED_SOURCE" ]; then
+    if [ ! -f "${REDNODE_SOURCE}/package.json" ]; then
+      log INFO "Copying baked-in source from Nix store (no internet needed)..."
+      # Nix store is read-only, so we copy (not symlink) to get a writable tree
+      rm -rf "${REDNODE_SOURCE}" 2>/dev/null || true
+      cp -r "$REDNODE_BAKED_SOURCE" "$REDNODE_SOURCE"
+      chmod -R u+w "$REDNODE_SOURCE"
+      log INFO "Source deployed from ISO ✅ (zero network, zero git)"
+      
+      # Initialize a local git repo so update checks work later
+      cd "$REDNODE_SOURCE"
+      git init -q 2>/dev/null || true
+      git add -A 2>/dev/null || true
+      git commit -q -m "Initial: deployed from ISO" 2>/dev/null || true
+      git remote add origin "$REDNODE_REPO" 2>/dev/null || true
+      cd /
+    else
+      log INFO "Source already present from previous deployment ✅"
+    fi
+    [ -f "${REDNODE_SOURCE}/package.json" ]
+    return $?
+  fi
+  
+  # ── Strategy 2: Also check /run/current-system/rednode-source ──
+  # (alternative path where the ISO builder links the source)
+  if [ -d "/run/current-system/rednode-source" ] && [ ! -f "${REDNODE_SOURCE}/package.json" ]; then
+    log INFO "Copying source from /run/current-system/rednode-source..."
+    rm -rf "${REDNODE_SOURCE}" 2>/dev/null || true
+    cp -r "/run/current-system/rednode-source" "$REDNODE_SOURCE"
+    chmod -R u+w "$REDNODE_SOURCE"
+    cd "$REDNODE_SOURCE"
+    git init -q 2>/dev/null || true
+    git add -A 2>/dev/null || true
+    git commit -q -m "Initial: deployed from system closure" 2>/dev/null || true
+    git remote add origin "$REDNODE_REPO" 2>/dev/null || true
+    cd /
+    log INFO "Source deployed from system closure ✅"
+    [ -f "${REDNODE_SOURCE}/package.json" ]
+    return $?
+  fi
+  
+  # ── Strategy 3: Git clone from GitHub (needs internet) ──
+  if [ -d "${REDNODE_SOURCE}" ] && [ ! -d "${REDNODE_SOURCE}/.git" ] && [ ! -f "${REDNODE_SOURCE}/package.json" ]; then
+    # Directory exists but is empty/broken — back up and re-clone
+    log WARN "Source directory exists but is incomplete — backing up"
     mv "${REDNODE_SOURCE}" "${REDNODE_SOURCE}.backup.$(date +%s)" 2>/dev/null || true
   fi
   
-  if [ ! -d "${REDNODE_SOURCE}/.git" ]; then
+  if [ ! -f "${REDNODE_SOURCE}/package.json" ]; then
+    log INFO "Cloning from GitHub (internet required)..."
     git clone --depth 1 --branch "$REDNODE_BRANCH" "$REDNODE_REPO" "$REDNODE_SOURCE"
   else
     # Already cloned — pull latest
     log INFO "Source already cloned — pulling latest..."
     cd "$REDNODE_SOURCE"
-    git fetch origin "$REDNODE_BRANCH" --depth 1
-    git reset --hard "origin/$REDNODE_BRANCH"
+    git fetch origin "$REDNODE_BRANCH" --depth 1 2>/dev/null || true
+    git reset --hard "origin/$REDNODE_BRANCH" 2>/dev/null || true
     cd /
   fi
   
@@ -804,7 +855,7 @@ do_diagnose() {
 do_install() {
   echo ""
   echo -e "${BOLD}  ╔═══════════════════════════════════════════════════╗${NC}"
-  echo -e "${BOLD}  ║  🧠 RedNode-OS v0.7.0 — Autonomous Installation ║${NC}"
+  echo -e "${BOLD}  ║  🧠 RedNode-OS v0.7.1 — Autonomous Installation ║${NC}"
   echo -e "${BOLD}  ╚═══════════════════════════════════════════════════╝${NC}"
   echo ""
   
