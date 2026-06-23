@@ -12,7 +12,9 @@ const DRY_RUN = process.env.REDNODE_PATCH_DRY_RUN === "true";
 
 async function detectSnapshotEngine(): Promise<"btrfs" | "zfs" | "none"> {
   try {
-    const { stdout } = await execAsync("findmnt -n -o FSTYPE /", { timeout: 5000 });
+    const { stdout } = await execAsync("findmnt -n -o FSTYPE /", {
+      timeout: 5000,
+    });
     const fstype = stdout.trim().toLowerCase();
     if (fstype === "btrfs") return "btrfs";
   } catch {}
@@ -33,21 +35,29 @@ async function createSnapshot(name: string): Promise<string> {
       try {
         await execAsync(
           `btrfs subvolume snapshot -r / /.snapshots/${snapName}`,
-          { timeout: 30000 }
+          { timeout: 30000 },
         );
-        console.log(`[patcher] btrfs snapshot created: /.snapshots/${snapName}`);
+        console.log(
+          `[patcher] btrfs snapshot created: /.snapshots/${snapName}`,
+        );
         return snapName;
       } catch (e: any) {
-        console.warn(`[patcher] btrfs snapshot failed: ${e.message} — continuing without snapshot`);
+        console.warn(
+          `[patcher] btrfs snapshot failed: ${e.message} — continuing without snapshot`,
+        );
         return `fallback-${snapName}`;
       }
 
     case "zfs":
       try {
         // Get the root dataset
-        const { stdout } = await execAsync("zfs list -H -o name /", { timeout: 5000 });
+        const { stdout } = await execAsync("zfs list -H -o name /", {
+          timeout: 5000,
+        });
         const dataset = stdout.trim();
-        await execAsync(`zfs snapshot ${dataset}@${snapName}`, { timeout: 30000 });
+        await execAsync(`zfs snapshot ${dataset}@${snapName}`, {
+          timeout: 30000,
+        });
         console.log(`[patcher] ZFS snapshot created: ${dataset}@${snapName}`);
         return snapName;
       } catch (e: any) {
@@ -56,14 +66,18 @@ async function createSnapshot(name: string): Promise<string> {
       }
 
     default:
-      console.warn("[patcher] No snapshot engine (btrfs/zfs) — patching without rollback capability");
+      console.warn(
+        "[patcher] No snapshot engine (btrfs/zfs) — patching without rollback capability",
+      );
       return `no-snapshot-${snapName}`;
   }
 }
 
 async function rollbackSnapshot(snapName: string): Promise<void> {
   if (snapName.startsWith("fallback-") || snapName.startsWith("no-snapshot-")) {
-    console.error(`[patcher] Cannot rollback — no real snapshot was created: ${snapName}`);
+    console.error(
+      `[patcher] Cannot rollback — no real snapshot was created: ${snapName}`,
+    );
     return;
   }
 
@@ -73,21 +87,33 @@ async function rollbackSnapshot(snapName: string): Promise<void> {
       try {
         // btrfs rollback: delete current root, replace with snapshot
         // This is a DANGEROUS operation — in production, use snapper or similar
-        console.log(`[patcher] btrfs rollback to /.snapshots/${snapName} — MANUAL REBOOT REQUIRED`);
+        console.log(
+          `[patcher] btrfs rollback to /.snapshots/${snapName} — MANUAL REBOOT REQUIRED`,
+        );
         // Don't auto-rollback btrfs root — just log and alert
-        await report("CRITICAL", `Patch failed — manual rollback needed: btrfs subvolume snapshot /.snapshots/${snapName} /`, {
-          snapshot: snapName,
-          action: "manual_rollback_required",
-        });
+        await report(
+          "CRITICAL",
+          `Patch failed — manual rollback needed: btrfs subvolume snapshot /.snapshots/${snapName} /`,
+          {
+            snapshot: snapName,
+            action: "manual_rollback_required",
+          },
+        );
       } catch {}
       break;
 
     case "zfs":
       try {
-        const { stdout } = await execAsync("zfs list -H -o name /", { timeout: 5000 });
+        const { stdout } = await execAsync("zfs list -H -o name /", {
+          timeout: 5000,
+        });
         const dataset = stdout.trim();
-        console.log(`[patcher] ZFS rollback: zfs rollback ${dataset}@${snapName}`);
-        await execAsync(`zfs rollback -r ${dataset}@${snapName}`, { timeout: 60000 });
+        console.log(
+          `[patcher] ZFS rollback: zfs rollback ${dataset}@${snapName}`,
+        );
+        await execAsync(`zfs rollback -r ${dataset}@${snapName}`, {
+          timeout: 60000,
+        });
         console.log(`[patcher] ZFS rollback complete — reboot recommended`);
       } catch (e: any) {
         console.error(`[patcher] ZFS rollback failed: ${e.message}`);
@@ -100,7 +126,7 @@ async function rollbackSnapshot(snapName: string): Promise<void> {
 
 async function applyPackageUpdate(
   pkg: string,
-  targetVersion: string
+  targetVersion: string,
 ): Promise<{ ok: boolean; output: string }> {
   if (DRY_RUN) {
     console.log(`[patcher] DRY RUN — would update ${pkg} to ${targetVersion}`);
@@ -116,7 +142,7 @@ async function applyPackageUpdate(
       await execAsync("which apt-get", { timeout: 3000 });
       const { stdout, stderr } = await execAsync(
         `apt-get update -qq && apt-get install -y --only-upgrade ${pkg}`,
-        { timeout: 120000 } // 2 minute timeout for package updates
+        { timeout: 120000 }, // 2 minute timeout for package updates
       );
       return { ok: true, output: stdout + stderr };
     } catch {}
@@ -126,7 +152,7 @@ async function applyPackageUpdate(
       await execAsync("which dnf", { timeout: 3000 });
       const { stdout, stderr } = await execAsync(
         `dnf update -y --security ${pkg}`,
-        { timeout: 120000 }
+        { timeout: 120000 },
       );
       return { ok: true, output: stdout + stderr };
     } catch {}
@@ -134,7 +160,9 @@ async function applyPackageUpdate(
     // Try nix (NixOS) — rebuild with updated input
     try {
       await execAsync("which nixos-rebuild", { timeout: 3000 });
-      console.log(`[patcher] NixOS detected — security updates are applied via nixos-rebuild`);
+      console.log(
+        `[patcher] NixOS detected — security updates are applied via nixos-rebuild`,
+      );
       // On NixOS, individual package updates don't work — you rebuild the system
       // This should be triggered by the owner, not auto-patched
       return {
@@ -143,7 +171,10 @@ async function applyPackageUpdate(
       };
     } catch {}
 
-    return { ok: false, output: `No supported package manager found for updating ${pkg}` };
+    return {
+      ok: false,
+      output: `No supported package manager found for updating ${pkg}`,
+    };
   } catch (e: any) {
     return { ok: false, output: `Update failed: ${e.message}` };
   }
@@ -156,7 +187,7 @@ async function verifyPatch(pkg: string, cve: string): Promise<boolean> {
   try {
     const { stdout } = await execAsync(
       `dpkg-query -W -f='\${Version}' ${pkg} 2>/dev/null || rpm -q --queryformat '%{VERSION}' ${pkg} 2>/dev/null || echo unknown`,
-      { timeout: 5000 }
+      { timeout: 5000 },
     );
     console.log(`[patcher] Post-patch version of ${pkg}: ${stdout.trim()}`);
     // We can't easily verify CVE-specific fix without a full re-scan
@@ -184,7 +215,7 @@ async function report(severity: string, summary: string, raw: any) {
 export async function autoPatch(
   pkg: string,
   targetVersion: string,
-  cve: string
+  cve: string,
 ): Promise<boolean> {
   console.log(`[patcher] AUTONOMOUS PATCH START — ${pkg} — ${cve}`);
 
@@ -202,12 +233,14 @@ export async function autoPatch(
     // 3. Verify the patch took effect
     const verified = await verifyPatch(pkg, cve);
     if (!verified) {
-      throw new Error("Post-patch verification failed — package version unchanged");
+      throw new Error(
+        "Post-patch verification failed — package version unchanged",
+      );
     }
 
     // 4. Success
     console.log(
-      `[patcher] ✅ PATCH SUCCESS — ${pkg} — ${cve} — snapshot '${snapshot}' retained for rollback`
+      `[patcher] ✅ PATCH SUCCESS — ${pkg} — ${cve} — snapshot '${snapshot}' retained for rollback`,
     );
     await report("INFO", `Auto-patch successful: ${pkg} — ${cve}`, {
       pkg,
@@ -233,5 +266,5 @@ export async function autoPatch(
 }
 
 console.log(
-  `[security-agent] Autonomous patcher loaded — ${DRY_RUN ? "DRY RUN MODE" : "LIVE MODE"} — snapshot engine detection on first patch`
+  `[security-agent] Autonomous patcher loaded — ${DRY_RUN ? "DRY RUN MODE" : "LIVE MODE"} — snapshot engine detection on first patch`,
 );

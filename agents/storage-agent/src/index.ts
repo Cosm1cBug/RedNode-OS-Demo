@@ -31,7 +31,8 @@ async function nasGet(path: string): Promise<any> {
     // TrueNAS often uses self-signed certs
     // @ts-ignore — Node 18+ supports this
   });
-  if (!resp.ok) throw new Error(`TrueNAS API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok)
+    throw new Error(`TrueNAS API error: ${resp.status} ${resp.statusText}`);
   return resp.json();
 }
 
@@ -44,7 +45,8 @@ async function nasPost(path: string, body: any): Promise<any> {
     },
     body: JSON.stringify(body),
   });
-  if (!resp.ok) throw new Error(`TrueNAS API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok)
+    throw new Error(`TrueNAS API error: ${resp.status} ${resp.statusText}`);
   return resp.json();
 }
 
@@ -53,7 +55,8 @@ async function nasDelete(path: string): Promise<any> {
     method: "DELETE",
     headers: { Authorization: `Bearer ${TRUENAS_API_KEY}` },
   });
-  if (!resp.ok) throw new Error(`TrueNAS API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok)
+    throw new Error(`TrueNAS API error: ${resp.status} ${resp.statusText}`);
   return resp.json();
 }
 
@@ -93,7 +96,10 @@ class StorageAgent extends RedNodeAgent {
           // Report unhealthy pools as security events
           for (const p of pools) {
             if (!p.healthy) {
-              await this.reportSecurityEvent("HIGH", `TrueNAS pool '${p.name}' is DEGRADED — status: ${p.status}`);
+              await this.reportSecurityEvent(
+                "HIGH",
+                `TrueNAS pool '${p.name}' is DEGRADED — status: ${p.status}`,
+              );
             }
           }
           return { ok: true, output: summary, pools };
@@ -105,9 +111,13 @@ class StorageAgent extends RedNodeAgent {
           const lines = datasets.map((d: any) => {
             const used = formatBytes(d.used?.parsed || 0);
             const avail = formatBytes(d.available?.parsed || 0);
-            const pct = d.used?.parsed && d.available?.parsed
-              ? ((d.used.parsed / (d.used.parsed + d.available.parsed)) * 100).toFixed(0)
-              : "?";
+            const pct =
+              d.used?.parsed && d.available?.parsed
+                ? (
+                    (d.used.parsed / (d.used.parsed + d.available.parsed)) *
+                    100
+                  ).toFixed(0)
+                : "?";
             return `${d.name}: ${used} used / ${avail} free (${pct}%)`;
           });
           return { ok: true, output: lines.join("\n"), datasets };
@@ -115,20 +125,25 @@ class StorageAgent extends RedNodeAgent {
 
         case "nas.disks": {
           const disks = await nasGet("/disk");
-          const lines = disks.map((d: any) =>
-            `${d.name} | ${d.model || "unknown"} | ${formatBytes(d.size || 0)} | Serial: ${d.serial || "?"} | Temp: ${d.temperature || "?"}°C`
+          const lines = disks.map(
+            (d: any) =>
+              `${d.name} | ${d.model || "unknown"} | ${formatBytes(d.size || 0)} | Serial: ${d.serial || "?"} | Temp: ${d.temperature || "?"}°C`,
           );
           return { ok: true, output: lines.join("\n"), disks };
         }
 
         case "nas.smart": {
           const results = await nasGet("/smart/test/results");
-          const lines = (results || []).map((r: any) =>
-            `${r.disk}: ${r.status} — ${r.description || "no details"}`
+          const lines = (results || []).map(
+            (r: any) =>
+              `${r.disk}: ${r.status} — ${r.description || "no details"}`,
           );
           return {
             ok: true,
-            output: lines.length > 0 ? lines.join("\n") : "No SMART test results available. Run: nas.smart_test",
+            output:
+              lines.length > 0
+                ? lines.join("\n")
+                : "No SMART test results available. Run: nas.smart_test",
             results,
           };
         }
@@ -136,15 +151,22 @@ class StorageAgent extends RedNodeAgent {
         case "nas.alerts": {
           const alerts = await nasGet("/alert/list");
           if (!alerts || alerts.length === 0) {
-            return { ok: true, output: "No active TrueNAS alerts ✅", alerts: [] };
+            return {
+              ok: true,
+              output: "No active TrueNAS alerts ✅",
+              alerts: [],
+            };
           }
-          const lines = alerts.map((a: any) =>
-            `[${a.level}] ${a.formatted || a.text || a.title}`
+          const lines = alerts.map(
+            (a: any) => `[${a.level}] ${a.formatted || a.text || a.title}`,
           );
           // Report critical alerts
           for (const a of alerts) {
             if (a.level === "CRITICAL" || a.level === "ERROR") {
-              await this.reportSecurityEvent("HIGH", `TrueNAS alert: ${a.formatted || a.text}`);
+              await this.reportSecurityEvent(
+                "HIGH",
+                `TrueNAS alert: ${a.formatted || a.text}`,
+              );
             }
           }
           return { ok: true, output: lines.join("\n"), alerts };
@@ -152,14 +174,24 @@ class StorageAgent extends RedNodeAgent {
 
         case "nas.snapshot_create": {
           const dataset = args.dataset;
-          if (!dataset) return { ok: false, error: "Missing 'dataset' argument (e.g. 'tank/documents')" };
-          const name = args.name || `rednode-auto-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+          if (!dataset)
+            return {
+              ok: false,
+              error: "Missing 'dataset' argument (e.g. 'tank/documents')",
+            };
+          const name =
+            args.name ||
+            `rednode-auto-${new Date().toISOString().replace(/[:.]/g, "-")}`;
           const result = await nasPost("/zfs/snapshot", {
             dataset,
             name,
             recursive: args.recursive ?? true,
           });
-          return { ok: true, output: `Snapshot created: ${dataset}@${name}`, result };
+          return {
+            ok: true,
+            output: `Snapshot created: ${dataset}@${name}`,
+            result,
+          };
         }
 
         case "nas.snapshot_list": {
@@ -170,13 +202,21 @@ class StorageAgent extends RedNodeAgent {
             : snapshots;
           const lines = filtered
             .slice(-20) // last 20
-            .map((s: any) => `${s.name} | ${new Date(s.properties?.creation?.parsed * 1000 || 0).toLocaleString()} | ${formatBytes(s.properties?.used?.parsed || 0)}`);
-          return { ok: true, output: lines.join("\n") || "No snapshots found", count: filtered.length };
+            .map(
+              (s: any) =>
+                `${s.name} | ${new Date(s.properties?.creation?.parsed * 1000 || 0).toLocaleString()} | ${formatBytes(s.properties?.used?.parsed || 0)}`,
+            );
+          return {
+            ok: true,
+            output: lines.join("\n") || "No snapshots found",
+            count: filtered.length,
+          };
         }
 
         case "nas.snapshot_delete": {
           const id = args.id || args.name;
-          if (!id) return { ok: false, error: "Missing 'id' or 'name' argument" };
+          if (!id)
+            return { ok: false, error: "Missing 'id' or 'name' argument" };
           const encodedId = encodeURIComponent(id);
           const result = await nasDelete(`/zfs/snapshot/id/${encodedId}`);
           return { ok: true, output: `Snapshot deleted: ${id}`, result };
@@ -185,7 +225,11 @@ class StorageAgent extends RedNodeAgent {
         case "nas.share_create": {
           const path = args.path;
           const name = args.name;
-          if (!path || !name) return { ok: false, error: "Missing 'path' and/or 'name' arguments" };
+          if (!path || !name)
+            return {
+              ok: false,
+              error: "Missing 'path' and/or 'name' arguments",
+            };
           const result = await nasPost("/sharing/smb", {
             path,
             name,
@@ -193,7 +237,11 @@ class StorageAgent extends RedNodeAgent {
             browsable: true,
             ro: false,
           });
-          return { ok: true, output: `SMB share created: \\\\truenas\\${name} → ${path}`, result };
+          return {
+            ok: true,
+            output: `SMB share created: \\\\truenas\\${name} → ${path}`,
+            result,
+          };
         }
 
         case "nas.share_list": {
@@ -201,9 +249,15 @@ class StorageAgent extends RedNodeAgent {
           const nfs = await nasGet("/sharing/nfs");
           const lines = [
             "=== SMB Shares ===",
-            ...(smb || []).map((s: any) => `  ${s.name}: ${s.path} ${s.enabled ? "✅" : "❌ disabled"}`),
+            ...(smb || []).map(
+              (s: any) =>
+                `  ${s.name}: ${s.path} ${s.enabled ? "✅" : "❌ disabled"}`,
+            ),
             "=== NFS Exports ===",
-            ...(nfs || []).map((s: any) => `  ${s.paths?.join(", ")} ${s.enabled ? "✅" : "❌ disabled"}`),
+            ...(nfs || []).map(
+              (s: any) =>
+                `  ${s.paths?.join(", ")} ${s.enabled ? "✅" : "❌ disabled"}`,
+            ),
           ];
           return { ok: true, output: lines.join("\n"), smb, nfs };
         }
@@ -217,7 +271,11 @@ class StorageAgent extends RedNodeAgent {
           const job = jobs.find((j: any) => j.enabled);
           if (!job) return { ok: true, output: "No enabled replication jobs" };
           const result = await nasPost(`/replication/id/${job.id}/run`, {});
-          return { ok: true, output: `Replication job '${job.name}' triggered`, result };
+          return {
+            ok: true,
+            output: `Replication job '${job.name}' triggered`,
+            result,
+          };
         }
 
         case "nas.backup_rednode": {
@@ -251,7 +309,12 @@ class StorageAgent extends RedNodeAgent {
       await fetch(`${CNS}/security/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ severity, source: "storage-agent/truenas", summary, raw: {} }),
+        body: JSON.stringify({
+          severity,
+          source: "storage-agent/truenas",
+          summary,
+          raw: {},
+        }),
       });
     } catch {}
   }

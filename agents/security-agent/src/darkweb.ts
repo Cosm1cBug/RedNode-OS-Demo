@@ -28,12 +28,30 @@ const TOR_PROXY = process.env.TOR_SOCKS_PROXY || "socks5h://127.0.0.1:9050";
 // From Robin project + verified working engines
 
 const ONION_ENGINES = [
-  { name: "Ahmia", url: "http://juhanurmihxlp77nkq76byazcldy2hlmovfu2epvl5ankdibsot4csyd.onion/search/?q={query}" },
-  { name: "Torgle", url: "http://iy3544gmoeclh5de6gez2256v6pjh4omhpqdh2wpeeppjtvqmjhkfwad.onion/torgle/?query={query}" },
-  { name: "Amnesia", url: "http://amnesia7u5odx5xbwtpnqk3edybgud5bmiagu75bnqx2crntw5kry7ad.onion/search?query={query}" },
-  { name: "Tornado", url: "http://tornadoxn3viscgz647shlysdy7ea5zqzwda7hierekeuokh5eh5b3qd.onion/search?q={query}" },
-  { name: "TorNet", url: "http://tornetupfu7gcgidt33ftnungxzyfq2pygui5qdoyss34xbgx2qruzid.onion/search?q={query}" },
-  { name: "Excavator", url: "http://2fd6cemt4gmccflhm6imvdfvli3nf7zn6rfrwpsy7uhxrgbypvwf5fad.onion/search?query={query}" },
+  {
+    name: "Ahmia",
+    url: "http://juhanurmihxlp77nkq76byazcldy2hlmovfu2epvl5ankdibsot4csyd.onion/search/?q={query}",
+  },
+  {
+    name: "Torgle",
+    url: "http://iy3544gmoeclh5de6gez2256v6pjh4omhpqdh2wpeeppjtvqmjhkfwad.onion/torgle/?query={query}",
+  },
+  {
+    name: "Amnesia",
+    url: "http://amnesia7u5odx5xbwtpnqk3edybgud5bmiagu75bnqx2crntw5kry7ad.onion/search?query={query}",
+  },
+  {
+    name: "Tornado",
+    url: "http://tornadoxn3viscgz647shlysdy7ea5zqzwda7hierekeuokh5eh5b3qd.onion/search?q={query}",
+  },
+  {
+    name: "TorNet",
+    url: "http://tornetupfu7gcgidt33ftnungxzyfq2pygui5qdoyss34xbgx2qruzid.onion/search?q={query}",
+  },
+  {
+    name: "Excavator",
+    url: "http://2fd6cemt4gmccflhm6imvdfvli3nf7zn6rfrwpsy7uhxrgbypvwf5fad.onion/search?query={query}",
+  },
 ];
 
 // Clearnet Ahmia mirror (works without Tor — for basic searches)
@@ -52,7 +70,7 @@ async function isTorRunning(): Promise<boolean> {
   try {
     const { stdout } = await execAsync(
       `curl -sf --socks5-hostname 127.0.0.1:9050 https://check.torproject.org/api/ip 2>/dev/null`,
-      { timeout: 15000 }
+      { timeout: 15000 },
     );
     const data = JSON.parse(stdout);
     return data.IsTor === true;
@@ -63,7 +81,10 @@ async function isTorRunning(): Promise<boolean> {
 
 // ─── Search via Tor ───
 
-async function searchOnion(engine: { name: string; url: string }, query: string): Promise<DarkWebResult[]> {
+async function searchOnion(
+  engine: { name: string; url: string },
+  query: string,
+): Promise<DarkWebResult[]> {
   const searchUrl = engine.url.replace("{query}", encodeURIComponent(query));
   const results: DarkWebResult[] = [];
 
@@ -72,7 +93,7 @@ async function searchOnion(engine: { name: string; url: string }, query: string)
       `curl -sf --socks5-hostname 127.0.0.1:9050 --max-time 30 \
        -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0" \
        "${searchUrl}" 2>/dev/null`,
-      { timeout: 35000 }
+      { timeout: 35000 },
     );
 
     if (!stdout || stdout.length < 100) return results;
@@ -89,8 +110,15 @@ async function searchOnion(engine: { name: string; url: string }, query: string)
         seen.add(url);
         // Get snippet — text near the link
         const idx = stdout.indexOf(match[0]);
-        const context = stdout.substring(Math.max(0, idx - 200), Math.min(stdout.length, idx + 500));
-        const snippet = context.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 200);
+        const context = stdout.substring(
+          Math.max(0, idx - 200),
+          Math.min(stdout.length, idx + 500),
+        );
+        const snippet = context
+          .replace(/<[^>]*>/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .substring(0, 200);
 
         results.push({ engine: engine.name, title, url, snippet });
       }
@@ -109,7 +137,10 @@ async function searchAhmiaClearnet(query: string): Promise<DarkWebResult[]> {
   try {
     const url = AHMIA_CLEARNET.replace("{query}", encodeURIComponent(query));
     const resp = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0" },
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; rv:128.0) Gecko/20100101 Firefox/128.0",
+      },
       signal: AbortSignal.timeout(15000),
     });
     const html = await resp.text();
@@ -131,11 +162,17 @@ async function searchAhmiaClearnet(query: string): Promise<DarkWebResult[]> {
 
 // ─── LLM Analysis ───
 
-async function analyzeDarkWebResults(query: string, results: DarkWebResult[]): Promise<string> {
+async function analyzeDarkWebResults(
+  query: string,
+  results: DarkWebResult[],
+): Promise<string> {
   if (results.length === 0) return "No dark web results found for this query.";
 
   const resultText = results
-    .map((r, i) => `[${i + 1}] ${r.engine}: ${r.title}\n    URL: ${r.url}\n    ${r.snippet}`)
+    .map(
+      (r, i) =>
+        `[${i + 1}] ${r.engine}: ${r.title}\n    URL: ${r.url}\n    ${r.snippet}`,
+    )
     .join("\n\n");
 
   try {
@@ -188,8 +225,8 @@ export async function darkwebSearch(query: string): Promise<{
     console.log("[darkweb] Tor connected ✅ — searching .onion engines");
 
     // Search multiple engines in parallel (with limit)
-    const searchPromises = ONION_ENGINES.slice(0, 4).map(engine =>
-      searchOnion(engine, query).catch(() => [] as DarkWebResult[])
+    const searchPromises = ONION_ENGINES.slice(0, 4).map((engine) =>
+      searchOnion(engine, query).catch(() => [] as DarkWebResult[]),
     );
     const engineResults = await Promise.all(searchPromises);
     for (const results of engineResults) {
@@ -202,7 +239,7 @@ export async function darkwebSearch(query: string): Promise<{
 
   // Deduplicate by URL
   const seen = new Set<string>();
-  allResults = allResults.filter(r => {
+  allResults = allResults.filter((r) => {
     if (seen.has(r.url)) return false;
     seen.add(r.url);
     return true;

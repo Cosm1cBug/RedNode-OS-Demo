@@ -12,7 +12,9 @@ const TOOLS = [
 ];
 
 class SecurityAgent extends RedNodeAgent {
-  constructor() { super("security", TOOLS); }
+  constructor() {
+    super("security", TOOLS);
+  }
   async handleTool(tool: string, args: any) {
     if (tool === "sec.threat_intel") {
       const { syncThreatIntel, getStats } = await import("./threat-intel.js");
@@ -21,12 +23,14 @@ class SecurityAgent extends RedNodeAgent {
       return {
         ok: true,
         output: `Threat Intel: ${result.new_iocs} new IOCs | ${result.blocked_ips} IPs blocked on pfSense | ${result.blocked_domains} domains blocked on Pi-hole | Total: ${stats.total}`,
-        result, stats,
+        result,
+        stats,
       };
     }
     if (tool === "sec.ioc_check") {
       const value = args.value || args.ip || args.domain || "";
-      if (!value) return { ok: false, error: "Missing 'value' (IP or domain to check)" };
+      if (!value)
+        return { ok: false, error: "Missing 'value' (IP or domain to check)" };
       const { checkIOC } = await import("./threat-intel.js");
       const match = checkIOC(value);
       return {
@@ -39,15 +43,21 @@ class SecurityAgent extends RedNodeAgent {
     }
     if (tool === "sec.darkweb_search") {
       const query = args.query || args.q || args.search || "";
-      if (!query) return { ok: false, error: "Missing 'query' — what to search for on the dark web" };
+      if (!query)
+        return {
+          ok: false,
+          error: "Missing 'query' — what to search for on the dark web",
+        };
       const { darkwebSearch } = await import("./darkweb.js");
       const result = await darkwebSearch(query);
-      const resultLines = result.results.map((r, i) =>
-        `[${i + 1}] ${r.engine}: ${r.title}\n    ${r.url}\n    ${r.snippet}`
+      const resultLines = result.results.map(
+        (r, i) =>
+          `[${i + 1}] ${r.engine}: ${r.title}\n    ${r.url}\n    ${r.snippet}`,
       );
       return {
         ok: true,
-        output: `🕵️ Dark Web OSINT: "${query}"\n` +
+        output:
+          `🕵️ Dark Web OSINT: "${query}"\n` +
           `Tor: ${result.tor_connected ? "✅ connected" : "❌ not running (clearnet fallback)"}\n` +
           `Engines searched: ${result.engines_searched}\n` +
           `Results: ${result.results.length}\n\n` +

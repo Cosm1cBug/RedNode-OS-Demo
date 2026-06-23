@@ -91,7 +91,7 @@ function pick<T>(arr: T[]): T {
 
 function randomDelay(minMs: number, maxMs: number): Promise<void> {
   const delay = minMs + Math.random() * (maxMs - minMs);
-  return new Promise(resolve => setTimeout(resolve, delay));
+  return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
 // ─── Public API ───
@@ -116,17 +116,18 @@ export function generateProfile(targetUrl?: string): StealthProfile {
 
   // Determine browser type from UA for consistent Accept header
   const isFirefox = userAgent.includes("Firefox");
-  const isSafari = userAgent.includes("Safari") && !userAgent.includes("Chrome");
+  const isSafari =
+    userAgent.includes("Safari") && !userAgent.includes("Chrome");
 
   const accept = isFirefox
     ? "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
     : isSafari
-    ? "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-    : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8";
+      ? "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+      : "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8";
 
   const headers: Record<string, string> = {
     "User-Agent": userAgent,
-    "Accept": accept,
+    Accept: accept,
     "Accept-Language": acceptLanguage,
     "Accept-Encoding": "gzip, deflate, br",
     "Cache-Control": pick(["no-cache", "max-age=0"]),
@@ -140,14 +141,20 @@ export function generateProfile(targetUrl?: string): StealthProfile {
   // Add Sec-CH-UA for Chrome/Edge (Client Hints)
   if (userAgent.includes("Chrome") && !isFirefox) {
     const version = userAgent.match(/Chrome\/(\d+)/)?.[1] || "126";
-    headers["Sec-CH-UA"] = `"Chromium";v="${version}", "Not/A)Brand";v="8", "Google Chrome";v="${version}"`;
+    headers["Sec-CH-UA"] =
+      `"Chromium";v="${version}", "Not/A)Brand";v="8", "Google Chrome";v="${version}"`;
     headers["Sec-CH-UA-Mobile"] = "?0";
-    headers["Sec-CH-UA-Platform"] = userAgent.includes("Windows") ? '"Windows"' :
-      userAgent.includes("Macintosh") ? '"macOS"' : '"Linux"';
+    headers["Sec-CH-UA-Platform"] = userAgent.includes("Windows")
+      ? '"Windows"'
+      : userAgent.includes("Macintosh")
+        ? '"macOS"'
+        : '"Linux"';
   }
 
   if (referer) {
-    headers["Referer"] = referer + (targetUrl ? encodeURIComponent(new URL(targetUrl).hostname) : "");
+    headers["Referer"] =
+      referer +
+      (targetUrl ? encodeURIComponent(new URL(targetUrl).hostname) : "");
   }
 
   return { userAgent, acceptLanguage, referer, viewport, headers };
@@ -157,27 +164,32 @@ export function generateProfile(targetUrl?: string): StealthProfile {
  * Apply stealth patches to a Playwright page.
  * Hides automation indicators that websites use to detect bots.
  */
-export async function applyStealthToPage(page: any, profile: StealthProfile): Promise<void> {
+export async function applyStealthToPage(
+  page: any,
+  profile: StealthProfile,
+): Promise<void> {
   // Override navigator.webdriver
   await page.addInitScript(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => false });
+    Object.defineProperty(navigator, "webdriver", { get: () => false });
 
     // Hide automation-related properties
     const originalQuery = window.navigator.permissions.query;
     // @ts-ignore
     window.navigator.permissions.query = (parameters: any) =>
-      parameters.name === 'notifications'
-        ? Promise.resolve({ state: Notification.permission } as PermissionStatus)
+      parameters.name === "notifications"
+        ? Promise.resolve({
+            state: Notification.permission,
+          } as PermissionStatus)
         : originalQuery(parameters);
 
     // Spoof plugins (Chrome shows plugins, headless doesn't)
-    Object.defineProperty(navigator, 'plugins', {
+    Object.defineProperty(navigator, "plugins", {
       get: () => [1, 2, 3, 4, 5],
     });
 
     // Spoof languages
-    Object.defineProperty(navigator, 'languages', {
-      get: () => ['en-US', 'en'],
+    Object.defineProperty(navigator, "languages", {
+      get: () => ["en-US", "en"],
     });
 
     // Chrome specific: hide chrome.runtime
@@ -186,9 +198,11 @@ export async function applyStealthToPage(page: any, profile: StealthProfile): Pr
 
     // Hide headless indicators in WebGL
     const getParameter = WebGLRenderingContext.prototype.getParameter;
-    WebGLRenderingContext.prototype.getParameter = function(parameter: number) {
-      if (parameter === 37445) return 'Intel Inc.';
-      if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+    WebGLRenderingContext.prototype.getParameter = function (
+      parameter: number,
+    ) {
+      if (parameter === 37445) return "Intel Inc.";
+      if (parameter === 37446) return "Intel Iris OpenGL Engine";
       return getParameter.call(this, parameter);
     };
   });
@@ -220,14 +234,23 @@ export async function humanDelay(action: string = "request"): Promise<void> {
 /**
  * Create a Playwright browser context with full stealth configuration.
  */
-export async function createStealthContext(browser: any, profile?: StealthProfile): Promise<any> {
+export async function createStealthContext(
+  browser: any,
+  profile?: StealthProfile,
+): Promise<any> {
   const p = profile || generateProfile();
 
   const context = await browser.newContext({
     userAgent: p.userAgent,
     viewport: p.viewport,
     locale: p.acceptLanguage.split(",")[0].split(";")[0],
-    timezoneId: pick(["America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Tokyo", "Asia/Kolkata"]),
+    timezoneId: pick([
+      "America/New_York",
+      "America/Los_Angeles",
+      "Europe/London",
+      "Asia/Tokyo",
+      "Asia/Kolkata",
+    ]),
     geolocation: undefined,
     permissions: [],
     extraHTTPHeaders: {

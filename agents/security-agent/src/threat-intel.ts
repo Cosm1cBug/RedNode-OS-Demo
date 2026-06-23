@@ -20,7 +20,8 @@ import * as fs from "fs";
 import * as path from "path";
 
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
-const INTEL_DIR = process.env.THREAT_INTEL_DIR || "/var/lib/rednode/threat-intel";
+const INTEL_DIR =
+  process.env.THREAT_INTEL_DIR || "/var/lib/rednode/threat-intel";
 const PFSENSE_URL = process.env.PFSENSE_URL || "";
 const PFSENSE_API_KEY = process.env.PFSENSE_API_KEY || "";
 const PFSENSE_API_SECRET = process.env.PFSENSE_API_SECRET || "";
@@ -52,17 +53,28 @@ async function fetchAbuseCH(): Promise<IOC[]> {
 
   // Feodo Tracker — banking trojan C2 servers
   try {
-    const resp = await fetch("https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt", {
-      signal: AbortSignal.timeout(15000),
-    });
+    const resp = await fetch(
+      "https://feodotracker.abuse.ch/downloads/ipblocklist_recommended.txt",
+      {
+        signal: AbortSignal.timeout(15000),
+      },
+    );
     const text = await resp.text();
     for (const line of text.split("\n")) {
       const ip = line.trim();
-      if (ip && !ip.startsWith("#") && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+      if (
+        ip &&
+        !ip.startsWith("#") &&
+        /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)
+      ) {
         iocs.push({
-          type: "ip", value: ip, source: "abuse.ch/feodo",
-          severity: "critical", description: "Feodo Tracker — banking trojan C2",
-          first_seen: new Date().toISOString(), tags: ["malware", "c2", "banking"],
+          type: "ip",
+          value: ip,
+          source: "abuse.ch/feodo",
+          severity: "critical",
+          description: "Feodo Tracker — banking trojan C2",
+          first_seen: new Date().toISOString(),
+          tags: ["malware", "c2", "banking"],
         });
       }
     }
@@ -73,18 +85,29 @@ async function fetchAbuseCH(): Promise<IOC[]> {
 
   // SSL Blacklist — malicious SSL certificates
   try {
-    const resp = await fetch("https://sslbl.abuse.ch/blacklist/sslipblacklist.txt", {
-      signal: AbortSignal.timeout(15000),
-    });
+    const resp = await fetch(
+      "https://sslbl.abuse.ch/blacklist/sslipblacklist.txt",
+      {
+        signal: AbortSignal.timeout(15000),
+      },
+    );
     const text = await resp.text();
     let sslCount = 0;
     for (const line of text.split("\n")) {
       const ip = line.trim();
-      if (ip && !ip.startsWith("#") && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+      if (
+        ip &&
+        !ip.startsWith("#") &&
+        /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)
+      ) {
         iocs.push({
-          type: "ip", value: ip, source: "abuse.ch/sslbl",
-          severity: "high", description: "SSL Blacklist — malicious certificate",
-          first_seen: new Date().toISOString(), tags: ["malware", "ssl"],
+          type: "ip",
+          value: ip,
+          source: "abuse.ch/sslbl",
+          severity: "high",
+          description: "SSL Blacklist — malicious certificate",
+          first_seen: new Date().toISOString(),
+          tags: ["malware", "ssl"],
         });
         sslCount++;
       }
@@ -96,9 +119,12 @@ async function fetchAbuseCH(): Promise<IOC[]> {
 
   // URLhaus — malware distribution URLs
   try {
-    const resp = await fetch("https://urlhaus.abuse.ch/downloads/text_online/", {
-      signal: AbortSignal.timeout(15000),
-    });
+    const resp = await fetch(
+      "https://urlhaus.abuse.ch/downloads/text_online/",
+      {
+        signal: AbortSignal.timeout(15000),
+      },
+    );
     const text = await resp.text();
     let urlCount = 0;
     for (const line of text.split("\n")) {
@@ -107,9 +133,13 @@ async function fetchAbuseCH(): Promise<IOC[]> {
         try {
           const domain = new URL(url).hostname;
           iocs.push({
-            type: "domain", value: domain, source: "abuse.ch/urlhaus",
-            severity: "high", description: `Malware distribution: ${url.substring(0, 100)}`,
-            first_seen: new Date().toISOString(), tags: ["malware", "distribution"],
+            type: "domain",
+            value: domain,
+            source: "abuse.ch/urlhaus",
+            severity: "high",
+            description: `Malware distribution: ${url.substring(0, 100)}`,
+            first_seen: new Date().toISOString(),
+            tags: ["malware", "distribution"],
           });
           urlCount++;
         } catch {}
@@ -125,25 +155,36 @@ async function fetchAbuseCH(): Promise<IOC[]> {
 
 async function fetchAlienVaultOTX(): Promise<IOC[]> {
   if (!OTX_API_KEY) {
-    console.log("[threat-intel] AlienVault OTX: no API key (set OTX_API_KEY for premium feeds)");
+    console.log(
+      "[threat-intel] AlienVault OTX: no API key (set OTX_API_KEY for premium feeds)",
+    );
     return [];
   }
 
   const iocs: IOC[] = [];
   try {
     // Fetch recent pulses (threat reports)
-    const resp = await fetch("https://otx.alienvault.com/api/v1/pulses/subscribed?limit=10&page=1", {
-      headers: { "X-OTX-API-KEY": OTX_API_KEY },
-      signal: AbortSignal.timeout(20000),
-    });
-    const data = await resp.json() as any;
+    const resp = await fetch(
+      "https://otx.alienvault.com/api/v1/pulses/subscribed?limit=10&page=1",
+      {
+        headers: { "X-OTX-API-KEY": OTX_API_KEY },
+        signal: AbortSignal.timeout(20000),
+      },
+    );
+    const data = (await resp.json()) as any;
 
     for (const pulse of data.results || []) {
       for (const indicator of pulse.indicators || []) {
-        const type = indicator.type === "IPv4" ? "ip" :
-                     indicator.type === "domain" ? "domain" :
-                     indicator.type === "URL" ? "url" :
-                     indicator.type === "FileHash-SHA256" ? "hash" : null;
+        const type =
+          indicator.type === "IPv4"
+            ? "ip"
+            : indicator.type === "domain"
+              ? "domain"
+              : indicator.type === "URL"
+                ? "url"
+                : indicator.type === "FileHash-SHA256"
+                  ? "hash"
+                  : null;
         if (type) {
           iocs.push({
             type: type as any,
@@ -157,7 +198,9 @@ async function fetchAlienVaultOTX(): Promise<IOC[]> {
         }
       }
     }
-    console.log(`[threat-intel] AlienVault OTX: ${iocs.length} IOCs from ${data.results?.length || 0} pulses`);
+    console.log(
+      `[threat-intel] AlienVault OTX: ${iocs.length} IOCs from ${data.results?.length || 0} pulses`,
+    );
   } catch (e: any) {
     console.warn(`[threat-intel] AlienVault OTX failed: ${e.message}`);
   }
@@ -168,17 +211,28 @@ async function fetchEmergingThreats(): Promise<IOC[]> {
   const iocs: IOC[] = [];
   try {
     // ET compromised IPs
-    const resp = await fetch("https://rules.emergingthreats.net/blockrules/compromised-ips.txt", {
-      signal: AbortSignal.timeout(15000),
-    });
+    const resp = await fetch(
+      "https://rules.emergingthreats.net/blockrules/compromised-ips.txt",
+      {
+        signal: AbortSignal.timeout(15000),
+      },
+    );
     const text = await resp.text();
     for (const line of text.split("\n")) {
       const ip = line.trim();
-      if (ip && !ip.startsWith("#") && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
+      if (
+        ip &&
+        !ip.startsWith("#") &&
+        /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)
+      ) {
         iocs.push({
-          type: "ip", value: ip, source: "emergingthreats",
-          severity: "high", description: "Emerging Threats — compromised IP",
-          first_seen: new Date().toISOString(), tags: ["compromised"],
+          type: "ip",
+          value: ip,
+          source: "emergingthreats",
+          severity: "high",
+          description: "Emerging Threats — compromised IP",
+          first_seen: new Date().toISOString(),
+          tags: ["compromised"],
         });
       }
     }
@@ -191,7 +245,9 @@ async function fetchEmergingThreats(): Promise<IOC[]> {
 
 // ─── pfSense Auto-Block ───
 
-async function blockOnPfSense(ips: string[]): Promise<{ blocked: number; errors: number }> {
+async function blockOnPfSense(
+  ips: string[],
+): Promise<{ blocked: number; errors: number }> {
   if (!PFSENSE_URL || !PFSENSE_API_KEY) {
     return { blocked: 0, errors: 0 };
   }
@@ -215,7 +271,7 @@ async function blockOnPfSense(ips: string[]): Promise<{ blocked: number; errors:
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `${PFSENSE_API_KEY} ${PFSENSE_API_SECRET}`,
+            Authorization: `${PFSENSE_API_KEY} ${PFSENSE_API_SECRET}`,
           },
           body: JSON.stringify({
             name: aliasName,
@@ -230,7 +286,9 @@ async function blockOnPfSense(ips: string[]): Promise<{ blocked: number; errors:
           blocked += batch.length;
         } else {
           errors++;
-          console.warn(`[threat-intel] pfSense batch block failed: ${resp.status}`);
+          console.warn(
+            `[threat-intel] pfSense batch block failed: ${resp.status}`,
+          );
         }
       } catch (e: any) {
         errors++;
@@ -243,10 +301,12 @@ async function blockOnPfSense(ips: string[]): Promise<{ blocked: number; errors:
       await fetch(`${PFSENSE_URL}/api/v1/firewall/apply`, {
         method: "POST",
         headers: {
-          "Authorization": `${PFSENSE_API_KEY} ${PFSENSE_API_SECRET}`,
+          Authorization: `${PFSENSE_API_KEY} ${PFSENSE_API_SECRET}`,
         },
       });
-      console.log(`[threat-intel] pfSense: ${blocked} IPs blocked via alias '${aliasName}'`);
+      console.log(
+        `[threat-intel] pfSense: ${blocked} IPs blocked via alias '${aliasName}'`,
+      );
     }
   } catch (e: any) {
     console.error(`[threat-intel] pfSense integration failed: ${e.message}`);
@@ -271,12 +331,13 @@ async function blockDomainsOnPihole(domains: string[]): Promise<number> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: PIHOLE_PASSWORD }),
     });
-    const authData = await authResp.json() as any;
+    const authData = (await authResp.json()) as any;
     const sid = authData?.session?.sid;
     if (!sid) return 0;
 
     // Add domains to blocklist
-    for (const domain of domains.slice(0, 500)) { // limit to 500 per sync
+    for (const domain of domains.slice(0, 500)) {
+      // limit to 500 per sync
       try {
         await fetch(`${PIHOLE_URL}/api/lists?sid=${sid}`, {
           method: "POST",
@@ -325,7 +386,11 @@ export async function syncThreatIntel(): Promise<{
   const newIOCs: IOC[] = [];
   for (const ioc of allIOCs) {
     const key = `${ioc.type}:${ioc.value}`;
-    if (!seen.has(key) && !blockedIPs.has(ioc.value) && !blockedDomains.has(ioc.value)) {
+    if (
+      !seen.has(key) &&
+      !blockedIPs.has(ioc.value) &&
+      !blockedDomains.has(ioc.value)
+    ) {
       seen.add(key);
       newIOCs.push(ioc);
     }
@@ -343,29 +408,50 @@ export async function syncThreatIntel(): Promise<{
     fs.mkdirSync(INTEL_DIR, { recursive: true });
     fs.writeFileSync(
       path.join(INTEL_DIR, "iocs.json"),
-      JSON.stringify({ updated: new Date().toISOString(), count: iocDatabase.length, iocs: iocDatabase.slice(-1000) }, null, 2)
+      JSON.stringify(
+        {
+          updated: new Date().toISOString(),
+          count: iocDatabase.length,
+          iocs: iocDatabase.slice(-1000),
+        },
+        null,
+        2,
+      ),
     );
   } catch {}
 
   // Auto-block on pfSense (IPs)
   let pfBlocked = 0;
   if (AUTO_BLOCK) {
-    const newIPs = newIOCs.filter(i => i.type === "ip" && (i.severity === "high" || i.severity === "critical")).map(i => i.value);
+    const newIPs = newIOCs
+      .filter(
+        (i) =>
+          i.type === "ip" &&
+          (i.severity === "high" || i.severity === "critical"),
+      )
+      .map((i) => i.value);
     if (newIPs.length > 0) {
       const result = await blockOnPfSense(newIPs);
       pfBlocked = result.blocked;
-      newIPs.forEach(ip => blockedIPs.add(ip));
+      newIPs.forEach((ip) => blockedIPs.add(ip));
     }
   }
 
   // Auto-block malicious domains on Pi-hole
-  const newDomains = newIOCs.filter(i => i.type === "domain" && (i.severity === "high" || i.severity === "critical")).map(i => i.value);
+  const newDomains = newIOCs
+    .filter(
+      (i) =>
+        i.type === "domain" &&
+        (i.severity === "high" || i.severity === "critical"),
+    )
+    .map((i) => i.value);
   const phBlocked = await blockDomainsOnPihole(newDomains);
-  newDomains.forEach(d => blockedDomains.add(d));
+  newDomains.forEach((d) => blockedDomains.add(d));
 
   // Report to CNS
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  const summary = `Threat intel sync: ${newIOCs.length} new IOCs (${allIOCs.length} total) | ` +
+  const summary =
+    `Threat intel sync: ${newIOCs.length} new IOCs (${allIOCs.length} total) | ` +
     `${pfBlocked} IPs blocked on pfSense | ${phBlocked} domains blocked on Pi-hole | ${elapsed}s`;
   console.log(`[threat-intel] ${summary}`);
 
@@ -378,7 +464,11 @@ export async function syncThreatIntel(): Promise<{
         source: "threat-intel",
         summary,
         raw: {
-          sources: { abuse_ch: abuseCH.length, otx: otx.length, emerging_threats: et.length },
+          sources: {
+            abuse_ch: abuseCH.length,
+            otx: otx.length,
+            emerging_threats: et.length,
+          },
           new_iocs: newIOCs.length,
           blocked_ips: pfBlocked,
           blocked_domains: phBlocked,
@@ -399,13 +489,17 @@ export async function syncThreatIntel(): Promise<{
  * Check if a specific IP or domain is in the threat intel database.
  */
 export function checkIOC(value: string): IOC | null {
-  return iocDatabase.find(i => i.value === value) || null;
+  return iocDatabase.find((i) => i.value === value) || null;
 }
 
 /**
  * Get threat intel statistics.
  */
-export function getStats(): { total: number; by_source: Record<string, number>; by_type: Record<string, number> } {
+export function getStats(): {
+  total: number;
+  by_source: Record<string, number>;
+  by_type: Record<string, number>;
+} {
   const by_source: Record<string, number> = {};
   const by_type: Record<string, number> = {};
   for (const ioc of iocDatabase) {
@@ -433,4 +527,6 @@ setTimeout(syncThreatIntel, 30000);
 // Then every hour (or configured interval)
 setInterval(syncThreatIntel, SYNC_INTERVAL);
 
-console.log(`[threat-intel] Feed aggregator loaded — sync interval: ${SYNC_INTERVAL / 60000}min | auto-block: ${AUTO_BLOCK}`);
+console.log(
+  `[threat-intel] Feed aggregator loaded — sync interval: ${SYNC_INTERVAL / 60000}min | auto-block: ${AUTO_BLOCK}`,
+);

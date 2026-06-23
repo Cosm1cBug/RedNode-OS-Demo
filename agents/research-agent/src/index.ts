@@ -6,10 +6,15 @@ const MODEL = process.env.REDNODE_MODEL || "qwen2.5:14b-instruct-q4_K_M";
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888";
 
 const TOOLS = [
-  "research.search", "research.query", "research.deep",
-  "research.weather", "research.news",
-  "kb.query", "kb.ingest",
-  "docs.ocr", "docs.ingest_pdf",
+  "research.search",
+  "research.query",
+  "research.deep",
+  "research.weather",
+  "research.news",
+  "kb.query",
+  "kb.ingest",
+  "docs.ocr",
+  "docs.ingest_pdf",
 ];
 
 // ─── Deep Research ───
@@ -35,7 +40,8 @@ async function deepResearch(topic: string): Promise<{
         messages: [
           {
             role: "system",
-            content: "You are a research planner. Break the topic into 3-5 specific, searchable sub-questions. Output ONLY a JSON array of strings. No explanation.",
+            content:
+              "You are a research planner. Break the topic into 3-5 specific, searchable sub-questions. Output ONLY a JSON array of strings. No explanation.",
           },
           { role: "user", content: `Topic: "${topic}"` },
         ],
@@ -69,7 +75,7 @@ async function deepResearch(topic: string): Promise<{
     try {
       const resp = await fetch(
         `${SEARXNG_URL}/search?q=${encodeURIComponent(q)}&format=json&categories=general&language=en`,
-        { signal: AbortSignal.timeout(15000) }
+        { signal: AbortSignal.timeout(15000) },
       );
       const data = (await resp.json()) as any;
       return (data.results || []).slice(0, 5).map((r: any) => ({
@@ -110,19 +116,27 @@ async function deepResearch(topic: string): Promise<{
         }),
       });
       const data = (await resp.json()) as any;
-      const output = data.results?.[0]?.result?.output || data.results?.[0]?.result?.result?.output;
+      const output =
+        data.results?.[0]?.result?.output ||
+        data.results?.[0]?.result?.result?.output;
       if (output && typeof output === "string" && output.length > 100) {
-        enrichedContent.push(`Source: ${source.title}\nURL: ${source.url}\n${output.substring(0, 1500)}`);
+        enrichedContent.push(
+          `Source: ${source.title}\nURL: ${source.url}\n${output.substring(0, 1500)}`,
+        );
       }
     } catch {
       // Fallback to snippet
-      enrichedContent.push(`Source: ${source.title}\nURL: ${source.url}\n${source.snippet}`);
+      enrichedContent.push(
+        `Source: ${source.title}\nURL: ${source.url}\n${source.snippet}`,
+      );
     }
   }
 
   // Add remaining sources as snippets
   for (const source of uniqueSources.slice(3, 10)) {
-    enrichedContent.push(`Source: ${source.title}\nURL: ${source.url}\n${source.snippet}`);
+    enrichedContent.push(
+      `Source: ${source.title}\nURL: ${source.url}\n${source.snippet}`,
+    );
   }
 
   // Step 4: Synthesize into a cited report via LLM
@@ -156,9 +170,11 @@ async function deepResearch(topic: string): Promise<{
       }),
     });
     const data = (await resp.json()) as any;
-    report = data.message?.content || "Report generation failed — see raw sources below.";
+    report =
+      data.message?.content ||
+      "Report generation failed — see raw sources below.";
   } catch (e: any) {
-    report = `Report generation failed (${e.message}). Raw sources:\n\n${enrichedContent.map(c => c.substring(0, 300)).join("\n\n")}`;
+    report = `Report generation failed (${e.message}). Raw sources:\n\n${enrichedContent.map((c) => c.substring(0, 300)).join("\n\n")}`;
   }
 
   // Step 5: Ingest report into RAG memory
@@ -168,12 +184,16 @@ async function deepResearch(topic: string): Promise<{
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         source: `research/deep/${topic.substring(0, 50).replace(/[^a-zA-Z0-9]/g, "-")}`,
-        content: `Deep Research Report: ${topic}\n\n${report}\n\nSources:\n${uniqueSources.map(s => `- ${s.title}: ${s.url}`).join("\n")}`,
+        content: `Deep Research Report: ${topic}\n\n${report}\n\nSources:\n${uniqueSources.map((s) => `- ${s.title}: ${s.url}`).join("\n")}`,
       }),
     });
   } catch {}
 
-  return { report, sources: uniqueSources.slice(0, 10), sub_questions: subQuestions };
+  return {
+    report,
+    sources: uniqueSources.slice(0, 10),
+    sub_questions: subQuestions,
+  };
 }
 
 // ─── Agent ───
@@ -187,12 +207,14 @@ class ResearchAgent extends RedNodeAgent {
     switch (tool) {
       case "research.deep": {
         const topic = args.topic || args.query || args.q || "";
-        if (!topic) return { ok: false, error: "Missing 'topic' for deep research" };
+        if (!topic)
+          return { ok: false, error: "Missing 'topic' for deep research" };
 
         const result = await deepResearch(topic);
         return {
           ok: true,
-          output: `📊 Deep Research Report: ${topic}\n\n` +
+          output:
+            `📊 Deep Research Report: ${topic}\n\n` +
             `Sub-questions: ${result.sub_questions.length}\n` +
             `Sources found: ${result.sources.length}\n\n` +
             `${result.report}\n\n` +
@@ -209,16 +231,23 @@ class ResearchAgent extends RedNodeAgent {
         if (!query) return { ok: false, error: "Missing 'query'" };
 
         try {
-          const resp = await fetch(`${CNS}/memory/query?q=${encodeURIComponent(query)}&limit=5`);
+          const resp = await fetch(
+            `${CNS}/memory/query?q=${encodeURIComponent(query)}&limit=5`,
+          );
           const data = (await resp.json()) as any;
           const results = data.results || [];
 
           if (results.length === 0) {
-            return { ok: true, output: `No results found for: "${query}"`, results: [] };
+            return {
+              ok: true,
+              output: `No results found for: "${query}"`,
+              results: [],
+            };
           }
 
-          const lines = results.map((r: any, i: number) =>
-            `[${i + 1}] Source: ${r.source} (score: ${(r.score * 100).toFixed(0)}%)\n    ${r.content.substring(0, 200)}${r.content.length > 200 ? "…" : ""}`
+          const lines = results.map(
+            (r: any, i: number) =>
+              `[${i + 1}] Source: ${r.source} (score: ${(r.score * 100).toFixed(0)}%)\n    ${r.content.substring(0, 200)}${r.content.length > 200 ? "…" : ""}`,
           );
 
           return {
@@ -243,7 +272,11 @@ class ResearchAgent extends RedNodeAgent {
             body: JSON.stringify({ source, content }),
           });
           const data = (await resp.json()) as any;
-          return { ok: true, output: `Document ingested: ${data.id || "ok"} (source: ${source}, ${content.length} chars)`, id: data.id };
+          return {
+            ok: true,
+            output: `Document ingested: ${data.id || "ok"} (source: ${source}, ${content.length} chars)`,
+            id: data.id,
+          };
         } catch (e: any) {
           return { ok: false, error: `Ingest failed: ${e.message}` };
         }
@@ -256,14 +289,19 @@ class ResearchAgent extends RedNodeAgent {
         try {
           const resp = await fetch(
             `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&categories=general&language=en`,
-            { signal: AbortSignal.timeout(10000) }
+            { signal: AbortSignal.timeout(10000) },
           );
           const data = (await resp.json()) as any;
           const results = (data.results || []).slice(0, 5);
-          const lines = results.map((r: any, i: number) =>
-            `[${i + 1}] ${r.title}\n    ${r.url}\n    ${(r.content || "").substring(0, 150)}`
+          const lines = results.map(
+            (r: any, i: number) =>
+              `[${i + 1}] ${r.title}\n    ${r.url}\n    ${(r.content || "").substring(0, 150)}`,
           );
-          return { ok: true, output: lines.join("\n\n") || "No web results found", results };
+          return {
+            ok: true,
+            output: lines.join("\n\n") || "No web results found",
+            results,
+          };
         } catch {
           return this.handleTool("research.query", args);
         }
@@ -271,14 +309,15 @@ class ResearchAgent extends RedNodeAgent {
 
       case "research.weather": {
         // Weather via wttr.in (free, no API key, privacy-friendly)
-        const location = args.location || args.city || process.env.WEATHER_LOCATION || "";
+        const location =
+          args.location || args.city || process.env.WEATHER_LOCATION || "";
         const loc = encodeURIComponent(location || "");
         try {
           const resp = await fetch(`https://wttr.in/${loc}?format=j1`, {
             headers: { "User-Agent": "RedNode-OS/0.5.0" },
             signal: AbortSignal.timeout(10000),
           });
-          const data = await resp.json() as any;
+          const data = (await resp.json()) as any;
           const current = data.current_condition?.[0] || {};
           const area = data.nearest_area?.[0] || {};
           const forecast = (data.weather || []).slice(0, 3);
@@ -317,9 +356,9 @@ class ResearchAgent extends RedNodeAgent {
           const query = region ? `${topic} ${region}` : topic;
           const resp = await fetch(
             `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&categories=news&language=en&time_range=day`,
-            { signal: AbortSignal.timeout(15000) }
+            { signal: AbortSignal.timeout(15000) },
           );
-          const data = await resp.json() as any;
+          const data = (await resp.json()) as any;
           const articles = (data.results || []).slice(0, 8);
 
           if (articles.length === 0) {
@@ -327,28 +366,39 @@ class ResearchAgent extends RedNodeAgent {
           }
 
           const lines = articles.map((a: any, i: number) => {
-            const age = a.publishedDate ? ` (${new Date(a.publishedDate).toLocaleDateString()})` : "";
+            const age = a.publishedDate
+              ? ` (${new Date(a.publishedDate).toLocaleDateString()})`
+              : "";
             return `[${i + 1}] ${a.title}${age}\n    ${a.url}\n    ${(a.content || "").substring(0, 150)}`;
           });
 
           // Summarize with LLM if available
           let summary = "";
           try {
-            const articleText = articles.map((a: any) => `${a.title}: ${(a.content || "").substring(0, 200)}`).join("\n");
+            const articleText = articles
+              .map(
+                (a: any) =>
+                  `${a.title}: ${(a.content || "").substring(0, 200)}`,
+              )
+              .join("\n");
             const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 model: MODEL,
                 messages: [
-                  { role: "system", content: "Summarize these news headlines in 3-4 bullet points. Be brief." },
+                  {
+                    role: "system",
+                    content:
+                      "Summarize these news headlines in 3-4 bullet points. Be brief.",
+                  },
                   { role: "user", content: articleText },
                 ],
                 stream: false,
                 options: { temperature: 0.3, num_predict: 256 },
               }),
             });
-            const sData = await resp.json() as any;
+            const sData = (await resp.json()) as any;
             summary = sData.message?.content || "";
           } catch {}
 
@@ -368,7 +418,10 @@ class ResearchAgent extends RedNodeAgent {
 
           return { ok: true, output, articles: articles.length, summary };
         } catch (e: any) {
-          return { ok: false, error: `News fetch failed: ${e.message}. Is SearXNG running?` };
+          return {
+            ok: false,
+            error: `News fetch failed: ${e.message}. Is SearXNG running?`,
+          };
         }
       }
 
@@ -380,7 +433,10 @@ class ResearchAgent extends RedNodeAgent {
           const { exec } = await import("child_process");
           const { promisify } = await import("util");
           const execAsync = promisify(exec);
-          const { stdout } = await execAsync(`tesseract "${filePath}" stdout --oem 3 --psm 3 2>/dev/null`, { timeout: 60000 });
+          const { stdout } = await execAsync(
+            `tesseract "${filePath}" stdout --oem 3 --psm 3 2>/dev/null`,
+            { timeout: 60000 },
+          );
           const text = stdout.trim();
 
           if (!text) return { ok: true, output: "OCR: no text detected" };
@@ -392,9 +448,16 @@ class ResearchAgent extends RedNodeAgent {
             body: JSON.stringify({ source, content: text }),
           });
 
-          return { ok: true, output: `OCR: ${text.length} chars extracted → ingested\n\n${text.substring(0, 1000)}`, text_length: text.length };
+          return {
+            ok: true,
+            output: `OCR: ${text.length} chars extracted → ingested\n\n${text.substring(0, 1000)}`,
+            text_length: text.length,
+          };
         } catch (e: any) {
-          return { ok: false, error: `OCR failed: ${e.message}. Install: apt install tesseract-ocr` };
+          return {
+            ok: false,
+            error: `OCR failed: ${e.message}. Install: apt install tesseract-ocr`,
+          };
         }
       }
 
@@ -406,27 +469,45 @@ class ResearchAgent extends RedNodeAgent {
           const { exec } = await import("child_process");
           const { promisify } = await import("util");
           const execAsync = promisify(exec);
-          const { stdout } = await execAsync(`pdftotext "${filePath}" - 2>/dev/null`, { timeout: 30000 });
+          const { stdout } = await execAsync(
+            `pdftotext "${filePath}" - 2>/dev/null`,
+            { timeout: 30000 },
+          );
           const text = stdout.trim();
 
-          if (!text) return { ok: true, output: "PDF has no extractable text — try docs.ocr" };
+          if (!text)
+            return {
+              ok: true,
+              output: "PDF has no extractable text — try docs.ocr",
+            };
 
           const CHUNK = 2000;
           const chunks = [];
-          for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.substring(i, i + CHUNK));
+          for (let i = 0; i < text.length; i += CHUNK)
+            chunks.push(text.substring(i, i + CHUNK));
 
           const source = `pdf/${filePath.split("/").pop() || "doc"}`;
           for (let i = 0; i < chunks.length; i++) {
             await fetch(`${CNS}/memory/ingest`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ source: `${source}/chunk-${i}`, content: chunks[i] }),
+              body: JSON.stringify({
+                source: `${source}/chunk-${i}`,
+                content: chunks[i],
+              }),
             });
           }
 
-          return { ok: true, output: `PDF: ${text.length} chars in ${chunks.length} chunks → ingested\n\n${text.substring(0, 500)}`, chunks: chunks.length };
+          return {
+            ok: true,
+            output: `PDF: ${text.length} chars in ${chunks.length} chunks → ingested\n\n${text.substring(0, 500)}`,
+            chunks: chunks.length,
+          };
         } catch (e: any) {
-          return { ok: false, error: `PDF failed: ${e.message}. Install: apt install poppler-utils` };
+          return {
+            ok: false,
+            error: `PDF failed: ${e.message}. Install: apt install poppler-utils`,
+          };
         }
       }
 

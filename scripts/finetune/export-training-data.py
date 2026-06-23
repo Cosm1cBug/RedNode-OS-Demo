@@ -27,17 +27,20 @@ SYSTEM_PROMPT = (
     "If risk is high or critical, add approval: true."
 )
 
+
 def export_from_postgres(db_url: str, limit: int = 1000) -> list:
     """Extract intent-plan pairs from the audit log."""
     try:
         import psycopg2
+
         conn = psycopg2.connect(db_url)
     except ImportError:
         # Fallback: use psql CLI
         return export_via_psql(limit)
 
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         SELECT intent, plan_json, success
         FROM audit_log
         WHERE plan_json IS NOT NULL
@@ -45,20 +48,26 @@ def export_from_postgres(db_url: str, limit: int = 1000) -> list:
           AND success = true
         ORDER BY created_at DESC
         LIMIT %s
-    """, (limit,))
+    """,
+        (limit,),
+    )
 
     pairs = []
     for row in cur.fetchall():
         intent, plan_json, success = row
         if intent and plan_json:
             try:
-                plan = json.loads(plan_json) if isinstance(plan_json, str) else plan_json
+                plan = (
+                    json.loads(plan_json) if isinstance(plan_json, str) else plan_json
+                )
                 if isinstance(plan, list) and len(plan) > 0:
-                    pairs.append({
-                        "instruction": SYSTEM_PROMPT,
-                        "input": intent.strip(),
-                        "output": json.dumps(plan, separators=(',', ':'))
-                    })
+                    pairs.append(
+                        {
+                            "instruction": SYSTEM_PROMPT,
+                            "input": intent.strip(),
+                            "output": json.dumps(plan, separators=(",", ":")),
+                        }
+                    )
             except (json.JSONDecodeError, TypeError):
                 continue
 
@@ -83,15 +92,28 @@ def export_via_psql(limit: int = 1000) -> list:
     """
     try:
         result = subprocess.run(
-            ["sudo", "-u", "postgres", "psql", "-d", "rednode", "-t", "-A", "-c", query],
-            capture_output=True, text=True, timeout=30
+            [
+                "sudo",
+                "-u",
+                "postgres",
+                "psql",
+                "-d",
+                "rednode",
+                "-t",
+                "-A",
+                "-c",
+                query,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode != 0:
             print(f"psql error: {result.stderr}", file=sys.stderr)
             return []
 
         pairs = []
-        for line in result.stdout.strip().split('\n'):
+        for line in result.stdout.strip().split("\n"):
             if not line:
                 continue
             try:
@@ -101,11 +123,13 @@ def export_via_psql(limit: int = 1000) -> list:
                 if intent and plan:
                     plan_data = json.loads(plan) if isinstance(plan, str) else plan
                     if isinstance(plan_data, list) and len(plan_data) > 0:
-                        pairs.append({
-                            "instruction": SYSTEM_PROMPT,
-                            "input": intent.strip(),
-                            "output": json.dumps(plan_data, separators=(',', ':'))
-                        })
+                        pairs.append(
+                            {
+                                "instruction": SYSTEM_PROMPT,
+                                "input": intent.strip(),
+                                "output": json.dumps(plan_data, separators=(",", ":")),
+                            }
+                        )
             except (json.JSONDecodeError, TypeError):
                 continue
         return pairs
@@ -119,17 +143,34 @@ def export_via_psql(limit: int = 1000) -> list:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Export RedNode training data for LLM fine-tuning")
-    parser.add_argument("--output", "-o", default="/var/lib/rednode/finetune/training_data.jsonl",
-                        help="Output JSONL file path")
-    parser.add_argument("--min-pairs", type=int, default=50,
-                        help="Minimum pairs required (warns if fewer)")
-    parser.add_argument("--limit", type=int, default=2000,
-                        help="Maximum audit log entries to scan")
-    parser.add_argument("--append", action="store_true",
-                        help="Append to existing file instead of overwriting")
-    parser.add_argument("--db-url", default="postgresql://rednode:rednode@localhost:5432/rednode",
-                        help="PostgreSQL connection URL")
+    parser = argparse.ArgumentParser(
+        description="Export RedNode training data for LLM fine-tuning"
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="/var/lib/rednode/finetune/training_data.jsonl",
+        help="Output JSONL file path",
+    )
+    parser.add_argument(
+        "--min-pairs",
+        type=int,
+        default=50,
+        help="Minimum pairs required (warns if fewer)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=2000, help="Maximum audit log entries to scan"
+    )
+    parser.add_argument(
+        "--append",
+        action="store_true",
+        help="Append to existing file instead of overwriting",
+    )
+    parser.add_argument(
+        "--db-url",
+        default="postgresql://rednode:rednode@localhost:5432/rednode",
+        help="PostgreSQL connection URL",
+    )
     args = parser.parse_args()
 
     print(f"🧠 RedNode-OS — Exporting training data")

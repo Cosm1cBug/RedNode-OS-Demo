@@ -1,7 +1,12 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
 
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
-const TOOLS = ["workflow.create", "workflow.run", "schedule.add", "trigger.fire"];
+const TOOLS = [
+  "workflow.create",
+  "workflow.run",
+  "schedule.add",
+  "trigger.fire",
+];
 
 // ─── In-Memory Workflow Store (persists to CNS memory via RAG ingest) ───
 
@@ -18,7 +23,8 @@ const workflows = new Map<string, Workflow>();
 
 workflows.set("goodnight", {
   name: "goodnight",
-  description: "Night mode — strict DNS blocking, camera alerts, storage snapshot, memory consolidation",
+  description:
+    "Night mode — strict DNS blocking, camera alerts, storage snapshot, memory consolidation",
   steps: [
     { intent: "enable strict DNS blocking on Pi-hole for IoT devices" },
     { intent: "check all cameras are online" },
@@ -30,7 +36,8 @@ workflows.set("goodnight", {
 
 workflows.set("morning", {
   name: "morning",
-  description: "Morning brief — weather, news, system health, overnight events, DNS, storage, emails, tasks, calendar",
+  description:
+    "Morning brief — weather, news, system health, overnight events, DNS, storage, emails, tasks, calendar",
   steps: [
     { intent: "show weather forecast" },
     { intent: "show latest news" },
@@ -50,9 +57,7 @@ workflows.set("morning", {
 workflows.set("focus", {
   name: "focus",
   description: "Focus mode — block social media DNS, minimize distractions",
-  steps: [
-    { intent: "block social media domains on Pi-hole" },
-  ],
+  steps: [{ intent: "block social media domains on Pi-hole" }],
   created_at: new Date().toISOString(),
 });
 
@@ -109,7 +114,9 @@ function startScheduler() {
       }
 
       if (isDue) {
-        console.log(`[automation-agent] Scheduled task '${name}' is due — running workflow '${task.workflow}'`);
+        console.log(
+          `[automation-agent] Scheduled task '${name}' is due — running workflow '${task.workflow}'`,
+        );
         task.last_run = now.toISOString();
         const wf = workflows.get(task.workflow);
         if (wf) {
@@ -122,19 +129,28 @@ function startScheduler() {
 
 async function executeWorkflow(wf: Workflow): Promise<string[]> {
   const results: string[] = [];
-  console.log(`[automation-agent] Executing workflow: ${wf.name} (${wf.steps.length} steps)`);
+  console.log(
+    `[automation-agent] Executing workflow: ${wf.name} (${wf.steps.length} steps)`,
+  );
 
   for (let i = 0; i < wf.steps.length; i++) {
     const step = wf.steps[i];
-    console.log(`[automation-agent]   Step ${i + 1}/${wf.steps.length}: ${step.intent}`);
+    console.log(
+      `[automation-agent]   Step ${i + 1}/${wf.steps.length}: ${step.intent}`,
+    );
     try {
       const resp = await fetch(`${CNS}/intent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent: step.intent, session_id: `workflow-${wf.name}` }),
+        body: JSON.stringify({
+          intent: step.intent,
+          session_id: `workflow-${wf.name}`,
+        }),
       });
-      const data = await resp.json() as any;
-      const summary = data.ok ? `✅ ${step.intent}` : `❌ ${step.intent}: ${data.error || "failed"}`;
+      const data = (await resp.json()) as any;
+      const summary = data.ok
+        ? `✅ ${step.intent}`
+        : `❌ ${step.intent}: ${data.error || "failed"}`;
       results.push(summary);
     } catch (e: any) {
       results.push(`❌ ${step.intent}: ${e.message}`);
@@ -158,12 +174,18 @@ class AutomationAgent extends RedNodeAgent {
         const description = args.description || "";
         const steps = args.steps || [];
         if (!name) return { ok: false, error: "Missing 'name' argument" };
-        if (!steps.length) return { ok: false, error: "Missing 'steps' array (each with 'intent' string)" };
+        if (!steps.length)
+          return {
+            ok: false,
+            error: "Missing 'steps' array (each with 'intent' string)",
+          };
 
         const wf: Workflow = {
           name,
           description,
-          steps: steps.map((s: any) => ({ intent: typeof s === "string" ? s : s.intent || "" })),
+          steps: steps.map((s: any) => ({
+            intent: typeof s === "string" ? s : s.intent || "",
+          })),
           created_at: new Date().toISOString(),
         };
         workflows.set(name, wf);
@@ -178,8 +200,8 @@ class AutomationAgent extends RedNodeAgent {
         const name = args.name || args.workflow || "";
         if (!name) {
           // List available workflows
-          const list = [...workflows.entries()].map(([n, w]) =>
-            `  ${n}: ${w.description} (${w.steps.length} steps)`
+          const list = [...workflows.entries()].map(
+            ([n, w]) => `  ${n}: ${w.description} (${w.steps.length} steps)`,
           );
           return {
             ok: true,
@@ -189,7 +211,10 @@ class AutomationAgent extends RedNodeAgent {
 
         const wf = workflows.get(name);
         if (!wf) {
-          return { ok: false, error: `Workflow '${name}' not found. Available: ${[...workflows.keys()].join(", ")}` };
+          return {
+            ok: false,
+            error: `Workflow '${name}' not found. Available: ${[...workflows.keys()].join(", ")}`,
+          };
         }
 
         const results = await executeWorkflow(wf);
@@ -204,7 +229,11 @@ class AutomationAgent extends RedNodeAgent {
         const name = args.name;
         const workflow = args.workflow;
         const cron = args.cron || args.interval || "daily";
-        if (!name || !workflow) return { ok: false, error: "Missing 'name' and/or 'workflow' arguments" };
+        if (!name || !workflow)
+          return {
+            ok: false,
+            error: "Missing 'name' and/or 'workflow' arguments",
+          };
 
         if (!workflows.has(workflow)) {
           return { ok: false, error: `Workflow '${workflow}' not found` };
@@ -226,10 +255,12 @@ class AutomationAgent extends RedNodeAgent {
 
       case "trigger.fire": {
         const workflow = args.workflow || args.name || "";
-        if (!workflow) return { ok: false, error: "Missing 'workflow' argument" };
+        if (!workflow)
+          return { ok: false, error: "Missing 'workflow' argument" };
 
         const wf = workflows.get(workflow);
-        if (!wf) return { ok: false, error: `Workflow '${workflow}' not found` };
+        if (!wf)
+          return { ok: false, error: `Workflow '${workflow}' not found` };
 
         const results = await executeWorkflow(wf);
         return {

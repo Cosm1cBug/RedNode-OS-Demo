@@ -40,13 +40,17 @@ const PLATFORMS: Record<string, PlatformConfig> = {
     name: "Twitter/X",
     enabled: !!process.env.TWITTER_BEARER_TOKEN,
     apiBase: "https://api.twitter.com/2",
-    authHeader: () => ({ Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}` }),
+    authHeader: () => ({
+      Authorization: `Bearer ${process.env.TWITTER_BEARER_TOKEN}`,
+    }),
   },
   mastodon: {
     name: "Mastodon",
     enabled: !!process.env.MASTODON_ACCESS_TOKEN,
     apiBase: process.env.MASTODON_INSTANCE || "https://mastodon.social",
-    authHeader: () => ({ Authorization: `Bearer ${process.env.MASTODON_ACCESS_TOKEN}` }),
+    authHeader: () => ({
+      Authorization: `Bearer ${process.env.MASTODON_ACCESS_TOKEN}`,
+    }),
   },
   bluesky: {
     name: "Bluesky",
@@ -58,7 +62,9 @@ const PLATFORMS: Record<string, PlatformConfig> = {
     name: "LinkedIn",
     enabled: !!process.env.LINKEDIN_ACCESS_TOKEN,
     apiBase: "https://api.linkedin.com/v2",
-    authHeader: () => ({ Authorization: `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}` }),
+    authHeader: () => ({
+      Authorization: `Bearer ${process.env.LINKEDIN_ACCESS_TOKEN}`,
+    }),
   },
   instagram: {
     name: "Instagram",
@@ -70,7 +76,9 @@ const PLATFORMS: Record<string, PlatformConfig> = {
     name: "WhatsApp Business",
     enabled: !!process.env.WHATSAPP_TOKEN,
     apiBase: `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_ID || ""}`,
-    authHeader: () => ({ Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` }),
+    authHeader: () => ({
+      Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
+    }),
   },
 };
 
@@ -94,8 +102,10 @@ async function draftWithLLM(prompt: string, platform: string): Promise<string> {
       twitter: "Max 280 characters. Be concise, impactful. No hashtag spam.",
       mastodon: "Max 500 characters. Can be more detailed. Hashtags OK.",
       bluesky: "Max 300 characters. Conversational tone.",
-      linkedin: "Professional tone. Can be longer. Use line breaks for readability.",
-      instagram: "Engaging, visual language. Use relevant hashtags (max 5). Include call-to-action.",
+      linkedin:
+        "Professional tone. Can be longer. Use line breaks for readability.",
+      instagram:
+        "Engaging, visual language. Use relevant hashtags (max 5). Include call-to-action.",
       whatsapp: "Conversational, direct. Keep it short.",
     };
 
@@ -124,9 +134,15 @@ async function draftWithLLM(prompt: string, platform: string): Promise<string> {
 
 // ─── Platform API Implementations ───
 
-async function postToTwitter(text: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function postToTwitter(
+  text: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
   const cfg = PLATFORMS.twitter;
-  if (!cfg.enabled) return { ok: false, error: "Twitter not configured (set TWITTER_BEARER_TOKEN)" };
+  if (!cfg.enabled)
+    return {
+      ok: false,
+      error: "Twitter not configured (set TWITTER_BEARER_TOKEN)",
+    };
 
   try {
     const resp = await fetch(`${cfg.apiBase}/tweets`, {
@@ -142,9 +158,16 @@ async function postToTwitter(text: string): Promise<{ ok: boolean; id?: string; 
   }
 }
 
-async function postToMastodon(text: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function postToMastodon(
+  text: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
   const cfg = PLATFORMS.mastodon;
-  if (!cfg.enabled) return { ok: false, error: "Mastodon not configured (set MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE)" };
+  if (!cfg.enabled)
+    return {
+      ok: false,
+      error:
+        "Mastodon not configured (set MASTODON_ACCESS_TOKEN, MASTODON_INSTANCE)",
+    };
 
   try {
     const resp = await fetch(`${cfg.apiBase}/api/v1/statuses`, {
@@ -160,38 +183,51 @@ async function postToMastodon(text: string): Promise<{ ok: boolean; id?: string;
   }
 }
 
-async function postToBluesky(text: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function postToBluesky(
+  text: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
   const handle = process.env.BLUESKY_HANDLE || "";
   const password = process.env.BLUESKY_APP_PASSWORD || "";
-  if (!handle || !password) return { ok: false, error: "Bluesky not configured (set BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)" };
+  if (!handle || !password)
+    return {
+      ok: false,
+      error:
+        "Bluesky not configured (set BLUESKY_HANDLE, BLUESKY_APP_PASSWORD)",
+    };
 
   try {
     // Login to get session
-    const loginResp = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier: handle, password }),
-    });
+    const loginResp = await fetch(
+      "https://bsky.social/xrpc/com.atproto.server.createSession",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: handle, password }),
+      },
+    );
     const session = (await loginResp.json()) as any;
     if (!session.accessJwt) return { ok: false, error: "Bluesky auth failed" };
 
     // Create post
-    const resp = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session.accessJwt}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        repo: session.did,
-        collection: "app.bsky.feed.post",
-        record: {
-          text,
-          createdAt: new Date().toISOString(),
-          $type: "app.bsky.feed.post",
+    const resp = await fetch(
+      "https://bsky.social/xrpc/com.atproto.repo.createRecord",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session.accessJwt}`,
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          repo: session.did,
+          collection: "app.bsky.feed.post",
+          record: {
+            text,
+            createdAt: new Date().toISOString(),
+            $type: "app.bsky.feed.post",
+          },
+        }),
+      },
+    );
     const data = (await resp.json()) as any;
     if (data.uri) return { ok: true, id: data.uri };
     return { ok: false, error: JSON.stringify(data) };
@@ -200,17 +236,34 @@ async function postToBluesky(text: string): Promise<{ ok: boolean; id?: string; 
   }
 }
 
-async function postToLinkedIn(text: string): Promise<{ ok: boolean; id?: string; error?: string }> {
+async function postToLinkedIn(
+  text: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
   const cfg = PLATFORMS.linkedin;
-  if (!cfg.enabled) return { ok: false, error: "LinkedIn not configured (set LINKEDIN_ACCESS_TOKEN)" };
+  if (!cfg.enabled)
+    return {
+      ok: false,
+      error: "LinkedIn not configured (set LINKEDIN_ACCESS_TOKEN)",
+    };
 
   // LinkedIn posting requires person URN — simplified
-  return { ok: false, error: "LinkedIn posting requires OAuth2 flow — configure via LinkedIn Developer Portal" };
+  return {
+    ok: false,
+    error:
+      "LinkedIn posting requires OAuth2 flow — configure via LinkedIn Developer Portal",
+  };
 }
 
-async function sendWhatsApp(to: string, message: string): Promise<{ ok: boolean; error?: string }> {
+async function sendWhatsApp(
+  to: string,
+  message: string,
+): Promise<{ ok: boolean; error?: string }> {
   const cfg = PLATFORMS.whatsapp;
-  if (!cfg.enabled) return { ok: false, error: "WhatsApp not configured (set WHATSAPP_TOKEN, WHATSAPP_PHONE_ID)" };
+  if (!cfg.enabled)
+    return {
+      ok: false,
+      error: "WhatsApp not configured (set WHATSAPP_TOKEN, WHATSAPP_PHONE_ID)",
+    };
 
   try {
     const resp = await fetch(`${cfg.apiBase}/messages`, {
@@ -224,7 +277,9 @@ async function sendWhatsApp(to: string, message: string): Promise<{ ok: boolean;
       }),
     });
     const data = (await resp.json()) as any;
-    return data.messages ? { ok: true } : { ok: false, error: JSON.stringify(data.error || data) };
+    return data.messages
+      ? { ok: true }
+      : { ok: false, error: JSON.stringify(data.error || data) };
   } catch (e: any) {
     return { ok: false, error: e.message };
   }
@@ -248,7 +303,9 @@ setInterval(async () => {
   const now = new Date();
   for (const post of scheduledPosts) {
     if (post.status === "pending" && new Date(post.scheduled_for) <= now) {
-      console.log(`[social-agent] Posting scheduled ${post.platform}: "${post.text.substring(0, 50)}..."`);
+      console.log(
+        `[social-agent] Posting scheduled ${post.platform}: "${post.text.substring(0, 50)}..."`,
+      );
       const postFn = getPostFunction(post.platform);
       if (postFn) {
         const result = await postFn(post.text);
@@ -258,13 +315,20 @@ setInterval(async () => {
   }
 }, 60000);
 
-function getPostFunction(platform: string): ((text: string) => Promise<any>) | null {
+function getPostFunction(
+  platform: string,
+): ((text: string) => Promise<any>) | null {
   switch (platform) {
-    case "twitter": return postToTwitter;
-    case "mastodon": return postToMastodon;
-    case "bluesky": return postToBluesky;
-    case "linkedin": return postToLinkedIn;
-    default: return null;
+    case "twitter":
+      return postToTwitter;
+    case "mastodon":
+      return postToMastodon;
+    case "bluesky":
+      return postToBluesky;
+    case "linkedin":
+      return postToLinkedIn;
+    default:
+      return null;
   }
 }
 
@@ -285,7 +349,9 @@ class SocialAgent extends RedNodeAgent {
             enabled: cfg.enabled,
             status: cfg.enabled ? "✅ configured" : "❌ not configured",
           }));
-          const lines = platforms.map((p) => `  ${p.status} ${p.name} (${p.platform})`);
+          const lines = platforms.map(
+            (p) => `  ${p.status} ${p.name} (${p.platform})`,
+          );
           return {
             ok: true,
             output: `Social Media Platforms:\n${lines.join("\n")}`,
@@ -314,7 +380,8 @@ class SocialAgent extends RedNodeAgent {
           if (!text) return { ok: false, error: "Missing 'text' to post" };
 
           const postFn = getPostFunction(platform);
-          if (!postFn) return { ok: false, error: `Unknown platform: ${platform}` };
+          if (!postFn)
+            return { ok: false, error: `Unknown platform: ${platform}` };
 
           const result = await postFn(text);
           if (result.ok) {
@@ -344,7 +411,11 @@ class SocialAgent extends RedNodeAgent {
           const platform = args.platform || "twitter";
           const scheduledFor = args.at || args.scheduled_for || args.time || "";
           if (!text) return { ok: false, error: "Missing 'text'" };
-          if (!scheduledFor) return { ok: false, error: "Missing 'at' (e.g. '2026-06-15T10:00:00')" };
+          if (!scheduledFor)
+            return {
+              ok: false,
+              error: "Missing 'at' (e.g. '2026-06-15T10:00:00')",
+            };
 
           const post: ScheduledPost = {
             id: Date.now().toString(36),
@@ -370,34 +441,58 @@ class SocialAgent extends RedNodeAgent {
             try {
               const resp = await fetch(
                 `${PLATFORMS.mastodon.apiBase}/api/v1/timelines/home?limit=10`,
-                { headers: PLATFORMS.mastodon.authHeader() }
+                { headers: PLATFORMS.mastodon.authHeader() },
               );
               const data = (await resp.json()) as any[];
               const lines = data.map((s: any) => {
-                const text = (s.content || "").replace(/<[^>]*>/g, "").substring(0, 150);
+                const text = (s.content || "")
+                  .replace(/<[^>]*>/g, "")
+                  .substring(0, 150);
                 return `  @${s.account?.acct || "?"}: ${text}`;
               });
-              return { ok: true, output: `Mastodon Feed (${data.length} posts):\n${lines.join("\n")}`, count: data.length };
+              return {
+                ok: true,
+                output: `Mastodon Feed (${data.length} posts):\n${lines.join("\n")}`,
+                count: data.length,
+              };
             } catch (e: any) {
               return { ok: false, error: e.message };
             }
           }
 
-          return { ok: true, output: `Feed for ${platform}: configure ${platform} API credentials to view feed` };
+          return {
+            ok: true,
+            output: `Feed for ${platform}: configure ${platform} API credentials to view feed`,
+          };
         }
 
         case "social.analytics": {
           const platform = args.platform || "";
-          const enabled = Object.entries(PLATFORMS).filter(([_, c]) => c.enabled);
+          const enabled = Object.entries(PLATFORMS).filter(
+            ([_, c]) => c.enabled,
+          );
           if (enabled.length === 0) {
-            return { ok: true, output: "No social platforms configured. Set API credentials in .env" };
+            return {
+              ok: true,
+              output:
+                "No social platforms configured. Set API credentials in .env",
+            };
           }
-          const lines = enabled.map(([key, cfg]) => `  ${cfg.name}: configured ✅`);
-          return { ok: true, output: `Social Analytics:\n${lines.join("\n")}\n\nDetailed analytics require platform-specific API calls.` };
+          const lines = enabled.map(
+            ([key, cfg]) => `  ${cfg.name}: configured ✅`,
+          );
+          return {
+            ok: true,
+            output: `Social Analytics:\n${lines.join("\n")}\n\nDetailed analytics require platform-specific API calls.`,
+          };
         }
 
         case "social.reply": {
-          return { ok: true, output: "Reply functionality: use social.post with the reply context. Platform-specific reply APIs vary." };
+          return {
+            ok: true,
+            output:
+              "Reply functionality: use social.post with the reply context. Platform-specific reply APIs vary.",
+          };
         }
 
         case "social.dm": {
@@ -406,21 +501,31 @@ class SocialAgent extends RedNodeAgent {
           const message = args.message || args.text || "";
 
           if (platform === "whatsapp") {
-            if (!to || !message) return { ok: false, error: "Missing 'to' (phone number) and 'message'" };
+            if (!to || !message)
+              return {
+                ok: false,
+                error: "Missing 'to' (phone number) and 'message'",
+              };
             const result = await sendWhatsApp(to, message);
             return {
               ok: result.ok,
-              output: result.ok ? `✅ WhatsApp sent to ${to}` : `❌ Failed: ${result.error}`,
+              output: result.ok
+                ? `✅ WhatsApp sent to ${to}`
+                : `❌ Failed: ${result.error}`,
             };
           }
-          return { ok: true, output: `DM on ${platform}: configure platform API credentials` };
+          return {
+            ok: true,
+            output: `DM on ${platform}: configure platform API credentials`,
+          };
         }
 
         case "social.monitor": {
           // Monitor mentions/keywords — requires platform-specific streaming APIs
           return {
             ok: true,
-            output: "Social monitoring: configure platform APIs and keywords.\n" +
+            output:
+              "Social monitoring: configure platform APIs and keywords.\n" +
               "Mastodon: streaming API (WebSocket)\n" +
               "Twitter: filtered stream API (v2)\n" +
               "Bluesky: firehose subscription\n" +
@@ -439,8 +544,12 @@ class SocialAgent extends RedNodeAgent {
 
 // ─── Startup ───
 
-const enabledPlatforms = Object.entries(PLATFORMS).filter(([_, c]) => c.enabled);
-console.log(`[social-agent] Starting — ${enabledPlatforms.length} platform(s) configured:`);
+const enabledPlatforms = Object.entries(PLATFORMS).filter(
+  ([_, c]) => c.enabled,
+);
+console.log(
+  `[social-agent] Starting — ${enabledPlatforms.length} platform(s) configured:`,
+);
 for (const [key, cfg] of enabledPlatforms) {
   console.log(`  ✅ ${cfg.name}`);
 }

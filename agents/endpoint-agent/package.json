@@ -3,7 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "tsx src/index.ts", "start": "node --loader tsx src/index.ts" },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "node --loader tsx src/index.ts"
+  },
   "dependencies": {},
-  "devDependencies": { "tsx": "^4.15.0", "typescript": "^5.5.0" }
+  "devDependencies": {
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0"
+  }
 }

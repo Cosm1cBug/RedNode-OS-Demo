@@ -20,7 +20,12 @@
  */
 
 import { RedNodeAgent } from "../../shared/src/agent.js";
-import { generateProfile, applyStealthToPage, humanDelay, createStealthContext } from "./stealth.js";
+import {
+  generateProfile,
+  applyStealthToPage,
+  humanDelay,
+  createStealthContext,
+} from "./stealth.js";
 import type { StealthProfile } from "./stealth.js";
 import * as fs from "fs";
 import * as path from "path";
@@ -31,13 +36,13 @@ const MAX_CONTENT_LENGTH = 100000; // 100KB text limit per page
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 
 const TOOLS = [
-  "browser.read",       // Extract article content (reader mode)
-  "browser.scrape",     // Scrape structured data from a page
+  "browser.read", // Extract article content (reader mode)
+  "browser.scrape", // Scrape structured data from a page
   "browser.screenshot", // Take a screenshot of a webpage
-  "browser.download",   // Download a file to local storage
-  "browser.search",     // Search via SearXNG (delegates to research agent)
-  "browser.links",      // Extract all links from a page
-  "browser.fill",       // Fill a form (HIGH risk)
+  "browser.download", // Download a file to local storage
+  "browser.search", // Search via SearXNG (delegates to research agent)
+  "browser.links", // Extract all links from a page
+  "browser.fill", // Fill a form (HIGH risk)
 ];
 
 // ─── URL Validation ───
@@ -49,16 +54,23 @@ function validateUrl(url: string): { ok: boolean; error?: string } {
   try {
     const parsed = new URL(url);
     for (const scheme of BLOCKED_SCHEMES) {
-      if (parsed.protocol === scheme) return { ok: false, error: `Blocked scheme: ${scheme}` };
+      if (parsed.protocol === scheme)
+        return { ok: false, error: `Blocked scheme: ${scheme}` };
     }
     for (const host of BLOCKED_HOSTS) {
-      if (parsed.hostname.includes(host)) return { ok: false, error: `Blocked host: ${host}` };
+      if (parsed.hostname.includes(host))
+        return { ok: false, error: `Blocked host: ${host}` };
     }
     // Block internal network by default (10.x, 192.168.x, 172.16-31.x)
-    if (/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(parsed.hostname)) {
+    if (
+      /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)/.test(parsed.hostname)
+    ) {
       // Allow if explicitly permitted via env var
       if (process.env.BROWSER_ALLOW_INTERNAL !== "true") {
-        return { ok: false, error: `Internal network access blocked: ${parsed.hostname}. Set BROWSER_ALLOW_INTERNAL=true to allow.` };
+        return {
+          ok: false,
+          error: `Internal network access blocked: ${parsed.hostname}. Set BROWSER_ALLOW_INTERNAL=true to allow.`,
+        };
       }
     }
     return { ok: true };
@@ -69,7 +81,9 @@ function validateUrl(url: string): { ok: boolean; error?: string } {
 
 // ─── Lightweight Fetch + Cheerio (fast, no browser) ───
 
-async function fetchAndParse(url: string): Promise<{ html: string; text: string; title: string }> {
+async function fetchAndParse(
+  url: string,
+): Promise<{ html: string; text: string; title: string }> {
   const profile = generateProfile(url);
   await humanDelay("request");
 
@@ -81,7 +95,10 @@ async function fetchAndParse(url: string): Promise<{ html: string; text: string;
   if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
 
   const contentType = resp.headers.get("content-type") || "";
-  if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) {
+  if (
+    !contentType.includes("text/html") &&
+    !contentType.includes("application/xhtml")
+  ) {
     throw new Error(`Not an HTML page: ${contentType}`);
   }
 
@@ -90,7 +107,9 @@ async function fetchAndParse(url: string): Promise<{ html: string; text: string;
   const $ = load(html);
 
   // Remove scripts, styles, nav, footer, ads
-  $("script, style, nav, footer, header, iframe, noscript, .ad, .ads, .advertisement, #cookie-banner").remove();
+  $(
+    "script, style, nav, footer, header, iframe, noscript, .ad, .ads, .advertisement, #cookie-banner",
+  ).remove();
 
   const title = $("title").text().trim() || $("h1").first().text().trim() || "";
   const text = $("article, main, .content, .post, .entry, #content, body")
@@ -135,14 +154,18 @@ async function getPlaywrightPage(targetUrl?: string): Promise<any> {
     await applyStealthToPage(page, profile);
 
     // Block unnecessary resources for speed (but keep CSS for screenshots)
-    await page.route("**/*.{woff,woff2,ttf,eot}", (route: any) => route.abort());
+    await page.route("**/*.{woff,woff2,ttf,eot}", (route: any) =>
+      route.abort(),
+    );
 
     // Add human-like delay
     await humanDelay("page_load");
 
     return { page, context };
   } catch (e: any) {
-    throw new Error(`Playwright not available: ${e.message}. Run: npx playwright install chromium`);
+    throw new Error(
+      `Playwright not available: ${e.message}. Run: npx playwright install chromium`,
+    );
   }
 }
 
@@ -172,7 +195,10 @@ class BrowserAgent extends RedNodeAgent {
             const { text, title } = await fetchAndParse(url);
             if (text.length > 100) {
               // Ingest into memory for future RAG search
-              await this.ingestToMemory(`web/${new URL(url).hostname}`, `${title}: ${text.substring(0, 5000)}`);
+              await this.ingestToMemory(
+                `web/${new URL(url).hostname}`,
+                `${title}: ${text.substring(0, 5000)}`,
+              );
               return {
                 ok: true,
                 output: `📄 ${title}\n\n${text.substring(0, 3000)}${text.length > 3000 ? "\n\n...(truncated)" : ""}`,
@@ -189,21 +215,39 @@ class BrowserAgent extends RedNodeAgent {
           // Playwright fallback
           const { page, context } = await getPlaywrightPage();
           try {
-            await page.goto(url, { waitUntil: "domcontentloaded", timeout: REQUEST_TIMEOUT });
+            await page.goto(url, {
+              waitUntil: "domcontentloaded",
+              timeout: REQUEST_TIMEOUT,
+            });
             const title = await page.title();
             const text = await page.evaluate(() => {
               // Remove noise
-              document.querySelectorAll("script,style,nav,footer,header,iframe").forEach(el => el.remove());
-              const main = document.querySelector("article,main,.content,#content,body");
-              return main?.textContent?.replace(/\s+/g, " ").trim().substring(0, 100000) || "";
+              document
+                .querySelectorAll("script,style,nav,footer,header,iframe")
+                .forEach((el) => el.remove());
+              const main = document.querySelector(
+                "article,main,.content,#content,body",
+              );
+              return (
+                main?.textContent
+                  ?.replace(/\s+/g, " ")
+                  .trim()
+                  .substring(0, 100000) || ""
+              );
             });
 
-            await this.ingestToMemory(`web/${new URL(url).hostname}`, `${title}: ${text.substring(0, 5000)}`);
+            await this.ingestToMemory(
+              `web/${new URL(url).hostname}`,
+              `${title}: ${text.substring(0, 5000)}`,
+            );
 
             return {
               ok: true,
               output: `📄 ${title}\n\n${text.substring(0, 3000)}${text.length > 3000 ? "\n...(truncated)" : ""}`,
-              title, url, text_length: text.length, method: "playwright",
+              title,
+              url,
+              text_length: text.length,
+              method: "playwright",
             };
           } finally {
             await context.close();
@@ -212,27 +256,41 @@ class BrowserAgent extends RedNodeAgent {
 
         case "browser.scrape": {
           if (!url) return { ok: false, error: "Missing 'url' argument" };
-          const selector = args.selector || "table, ul, ol, dl, .data, .results";
+          const selector =
+            args.selector || "table, ul, ol, dl, .data, .results";
 
           const { page, context } = await getPlaywrightPage();
           try {
-            await page.goto(url, { waitUntil: "domcontentloaded", timeout: REQUEST_TIMEOUT });
+            await page.goto(url, {
+              waitUntil: "domcontentloaded",
+              timeout: REQUEST_TIMEOUT,
+            });
 
             const data = await page.evaluate((sel: string) => {
               const elements = document.querySelectorAll(sel);
               return Array.from(elements).map((el, i) => ({
                 index: i,
                 tag: el.tagName.toLowerCase(),
-                text: el.textContent?.replace(/\s+/g, " ").trim().substring(0, 2000) || "",
+                text:
+                  el.textContent
+                    ?.replace(/\s+/g, " ")
+                    .trim()
+                    .substring(0, 2000) || "",
                 html: el.outerHTML.substring(0, 1000),
               }));
             }, selector);
 
             return {
               ok: true,
-              output: data.length > 0
-                ? data.map(d => `[${d.tag}#${d.index}] ${d.text.substring(0, 500)}`).join("\n\n")
-                : `No elements matching "${selector}" found on ${url}`,
+              output:
+                data.length > 0
+                  ? data
+                      .map(
+                        (d) =>
+                          `[${d.tag}#${d.index}] ${d.text.substring(0, 500)}`,
+                      )
+                      .join("\n\n")
+                  : `No elements matching "${selector}" found on ${url}`,
               elements: data.length,
               url,
             };
@@ -246,13 +304,19 @@ class BrowserAgent extends RedNodeAgent {
 
           const { page, context } = await getPlaywrightPage();
           try {
-            await page.goto(url, { waitUntil: "networkidle", timeout: REQUEST_TIMEOUT });
+            await page.goto(url, {
+              waitUntil: "networkidle",
+              timeout: REQUEST_TIMEOUT,
+            });
 
             fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
             const filename = `screenshot-${Date.now()}.png`;
             const filepath = path.join(DOWNLOAD_DIR, filename);
 
-            await page.screenshot({ path: filepath, fullPage: args.full_page ?? false });
+            await page.screenshot({
+              path: filepath,
+              fullPage: args.full_page ?? false,
+            });
 
             return {
               ok: true,
@@ -272,13 +336,17 @@ class BrowserAgent extends RedNodeAgent {
 
           // Determine filename
           const urlObj = new URL(url);
-          const defaultName = urlObj.pathname.split("/").pop() || `download-${Date.now()}`;
+          const defaultName =
+            urlObj.pathname.split("/").pop() || `download-${Date.now()}`;
           const filename = args.filename || defaultName;
           const filepath = path.join(DOWNLOAD_DIR, filename);
 
           // Security: prevent path traversal in filename
           if (filename.includes("..") || filename.includes("/")) {
-            return { ok: false, error: "Invalid filename — path traversal denied" };
+            return {
+              ok: false,
+              error: "Invalid filename — path traversal denied",
+            };
           }
 
           // Download using fetch (streaming)
@@ -287,13 +355,18 @@ class BrowserAgent extends RedNodeAgent {
             signal: AbortSignal.timeout(120000), // 2 min for large files
           });
 
-          if (!resp.ok) return { ok: false, error: `Download failed: HTTP ${resp.status}` };
+          if (!resp.ok)
+            return { ok: false, error: `Download failed: HTTP ${resp.status}` };
 
           const contentLength = resp.headers.get("content-length");
-          const maxSize = parseInt(process.env.MAX_DOWNLOAD_MB || "500") * 1024 * 1024;
+          const maxSize =
+            parseInt(process.env.MAX_DOWNLOAD_MB || "500") * 1024 * 1024;
 
           if (contentLength && parseInt(contentLength) > maxSize) {
-            return { ok: false, error: `File too large: ${contentLength} bytes (max: ${maxSize / 1048576} MB)` };
+            return {
+              ok: false,
+              error: `File too large: ${contentLength} bytes (max: ${maxSize / 1048576} MB)`,
+            };
           }
 
           const buffer = Buffer.from(await resp.arrayBuffer());
@@ -308,9 +381,15 @@ class BrowserAgent extends RedNodeAgent {
               const { exec } = await import("child_process");
               const { promisify } = await import("util");
               const execAsync = promisify(exec);
-              const { stdout } = await execAsync(`pdftotext "${filepath}" - 2>/dev/null`, { timeout: 30000 });
+              const { stdout } = await execAsync(
+                `pdftotext "${filepath}" - 2>/dev/null`,
+                { timeout: 30000 },
+              );
               if (stdout.trim()) {
-                await this.ingestToMemory(`download/pdf/${filename}`, stdout.trim().substring(0, 10000));
+                await this.ingestToMemory(
+                  `download/pdf/${filename}`,
+                  stdout.trim().substring(0, 10000),
+                );
               }
             } catch {}
           }
@@ -340,7 +419,12 @@ class BrowserAgent extends RedNodeAgent {
             $("a[href]").each((_, el) => {
               const href = $(el).attr("href") || "";
               const text = $(el).text().trim();
-              if (href && !href.startsWith("#") && !href.startsWith("javascript:") && text) {
+              if (
+                href &&
+                !href.startsWith("#") &&
+                !href.startsWith("javascript:") &&
+                text
+              ) {
                 try {
                   const absolute = new URL(href, url).toString();
                   links.push({ text: text.substring(0, 100), href: absolute });
@@ -349,11 +433,15 @@ class BrowserAgent extends RedNodeAgent {
             });
 
             // Deduplicate
-            const unique = [...new Map(links.map(l => [l.href, l])).values()].slice(0, 50);
+            const unique = [
+              ...new Map(links.map((l) => [l.href, l])).values(),
+            ].slice(0, 50);
 
             return {
               ok: true,
-              output: unique.map(l => `  ${l.text}\n    ${l.href}`).join("\n") || "No links found",
+              output:
+                unique.map((l) => `  ${l.text}\n    ${l.href}`).join("\n") ||
+                "No links found",
               count: unique.length,
               links: unique,
             };
@@ -371,16 +459,25 @@ class BrowserAgent extends RedNodeAgent {
           try {
             const resp = await fetch(
               `${searxng}/search?q=${encodeURIComponent(query)}&format=json&categories=general`,
-              { signal: AbortSignal.timeout(10000) }
+              { signal: AbortSignal.timeout(10000) },
             );
-            const data = await resp.json() as any;
+            const data = (await resp.json()) as any;
             const results = (data.results || []).slice(0, 10);
-            const lines = results.map((r: any, i: number) =>
-              `[${i + 1}] ${r.title}\n    ${r.url}\n    ${(r.content || "").substring(0, 150)}`
+            const lines = results.map(
+              (r: any, i: number) =>
+                `[${i + 1}] ${r.title}\n    ${r.url}\n    ${(r.content || "").substring(0, 150)}`,
             );
-            return { ok: true, output: lines.join("\n\n") || "No results", count: results.length, results };
+            return {
+              ok: true,
+              output: lines.join("\n\n") || "No results",
+              count: results.length,
+              results,
+            };
           } catch (e: any) {
-            return { ok: false, error: `SearXNG search failed: ${e.message}. Is SearXNG running at ${searxng}?` };
+            return {
+              ok: false,
+              error: `SearXNG search failed: ${e.message}. Is SearXNG running at ${searxng}?`,
+            };
           }
         }
 
@@ -388,7 +485,8 @@ class BrowserAgent extends RedNodeAgent {
           // HIGH RISK — requires approval via security policy
           return {
             ok: false,
-            error: "browser.fill is HIGH risk and requires approval. Submit a specific form-fill request with url, selectors, and values.",
+            error:
+              "browser.fill is HIGH risk and requires approval. Submit a specific form-fill request with url, selectors, and values.",
           };
         }
 

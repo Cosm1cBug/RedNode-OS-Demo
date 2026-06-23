@@ -1,14 +1,21 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
 
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
-const MODEL = process.env.REDNODE_CODE_MODEL || process.env.REDNODE_MODEL || "qwen2.5:14b-instruct-q4_K_M";
+const MODEL =
+  process.env.REDNODE_CODE_MODEL ||
+  process.env.REDNODE_MODEL ||
+  "qwen2.5:14b-instruct-q4_K_M";
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
 const AUTO_VERIFY = process.env.CODE_AUTO_VERIFY !== "false"; // default: ON
 
 const TOOLS = [
-  "code.generate", "code.test", "code.analyze", "code.refactor", "git.status",
-  "code.verify",  // Verification gate — build+typecheck+lint+test+security
-  "code.review",  // LLM-powered security code review
+  "code.generate",
+  "code.test",
+  "code.analyze",
+  "code.refactor",
+  "git.status",
+  "code.verify", // Verification gate — build+typecheck+lint+test+security
+  "code.review", // LLM-powered security code review
 ];
 
 // ─── Verification Gate ───
@@ -27,10 +34,22 @@ async function runVerificationGate(context: string): Promise<{
   const phases: { name: string; passed: boolean; output: string }[] = [];
 
   const commands = [
-    { name: "build", cmd: "cargo build --quiet 2>&1 || npm run build 2>&1 || pnpm build 2>&1 || echo 'no build system'" },
-    { name: "typecheck", cmd: "npx tsc --noEmit 2>&1 || cargo check --quiet 2>&1 || echo 'no type checker'" },
-    { name: "lint", cmd: "cargo clippy --quiet 2>&1 || npx eslint . --quiet 2>&1 || echo 'no linter'" },
-    { name: "test", cmd: "cargo test --quiet 2>&1 || npm test 2>&1 || pnpm test 2>&1 || echo 'no tests'" },
+    {
+      name: "build",
+      cmd: "cargo build --quiet 2>&1 || npm run build 2>&1 || pnpm build 2>&1 || echo 'no build system'",
+    },
+    {
+      name: "typecheck",
+      cmd: "npx tsc --noEmit 2>&1 || cargo check --quiet 2>&1 || echo 'no type checker'",
+    },
+    {
+      name: "lint",
+      cmd: "cargo clippy --quiet 2>&1 || npx eslint . --quiet 2>&1 || echo 'no linter'",
+    },
+    {
+      name: "test",
+      cmd: "cargo test --quiet 2>&1 || npm test 2>&1 || pnpm test 2>&1 || echo 'no tests'",
+    },
   ];
 
   for (const { name, cmd } of commands) {
@@ -38,9 +57,14 @@ async function runVerificationGate(context: string): Promise<{
       const { exec } = await import("child_process");
       const { promisify } = await import("util");
       const execAsync = promisify(exec);
-      const { stdout, stderr } = await execAsync(cmd, { timeout: 60000, cwd: process.cwd() });
+      const { stdout, stderr } = await execAsync(cmd, {
+        timeout: 60000,
+        cwd: process.cwd(),
+      });
       const output = (stdout + stderr).trim().substring(0, 500);
-      const passed = !output.toLowerCase().includes("error") && !output.toLowerCase().includes("failed");
+      const passed =
+        !output.toLowerCase().includes("error") &&
+        !output.toLowerCase().includes("failed");
       phases.push({ name, passed, output });
     } catch (e: any) {
       phases.push({ name, passed: false, output: e.message.substring(0, 300) });
@@ -64,7 +88,9 @@ async function runVerificationGate(context: string): Promise<{
   if (context) {
     for (const pattern of dangerPatterns) {
       if (pattern.test(context)) {
-        secIssues.push(`Security: pattern ${pattern.source} detected in generated code`);
+        secIssues.push(
+          `Security: pattern ${pattern.source} detected in generated code`,
+        );
       }
       pattern.lastIndex = 0; // reset regex state
     }
@@ -73,10 +99,13 @@ async function runVerificationGate(context: string): Promise<{
   phases.push({
     name: "security",
     passed: secIssues.length === 0,
-    output: secIssues.length === 0 ? "No security issues detected" : secIssues.join("\n"),
+    output:
+      secIssues.length === 0
+        ? "No security issues detected"
+        : secIssues.join("\n"),
   });
 
-  const allPassed = phases.every(p => p.passed);
+  const allPassed = phases.every((p) => p.passed);
   return { passed: allPassed, phases };
 }
 
@@ -134,23 +163,47 @@ class CodingAgent extends RedNodeAgent {
         const lang = args.language || "rust";
         if (lang === "rust") {
           try {
-            const result = await this.callTool("shell.run_safe", { cmd: "cargo clippy" });
-            return { ok: true, output: `Rust analysis (clippy):\n${result?.output || result?.stdout || "No issues found ✅"}`, tool };
+            const result = await this.callTool("shell.run_safe", {
+              cmd: "cargo clippy",
+            });
+            return {
+              ok: true,
+              output: `Rust analysis (clippy):\n${result?.output || result?.stdout || "No issues found ✅"}`,
+              tool,
+            };
           } catch {
-            return { ok: true, output: "Code analysis: clippy not available — run manually", tool };
+            return {
+              ok: true,
+              output: "Code analysis: clippy not available — run manually",
+              tool,
+            };
           }
         }
-        return { ok: true, output: `Code analysis for ${lang}: use the appropriate linter`, tool };
+        return {
+          ok: true,
+          output: `Code analysis for ${lang}: use the appropriate linter`,
+          tool,
+        };
       }
 
       case "code.test": {
         const framework = args.framework || "cargo";
         try {
           if (framework === "cargo") {
-            const result = await this.callTool("shell.run_safe", { cmd: "cargo test" });
-            return { ok: true, output: `Test results:\n${result?.output || "No output"}`, tool };
+            const result = await this.callTool("shell.run_safe", {
+              cmd: "cargo test",
+            });
+            return {
+              ok: true,
+              output: `Test results:\n${result?.output || "No output"}`,
+              tool,
+            };
           }
-          return { ok: true, output: `Run tests with: ${framework} test`, tool };
+          return {
+            ok: true,
+            output: `Run tests with: ${framework} test`,
+            tool,
+          };
         } catch (e: any) {
           return { ok: false, error: `Tests failed: ${e.message}`, tool };
         }
@@ -224,7 +277,10 @@ Respond with ONLY the code.`,
 - Remove dead code
 Return ONLY the refactored code with brief comments explaining changes.`,
                 },
-                { role: "user", content: `Instruction: ${instruction}\n\nCode:\n${code}` },
+                {
+                  role: "user",
+                  content: `Instruction: ${instruction}\n\nCode:\n${code}`,
+                },
               ],
               stream: false,
               options: { temperature: 0.2, num_predict: 2048 },
@@ -249,8 +305,9 @@ Return ONLY the refactored code with brief comments explaining changes.`,
       case "code.verify": {
         // Manual verification gate trigger
         const result = await runVerificationGate(args.code || "");
-        const lines = result.phases.map(p =>
-          `  ${p.passed ? "✅" : "❌"} ${p.name}: ${p.passed ? "PASS" : "FAIL"}\n     ${p.output.substring(0, 200)}`
+        const lines = result.phases.map(
+          (p) =>
+            `  ${p.passed ? "✅" : "❌"} ${p.name}: ${p.passed ? "PASS" : "FAIL"}\n     ${p.output.substring(0, 200)}`,
         );
         return {
           ok: result.passed,
@@ -268,7 +325,9 @@ Return ONLY the refactored code with brief comments explaining changes.`,
 
       case "git.status": {
         try {
-          const result = await this.callTool("shell.run_safe", { cmd: "git status" });
+          const result = await this.callTool("shell.run_safe", {
+            cmd: "git status",
+          });
           return { ok: true, output: result?.output || "Not a git repo", tool };
         } catch (e: any) {
           return { ok: false, error: e.message };

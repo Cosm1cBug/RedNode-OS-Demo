@@ -10,7 +10,8 @@ const execAsync = promisify(exec);
 
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
 const FALCO_LOG = process.env.FALCO_LOG || "/var/log/falco/falco.log";
-const FALCO_INSTALLED = fs.existsSync(FALCO_LOG) || fs.existsSync("/usr/bin/falco");
+const FALCO_INSTALLED =
+  fs.existsSync(FALCO_LOG) || fs.existsSync("/usr/bin/falco");
 const JOURNALCTL_POLL_INTERVAL = 60000; // 1 minute
 
 interface FalcoEvent {
@@ -23,7 +24,11 @@ interface FalcoEvent {
 
 // ─── Report to CNS ───
 
-async function reportSecurityEvent(severity: string, summary: string, raw: any) {
+async function reportSecurityEvent(
+  severity: string,
+  summary: string,
+  raw: any,
+) {
   try {
     await fetch(`${CNS}/security/events`, {
       method: "POST",
@@ -103,7 +108,9 @@ async function tailFalcoLog(path: string) {
     } catch (e: any) {
       // File might have been rotated or deleted
       if (!fs.existsSync(path)) {
-        console.warn(`[falco] Log file disappeared: ${path} — waiting for recreation`);
+        console.warn(
+          `[falco] Log file disappeared: ${path} — waiting for recreation`,
+        );
       }
     }
   };
@@ -115,7 +122,9 @@ async function tailFalcoLog(path: string) {
 // ─── Fallback: Monitor journalctl for security-relevant events ───
 
 async function monitorJournalctl() {
-  console.log("[falco] Falco not installed — falling back to journalctl security monitoring");
+  console.log(
+    "[falco] Falco not installed — falling back to journalctl security monitoring",
+  );
 
   let lastCheck = new Date(Date.now() - JOURNALCTL_POLL_INTERVAL);
 
@@ -127,7 +136,7 @@ async function monitorJournalctl() {
       // Check for authentication failures
       const { stdout: authFails } = await execAsync(
         `journalctl -p err --since "${since}" --no-pager -o json 2>/dev/null | head -20`,
-        { timeout: 10000 }
+        { timeout: 10000 },
       );
 
       if (authFails.trim()) {
@@ -139,16 +148,28 @@ async function monitorJournalctl() {
           try {
             const entry = JSON.parse(line);
             const msg = entry.MESSAGE || "";
-            const unit = entry._SYSTEMD_UNIT || entry.SYSLOG_IDENTIFIER || "system";
+            const unit =
+              entry._SYSTEMD_UNIT || entry.SYSLOG_IDENTIFIER || "system";
 
-            if (msg.includes("Failed password") || msg.includes("authentication failure")) {
+            if (
+              msg.includes("Failed password") ||
+              msg.includes("authentication failure")
+            ) {
               sshFailCount++;
-            } else if (msg.includes("segfault") || msg.includes("oom-kill") || msg.includes("Out of memory")) {
-              await reportSecurityEvent("HIGH", `System error: ${msg.substring(0, 200)}`, {
-                source: "journalctl",
-                unit,
-                message: msg,
-              });
+            } else if (
+              msg.includes("segfault") ||
+              msg.includes("oom-kill") ||
+              msg.includes("Out of memory")
+            ) {
+              await reportSecurityEvent(
+                "HIGH",
+                `System error: ${msg.substring(0, 200)}`,
+                {
+                  source: "journalctl",
+                  unit,
+                  message: msg,
+                },
+              );
             } else {
               otherErrors.push(`[${unit}] ${msg.substring(0, 100)}`);
             }
@@ -160,31 +181,42 @@ async function monitorJournalctl() {
           await reportSecurityEvent(
             sshFailCount >= 10 ? "CRITICAL" : "HIGH",
             `${sshFailCount} failed authentication attempts detected in last ${JOURNALCTL_POLL_INTERVAL / 1000}s — possible brute force`,
-            { count: sshFailCount, source: "journalctl" }
+            { count: sshFailCount, source: "journalctl" },
           );
         }
 
         // Report other errors if there are many
         if (otherErrors.length >= 5) {
-          await reportSecurityEvent("MEDIUM", `${otherErrors.length} system errors in last minute`, {
-            errors: otherErrors.slice(0, 10),
-            source: "journalctl",
-          });
+          await reportSecurityEvent(
+            "MEDIUM",
+            `${otherErrors.length} system errors in last minute`,
+            {
+              errors: otherErrors.slice(0, 10),
+              source: "journalctl",
+            },
+          );
         }
       }
 
       // Check for kernel security messages
       const { stdout: kernelMsgs } = await execAsync(
         `journalctl -k --since "${since}" --no-pager -o short 2>/dev/null | grep -i "segfault\\|oops\\|panic\\|apparmor.*DENIED\\|seccomp" | head -5`,
-        { timeout: 10000 }
+        { timeout: 10000 },
       );
       if (kernelMsgs.trim()) {
         for (const line of kernelMsgs.trim().split("\n")) {
-          const severity = line.includes("panic") || line.includes("oops") ? "CRITICAL" : "MEDIUM";
-          await reportSecurityEvent(severity, `Kernel security event: ${line.substring(0, 200)}`, {
-            source: "kernel",
-            raw: line,
-          });
+          const severity =
+            line.includes("panic") || line.includes("oops")
+              ? "CRITICAL"
+              : "MEDIUM";
+          await reportSecurityEvent(
+            severity,
+            `Kernel security event: ${line.substring(0, 200)}`,
+            {
+              source: "kernel",
+              raw: line,
+            },
+          );
         }
       }
     } catch (e: any) {
@@ -202,10 +234,12 @@ async function monitorJournalctl() {
 
 if (FALCO_INSTALLED && fs.existsSync(FALCO_LOG)) {
   tailFalcoLog(FALCO_LOG);
-  console.log("[security-agent] Falco eBPF bridge loaded — real-time threat detection active");
+  console.log(
+    "[security-agent] Falco eBPF bridge loaded — real-time threat detection active",
+  );
 } else {
   monitorJournalctl();
   console.log(
-    "[security-agent] Falco not found — using journalctl fallback (install Falco for real eBPF monitoring)"
+    "[security-agent] Falco not found — using journalctl fallback (install Falco for real eBPF monitoring)",
   );
 }

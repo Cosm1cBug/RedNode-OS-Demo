@@ -56,7 +56,9 @@ const patterns: ObservedPattern[] = [];
 let learningCycles = 0;
 
 class LearningAgent extends RedNodeAgent {
-  constructor() { super("learning", TOOLS); }
+  constructor() {
+    super("learning", TOOLS);
+  }
 
   async handleTool(tool: string, args: any) {
     switch (tool) {
@@ -67,7 +69,12 @@ class LearningAgent extends RedNodeAgent {
         // 1. Scan installed CLI tools
         try {
           const { execSync } = await import("child_process");
-          const bins = execSync("ls /run/current-system/sw/bin/ 2>/dev/null | head -100", { encoding: "utf-8" }).trim().split("\n");
+          const bins = execSync(
+            "ls /run/current-system/sw/bin/ 2>/dev/null | head -100",
+            { encoding: "utf-8" },
+          )
+            .trim()
+            .split("\n");
           for (const bin of bins.slice(0, 50)) {
             if (!capabilities.has(`cli:${bin}`)) {
               capabilities.set(`cli:${bin}`, {
@@ -81,23 +88,59 @@ class LearningAgent extends RedNodeAgent {
               discovered.push(bin);
             }
           }
-        } catch (e) { /* not on NixOS */ }
+        } catch (e) {
+          /* not on NixOS */
+        }
 
         // 2. Probe reachable APIs
         const apis = [
-          { name: "ollama", url: "http://localhost:11434/api/tags", desc: "Local LLM inference" },
-          { name: "qdrant", url: "http://localhost:6333/healthz", desc: "Vector memory" },
-          { name: "nats", url: "http://localhost:8222/varz", desc: "Message bus" },
-          { name: "grafana", url: "http://localhost:3001/api/health", desc: "Monitoring dashboard" },
-          { name: "pihole", url: `${process.env.PIHOLE_URL || "http://10.0.50.2"}/admin/api.php?summary`, desc: "DNS filtering" },
-          { name: "frigate", url: `${process.env.FRIGATE_URL || "http://localhost:5000"}/api/stats`, desc: "Camera NVR" },
-          { name: "searxng", url: "http://localhost:8888/search?q=test&format=json", desc: "Private search" },
-          { name: "homeassistant", url: `${process.env.HOMEASSISTANT_URL || "http://localhost:8123"}/api/`, desc: "Smart home" },
+          {
+            name: "ollama",
+            url: "http://localhost:11434/api/tags",
+            desc: "Local LLM inference",
+          },
+          {
+            name: "qdrant",
+            url: "http://localhost:6333/healthz",
+            desc: "Vector memory",
+          },
+          {
+            name: "nats",
+            url: "http://localhost:8222/varz",
+            desc: "Message bus",
+          },
+          {
+            name: "grafana",
+            url: "http://localhost:3001/api/health",
+            desc: "Monitoring dashboard",
+          },
+          {
+            name: "pihole",
+            url: `${process.env.PIHOLE_URL || "http://10.0.50.2"}/admin/api.php?summary`,
+            desc: "DNS filtering",
+          },
+          {
+            name: "frigate",
+            url: `${process.env.FRIGATE_URL || "http://localhost:5000"}/api/stats`,
+            desc: "Camera NVR",
+          },
+          {
+            name: "searxng",
+            url: "http://localhost:8888/search?q=test&format=json",
+            desc: "Private search",
+          },
+          {
+            name: "homeassistant",
+            url: `${process.env.HOMEASSISTANT_URL || "http://localhost:8123"}/api/`,
+            desc: "Smart home",
+          },
         ];
 
         for (const api of apis) {
           try {
-            const res = await fetch(api.url, { signal: AbortSignal.timeout(3000) });
+            const res = await fetch(api.url, {
+              signal: AbortSignal.timeout(3000),
+            });
             if (res.ok) {
               capabilities.set(`api:${api.name}`, {
                 name: `api:${api.name}`,
@@ -109,7 +152,9 @@ class LearningAgent extends RedNodeAgent {
               });
               discovered.push(`API:${api.name}`);
             }
-          } catch (e) { /* not reachable */ }
+          } catch (e) {
+            /* not reachable */
+          }
         }
 
         return {
@@ -123,34 +168,48 @@ class LearningAgent extends RedNodeAgent {
       // ── Ingest documentation for a tool/service ──
       case "learn.ingest_docs": {
         const target = args.target || args.tool || args.service;
-        if (!target) return { ok: false, error: "Missing 'target' — what to learn about" };
+        if (!target)
+          return { ok: false, error: "Missing 'target' — what to learn about" };
 
         const docs: string[] = [];
 
         // Try man page
         try {
           const { execSync } = await import("child_process");
-          const manOutput = execSync(`man ${target} 2>/dev/null | col -bx | head -200`, {
-            encoding: "utf-8", timeout: 5000
-          }).trim();
+          const manOutput = execSync(
+            `man ${target} 2>/dev/null | col -bx | head -200`,
+            {
+              encoding: "utf-8",
+              timeout: 5000,
+            },
+          ).trim();
           if (manOutput.length > 50) {
             docs.push(`man page for ${target}:\n${manOutput}`);
           }
-        } catch (e) { /* no man page */ }
+        } catch (e) {
+          /* no man page */
+        }
 
         // Try --help
         try {
           const { execSync } = await import("child_process");
           const help = execSync(`${target} --help 2>&1 | head -50`, {
-            encoding: "utf-8", timeout: 5000
+            encoding: "utf-8",
+            timeout: 5000,
           }).trim();
           if (help.length > 20) {
             docs.push(`--help output:\n${help}`);
           }
-        } catch (e) { /* no help */ }
+        } catch (e) {
+          /* no help */
+        }
 
         if (docs.length === 0) {
-          return { ok: true, output: `No documentation found for '${target}'`, learned: false };
+          return {
+            ok: true,
+            output: `No documentation found for '${target}'`,
+            learned: false,
+          };
         }
 
         // Ingest into knowledge base via CNS
@@ -163,7 +222,9 @@ class LearningAgent extends RedNodeAgent {
               session: "learning-agent",
             }),
           });
-        } catch (e) { /* best effort */ }
+        } catch (e) {
+          /* best effort */
+        }
 
         capabilities.set(`docs:${target}`, {
           name: `docs:${target}`,
@@ -187,9 +248,14 @@ class LearningAgent extends RedNodeAgent {
         try {
           // Query audit log for repeated intents
           const res = await fetch(`${CNS}/memory/recent?limit=200`);
-          if (!res.ok) return { ok: true, output: "Could not access audit log", patterns: [] };
+          if (!res.ok)
+            return {
+              ok: true,
+              output: "Could not access audit log",
+              patterns: [],
+            };
 
-          const data = await res.json() as any;
+          const data = (await res.json()) as any;
           const entries = data.entries || data || [];
 
           // Count intent patterns
@@ -199,7 +265,10 @@ class LearningAgent extends RedNodeAgent {
             if (intent.length < 5) continue;
             // Normalize: lowercase, trim, take first 50 chars
             const normalized = intent.toLowerCase().trim().substring(0, 50);
-            intentCounts.set(normalized, (intentCounts.get(normalized) || 0) + 1);
+            intentCounts.set(
+              normalized,
+              (intentCounts.get(normalized) || 0) + 1,
+            );
           }
 
           // Find patterns (intents repeated 3+ times)
@@ -210,16 +279,19 @@ class LearningAgent extends RedNodeAgent {
                 intent_pattern: pattern,
                 frequency: count,
                 last_seen: new Date().toISOString(),
-                suggested_automation: count >= 5
-                  ? `Create a scheduled workflow for: "${pattern}"`
-                  : null,
+                suggested_automation:
+                  count >= 5
+                    ? `Create a scheduled workflow for: "${pattern}"`
+                    : null,
               });
             }
           }
 
           // Merge with existing patterns
           for (const p of newPatterns) {
-            const existing = patterns.findIndex(e => e.intent_pattern === p.intent_pattern);
+            const existing = patterns.findIndex(
+              (e) => e.intent_pattern === p.intent_pattern,
+            );
             if (existing >= 0) {
               patterns[existing].frequency = p.frequency;
               patterns[existing].last_seen = p.last_seen;
@@ -230,22 +302,32 @@ class LearningAgent extends RedNodeAgent {
 
           return {
             ok: true,
-            output: `Found ${newPatterns.length} repeating patterns, ${newPatterns.filter(p => p.suggested_automation).length} ready for automation`,
+            output: `Found ${newPatterns.length} repeating patterns, ${newPatterns.filter((p) => p.suggested_automation).length} ready for automation`,
             patterns: newPatterns,
           };
         } catch (e) {
-          return { ok: true, output: `Pattern extraction failed: ${e}`, patterns: [] };
+          return {
+            ok: true,
+            output: `Pattern extraction failed: ${e}`,
+            patterns: [],
+          };
         }
       }
 
       // ── Suggest workflow from observed pattern ──
       case "learn.suggest_workflow": {
-        const automatable = patterns.filter(p => p.suggested_automation && p.frequency >= 5);
+        const automatable = patterns.filter(
+          (p) => p.suggested_automation && p.frequency >= 5,
+        );
         if (automatable.length === 0) {
-          return { ok: true, output: "No patterns frequent enough for workflow suggestions yet", suggestions: [] };
+          return {
+            ok: true,
+            output: "No patterns frequent enough for workflow suggestions yet",
+            suggestions: [],
+          };
         }
 
-        const suggestions = automatable.map(p => ({
+        const suggestions = automatable.map((p) => ({
           pattern: p.intent_pattern,
           frequency: p.frequency,
           suggestion: p.suggested_automation,
@@ -262,12 +344,26 @@ class LearningAgent extends RedNodeAgent {
       // ── Self-assessment: what do I know vs what do I not know ──
       case "learn.self_assess": {
         const total = capabilities.size;
-        const validated = Array.from(capabilities.values()).filter(c => c.validated).length;
-        const highConf = Array.from(capabilities.values()).filter(c => c.confidence >= 0.8).length;
+        const validated = Array.from(capabilities.values()).filter(
+          (c) => c.validated,
+        ).length;
+        const highConf = Array.from(capabilities.values()).filter(
+          (c) => c.confidence >= 0.8,
+        ).length;
 
         const gaps: string[] = [];
         // Check for expected capabilities that are missing
-        const expected = ["ollama", "postgres", "nats", "qdrant", "pihole", "pfsense", "truenas", "frigate", "homeassistant"];
+        const expected = [
+          "ollama",
+          "postgres",
+          "nats",
+          "qdrant",
+          "pihole",
+          "pfsense",
+          "truenas",
+          "frigate",
+          "homeassistant",
+        ];
         for (const e of expected) {
           if (!capabilities.has(`api:${e}`) && !capabilities.has(`docs:${e}`)) {
             gaps.push(e);
@@ -290,13 +386,13 @@ class LearningAgent extends RedNodeAgent {
       case "learn.synthesize": {
         // Ask LLM to find connections between what we know
         const knowledgeList = Array.from(capabilities.values())
-          .filter(c => c.confidence >= 0.5)
-          .map(c => `${c.name}: ${c.description}`)
+          .filter((c) => c.confidence >= 0.5)
+          .map((c) => `${c.name}: ${c.description}`)
           .join("\n");
 
         const patternList = patterns
-          .filter(p => p.frequency >= 3)
-          .map(p => `"${p.intent_pattern}" (${p.frequency}x)`)
+          .filter((p) => p.frequency >= 3)
+          .map((p) => `"${p.intent_pattern}" (${p.frequency}x)`)
           .join("\n");
 
         return {
@@ -345,7 +441,10 @@ async function learningLoop() {
       await agent.handleTool("learn.extract_patterns", {});
 
       // 3. Self-assess knowledge gaps
-      const assessment = await agent.handleTool("learn.self_assess", {}) as any;
+      const assessment = (await agent.handleTool(
+        "learn.self_assess",
+        {},
+      )) as any;
 
       // 4. Try to learn about gaps
       if (assessment?.gaps?.length > 0) {
@@ -356,7 +455,6 @@ async function learningLoop() {
 
       // 5. Suggest workflows if patterns are strong enough
       await agent.handleTool("learn.suggest_workflow", {});
-
     } catch (e) {
       console.error(`[learning-agent] cycle ${learningCycles} error:`, e);
     }

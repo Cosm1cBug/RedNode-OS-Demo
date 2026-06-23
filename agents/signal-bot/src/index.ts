@@ -36,29 +36,39 @@ const OWNER_NUMBER = process.env.SIGNAL_OWNER_NUMBER || "";
 const POLL_INTERVAL = parseInt(process.env.SIGNAL_POLL_INTERVAL || "3000"); // ms
 
 if (!BOT_NUMBER) {
-  console.error("[signal-bot] ❌ SIGNAL_BOT_NUMBER not set. See README for setup instructions.");
+  console.error(
+    "[signal-bot] ❌ SIGNAL_BOT_NUMBER not set. See README for setup instructions.",
+  );
   console.error("  export SIGNAL_BOT_NUMBER=+1234567890");
   process.exit(1);
 }
 
 if (!OWNER_NUMBER) {
-  console.warn("[signal-bot] ⚠️ SIGNAL_OWNER_NUMBER not set — bot will respond to ALL messages");
+  console.warn(
+    "[signal-bot] ⚠️ SIGNAL_OWNER_NUMBER not set — bot will respond to ALL messages",
+  );
 }
 
-console.log(`[signal-bot] Starting — bot: ${BOT_NUMBER}, owner: ${OWNER_NUMBER || "(any)"}`);
+console.log(
+  `[signal-bot] Starting — bot: ${BOT_NUMBER}, owner: ${OWNER_NUMBER || "(any)"}`,
+);
 
 // ─── Signal CLI Interface ───
 
-async function sendSignalMessage(recipient: string, message: string): Promise<void> {
+async function sendSignalMessage(
+  recipient: string,
+  message: string,
+): Promise<void> {
   try {
     // Truncate long messages (Signal has a 4096 char limit)
-    const truncated = message.length > 3500
-      ? message.substring(0, 3500) + "\n\n... (truncated)"
-      : message;
+    const truncated =
+      message.length > 3500
+        ? message.substring(0, 3500) + "\n\n... (truncated)"
+        : message;
 
     await execAsync(
       `${SIGNAL_CLI} -u ${BOT_NUMBER} send -m ${JSON.stringify(truncated)} ${recipient}`,
-      { timeout: 15000 }
+      { timeout: 15000 },
     );
   } catch (e: any) {
     console.error(`[signal-bot] Failed to send message: ${e.message}`);
@@ -69,7 +79,7 @@ async function receiveMessages(): Promise<any[]> {
   try {
     const { stdout } = await execAsync(
       `${SIGNAL_CLI} -u ${BOT_NUMBER} receive --json --timeout 1`,
-      { timeout: 10000 }
+      { timeout: 10000 },
     );
 
     if (!stdout.trim()) return [];
@@ -103,7 +113,7 @@ async function processIntent(text: string): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ intent: text, session_id: "signal" }),
     });
-    const data = await resp.json() as any;
+    const data = (await resp.json()) as any;
 
     if (!data.ok) return "❌ Failed to process intent.";
 
@@ -121,14 +131,20 @@ async function processIntent(text: string): Promise<string> {
 
     // Results
     for (const r of data.results || []) {
-      const icon = r.status === "executed" ? "✅" :
-                   r.status === "needs_approval" ? "⏳" : "❌";
+      const icon =
+        r.status === "executed"
+          ? "✅"
+          : r.status === "needs_approval"
+            ? "⏳"
+            : "❌";
       parts.push(`${icon} ${r.tool}: ${r.status}`);
 
       const output = r.result?.output || r.result?.result?.output;
       if (output) {
         // Keep output concise for Signal
-        const short = String(output).substring(0, 500).replace(/\n{3,}/g, "\n\n");
+        const short = String(output)
+          .substring(0, 500)
+          .replace(/\n{3,}/g, "\n\n");
         parts.push(short);
         parts.push("");
       }
@@ -157,12 +173,14 @@ const QUICK_COMMANDS: Record<string, string> = {
 };
 
 function getHelpText(): string {
-  return `🧠 RedNode-OS Signal Bot\n\nCommands:\n${
-    Object.entries(QUICK_COMMANDS)
-      .filter(([_, v]) => v !== "HELP")
-      .map(([cmd, desc]) => `  ${cmd} — ${desc}`)
-      .join("\n")
-  }\n\nOr just type any intent naturally:\n  "check if any cameras detected people today"\n  "create a note about the server migration"\n  "what's my disk usage?"`;
+  return `🧠 RedNode-OS Signal Bot\n\nCommands:\n${Object.entries(
+    QUICK_COMMANDS,
+  )
+    .filter(([_, v]) => v !== "HELP")
+    .map(([cmd, desc]) => `  ${cmd} — ${desc}`)
+    .join(
+      "\n",
+    )}\n\nOr just type any intent naturally:\n  "check if any cameras detected people today"\n  "create a note about the server migration"\n  "what's my disk usage?"`;
 }
 
 // ─── Main Loop ───
@@ -189,8 +207,13 @@ async function main() {
     for (const msg of messages) {
       // Security: only respond to owner if configured
       if (OWNER_NUMBER && msg.sender !== OWNER_NUMBER) {
-        console.log(`[signal-bot] Ignoring message from non-owner: ${msg.sender}`);
-        await sendSignalMessage(msg.sender, "⛔ Unauthorized. This RedNode bot only responds to its owner.");
+        console.log(
+          `[signal-bot] Ignoring message from non-owner: ${msg.sender}`,
+        );
+        await sendSignalMessage(
+          msg.sender,
+          "⛔ Unauthorized. This RedNode bot only responds to its owner.",
+        );
         continue;
       }
 
@@ -214,7 +237,7 @@ async function main() {
   }, POLL_INTERVAL);
 }
 
-main().catch(e => {
+main().catch((e) => {
   console.error("[signal-bot] Fatal:", e);
   process.exit(1);
 });

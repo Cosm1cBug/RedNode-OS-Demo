@@ -7,9 +7,16 @@ const NOTES_DIR = process.env.NOTES_DIR || "/var/lib/rednode/notes";
 const TASKS_FILE = process.env.TASKS_FILE || "/var/lib/rednode/tasks.json";
 
 const TOOLS = [
-  "notes.create", "notes.search", "notes.list", "notes.read",
-  "tasks.create", "tasks.list", "tasks.complete", "tasks.delete",
-  "bookmarks.save", "bookmarks.search",
+  "notes.create",
+  "notes.search",
+  "notes.list",
+  "notes.read",
+  "tasks.create",
+  "tasks.list",
+  "tasks.complete",
+  "tasks.delete",
+  "bookmarks.save",
+  "bookmarks.search",
 ];
 
 // ─── Notes — Markdown files + RAG ingest ───
@@ -19,7 +26,11 @@ function ensureDir(dir: string) {
 }
 
 function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").substring(0, 60);
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .substring(0, 60);
 }
 
 async function ingestToRAG(source: string, content: string) {
@@ -46,7 +57,8 @@ interface Task {
 
 function loadTasks(): Task[] {
   try {
-    if (fs.existsSync(TASKS_FILE)) return JSON.parse(fs.readFileSync(TASKS_FILE, "utf-8"));
+    if (fs.existsSync(TASKS_FILE))
+      return JSON.parse(fs.readFileSync(TASKS_FILE, "utf-8"));
   } catch {}
   return [];
 }
@@ -58,7 +70,8 @@ function saveTasks(tasks: Task[]) {
 
 // ─── Bookmarks ───
 
-const BOOKMARKS_FILE = process.env.BOOKMARKS_FILE || "/var/lib/rednode/bookmarks.json";
+const BOOKMARKS_FILE =
+  process.env.BOOKMARKS_FILE || "/var/lib/rednode/bookmarks.json";
 
 interface Bookmark {
   id: string;
@@ -71,7 +84,8 @@ interface Bookmark {
 
 function loadBookmarks(): Bookmark[] {
   try {
-    if (fs.existsSync(BOOKMARKS_FILE)) return JSON.parse(fs.readFileSync(BOOKMARKS_FILE, "utf-8"));
+    if (fs.existsSync(BOOKMARKS_FILE))
+      return JSON.parse(fs.readFileSync(BOOKMARKS_FILE, "utf-8"));
   } catch {}
   return [];
 }
@@ -84,7 +98,9 @@ function saveBookmarks(bm: Bookmark[]) {
 // ─── Agent ───
 
 class ProductivityAgent extends RedNodeAgent {
-  constructor() { super("productivity", TOOLS); }
+  constructor() {
+    super("productivity", TOOLS);
+  }
 
   async handleTool(tool: string, args: any): Promise<any> {
     try {
@@ -103,25 +119,44 @@ class ProductivityAgent extends RedNodeAgent {
           // Ingest into RAG for semantic search
           await ingestToRAG(`note/${filename}`, `${title}: ${content}`);
 
-          return { ok: true, output: `Note saved: ${filename}`, path: filepath };
+          return {
+            ok: true,
+            output: `Note saved: ${filename}`,
+            path: filepath,
+          };
         }
 
         case "notes.list": {
           ensureDir(NOTES_DIR);
-          const files = fs.readdirSync(NOTES_DIR).filter(f => f.endsWith(".md")).sort();
-          if (files.length === 0) return { ok: true, output: "No notes yet. Create one with notes.create" };
-          const lines = files.map(f => {
+          const files = fs
+            .readdirSync(NOTES_DIR)
+            .filter((f) => f.endsWith(".md"))
+            .sort();
+          if (files.length === 0)
+            return {
+              ok: true,
+              output: "No notes yet. Create one with notes.create",
+            };
+          const lines = files.map((f) => {
             const stat = fs.statSync(path.join(NOTES_DIR, f));
             return `  ${f} (${(stat.size / 1024).toFixed(1)} KB, ${stat.mtime.toLocaleDateString()})`;
           });
-          return { ok: true, output: `${files.length} notes:\n${lines.join("\n")}`, count: files.length };
+          return {
+            ok: true,
+            output: `${files.length} notes:\n${lines.join("\n")}`,
+            count: files.length,
+          };
         }
 
         case "notes.read": {
           const name = args.name || args.filename || "";
           if (!name) return { ok: false, error: "Missing 'name' argument" };
-          const filepath = path.join(NOTES_DIR, name.endsWith(".md") ? name : `${name}.md`);
-          if (!fs.existsSync(filepath)) return { ok: false, error: `Note not found: ${name}` };
+          const filepath = path.join(
+            NOTES_DIR,
+            name.endsWith(".md") ? name : `${name}.md`,
+          );
+          if (!fs.existsSync(filepath))
+            return { ok: false, error: `Note not found: ${name}` };
           const content = fs.readFileSync(filepath, "utf-8");
           return { ok: true, output: content.substring(0, 3000) };
         }
@@ -130,14 +165,20 @@ class ProductivityAgent extends RedNodeAgent {
           const query = args.query || args.q || "";
           if (!query) return { ok: false, error: "Missing 'query'" };
           // Use RAG for semantic search
-          const resp = await fetch(`${CNS}/memory/query?q=${encodeURIComponent(query)}&limit=5`);
-          const data = await resp.json() as any;
-          const noteResults = (data.results || []).filter((r: any) =>
-            r.source?.startsWith("note/") || r.content?.includes(query.toLowerCase())
+          const resp = await fetch(
+            `${CNS}/memory/query?q=${encodeURIComponent(query)}&limit=5`,
           );
-          if (noteResults.length === 0) return { ok: true, output: `No notes matching: "${query}"` };
-          const lines = noteResults.map((r: any, i: number) =>
-            `[${i + 1}] ${r.source} (${(r.score * 100).toFixed(0)}%): ${r.content.substring(0, 150)}`
+          const data = (await resp.json()) as any;
+          const noteResults = (data.results || []).filter(
+            (r: any) =>
+              r.source?.startsWith("note/") ||
+              r.content?.includes(query.toLowerCase()),
+          );
+          if (noteResults.length === 0)
+            return { ok: true, output: `No notes matching: "${query}"` };
+          const lines = noteResults.map(
+            (r: any, i: number) =>
+              `[${i + 1}] ${r.source} (${(r.score * 100).toFixed(0)}%): ${r.content.substring(0, 150)}`,
           );
           return { ok: true, output: lines.join("\n"), results: noteResults };
         }
@@ -156,27 +197,46 @@ class ProductivityAgent extends RedNodeAgent {
           };
           tasks.push(task);
           saveTasks(tasks);
-          return { ok: true, output: `Task created: [${task.id}] ${title} (${task.priority})`, task };
+          return {
+            ok: true,
+            output: `Task created: [${task.id}] ${title} (${task.priority})`,
+            task,
+          };
         }
 
         case "tasks.list": {
           const tasks = loadTasks();
           const showCompleted = args.completed === true;
-          const filtered = showCompleted ? tasks : tasks.filter(t => !t.completed);
-          if (filtered.length === 0) return { ok: true, output: "No tasks. All done! 🎉" };
-          const lines = filtered.map(t => {
-            const icon = t.completed ? "✅" : t.priority === "urgent" ? "🔴" : t.priority === "high" ? "🟠" : t.priority === "medium" ? "🟡" : "🟢";
+          const filtered = showCompleted
+            ? tasks
+            : tasks.filter((t) => !t.completed);
+          if (filtered.length === 0)
+            return { ok: true, output: "No tasks. All done! 🎉" };
+          const lines = filtered.map((t) => {
+            const icon = t.completed
+              ? "✅"
+              : t.priority === "urgent"
+                ? "🔴"
+                : t.priority === "high"
+                  ? "🟠"
+                  : t.priority === "medium"
+                    ? "🟡"
+                    : "🟢";
             const due = t.due ? ` (due: ${t.due})` : "";
             return `  ${icon} [${t.id}] ${t.title}${due}`;
           });
-          return { ok: true, output: `${filtered.length} tasks:\n${lines.join("\n")}`, count: filtered.length };
+          return {
+            ok: true,
+            output: `${filtered.length} tasks:\n${lines.join("\n")}`,
+            count: filtered.length,
+          };
         }
 
         case "tasks.complete": {
           const id = args.id;
           if (!id) return { ok: false, error: "Missing 'id'" };
           const tasks = loadTasks();
-          const task = tasks.find(t => t.id === id);
+          const task = tasks.find((t) => t.id === id);
           if (!task) return { ok: false, error: `Task not found: ${id}` };
           task.completed = true;
           task.completed_at = new Date().toISOString();
@@ -189,9 +249,15 @@ class ProductivityAgent extends RedNodeAgent {
           if (!id) return { ok: false, error: "Missing 'id'" };
           let tasks = loadTasks();
           const before = tasks.length;
-          tasks = tasks.filter(t => t.id !== id);
+          tasks = tasks.filter((t) => t.id !== id);
           saveTasks(tasks);
-          return { ok: true, output: before !== tasks.length ? `Deleted task: ${id}` : `Task not found: ${id}` };
+          return {
+            ok: true,
+            output:
+              before !== tasks.length
+                ? `Deleted task: ${id}`
+                : `Task not found: ${id}`,
+          };
         }
 
         case "bookmarks.save": {
@@ -203,12 +269,18 @@ class ProductivityAgent extends RedNodeAgent {
           const bms = loadBookmarks();
           const bm: Bookmark = {
             id: Date.now().toString(36),
-            url, title, summary, tags,
+            url,
+            title,
+            summary,
+            tags,
             created: new Date().toISOString(),
           };
           bms.push(bm);
           saveBookmarks(bms);
-          await ingestToRAG(`bookmark/${bm.id}`, `${title}: ${url} — ${summary}`);
+          await ingestToRAG(
+            `bookmark/${bm.id}`,
+            `${title}: ${url} — ${summary}`,
+          );
           return { ok: true, output: `Bookmark saved: ${title}`, bookmark: bm };
         }
 
@@ -217,18 +289,21 @@ class ProductivityAgent extends RedNodeAgent {
           if (!query) return { ok: false, error: "Missing 'query'" };
           const bms = loadBookmarks();
           const q = query.toLowerCase();
-          const matches = bms.filter(b =>
-            b.title.toLowerCase().includes(q) ||
-            b.url.toLowerCase().includes(q) ||
-            b.summary.toLowerCase().includes(q) ||
-            b.tags.some(t => t.toLowerCase().includes(q))
+          const matches = bms.filter(
+            (b) =>
+              b.title.toLowerCase().includes(q) ||
+              b.url.toLowerCase().includes(q) ||
+              b.summary.toLowerCase().includes(q) ||
+              b.tags.some((t) => t.toLowerCase().includes(q)),
           );
-          if (matches.length === 0) return { ok: true, output: `No bookmarks matching: "${query}"` };
-          const lines = matches.map(b => `  ${b.title}\n    ${b.url}`);
+          if (matches.length === 0)
+            return { ok: true, output: `No bookmarks matching: "${query}"` };
+          const lines = matches.map((b) => `  ${b.title}\n    ${b.url}`);
           return { ok: true, output: lines.join("\n"), count: matches.length };
         }
 
-        default: return null;
+        default:
+          return null;
       }
     } catch (e: any) {
       return { ok: false, error: e.message };

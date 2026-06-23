@@ -18,8 +18,13 @@ class SystemAgent extends RedNodeAgent {
       case "fs.read": {
         const p = args.path || "";
         // Double-check path security at agent level (Rust executor also checks)
-        if (p.includes("..")) throw new Error("path traversal denied by agent policy");
-        if (p.includes("/etc/shadow") || p.includes(".ssh/") || p.includes(".env"))
+        if (p.includes(".."))
+          throw new Error("path traversal denied by agent policy");
+        if (
+          p.includes("/etc/shadow") ||
+          p.includes(".ssh/") ||
+          p.includes(".env")
+        )
           throw new Error("sensitive file access denied by agent policy");
         // Fall through to Rust executor for sandboxed read
         return null;
@@ -44,7 +49,9 @@ class SystemAgent extends RedNodeAgent {
         let enriched = `Total processes: ${processes.length}\n`;
         if (highCpu.length > 0) {
           enriched += `⚠️  High CPU processes (>50%):\n`;
-          highCpu.forEach((l: string) => { enriched += `  ${l}\n`; });
+          highCpu.forEach((l: string) => {
+            enriched += `  ${l}\n`;
+          });
         } else {
           enriched += `✅ No high-CPU processes\n`;
         }
@@ -61,16 +68,19 @@ class SystemAgent extends RedNodeAgent {
         const lines = output.split("\n").filter((l: string) => l.trim());
 
         // Detect unhealthy containers
-        const unhealthy = lines.filter((l: string) =>
-          l.toLowerCase().includes("unhealthy") ||
-          l.toLowerCase().includes("exited") ||
-          l.toLowerCase().includes("dead")
+        const unhealthy = lines.filter(
+          (l: string) =>
+            l.toLowerCase().includes("unhealthy") ||
+            l.toLowerCase().includes("exited") ||
+            l.toLowerCase().includes("dead"),
         );
 
         let enriched = `Docker containers: ${Math.max(0, lines.length - 1)}\n`;
         if (unhealthy.length > 0) {
           enriched += `⚠️  Unhealthy/stopped containers:\n`;
-          unhealthy.forEach((l: string) => { enriched += `  ${l}\n`; });
+          unhealthy.forEach((l: string) => {
+            enriched += `  ${l}\n`;
+          });
 
           // Report to security events
           const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
@@ -93,7 +103,12 @@ class SystemAgent extends RedNodeAgent {
         }
         enriched += `\n${output}`;
 
-        return { ok: true, output: enriched, tool, unhealthy_count: unhealthy.length };
+        return {
+          ok: true,
+          output: enriched,
+          tool,
+          unhealthy_count: unhealthy.length,
+        };
       }
 
       case "service.status": {

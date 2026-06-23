@@ -21,7 +21,8 @@ import * as path from "path";
 const NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0";
 const NVD_API_KEY = process.env.NVD_API_KEY || "";
 const CVE_DB_PATH = process.env.CVE_DB_PATH || "/var/lib/rednode/cve-db.json";
-const SYNC_STATE_PATH = process.env.CVE_SYNC_STATE || "/var/lib/rednode/nvd-sync-state.json";
+const SYNC_STATE_PATH =
+  process.env.CVE_SYNC_STATE || "/var/lib/rednode/nvd-sync-state.json";
 const NVD_SYNC_INTERVAL = parseInt(process.env.NVD_SYNC_INTERVAL || "86400000"); // 24 hours
 
 interface NvdCve {
@@ -53,7 +54,7 @@ async function nvdFetch(params: Record<string, string>): Promise<any> {
 
   // Rate limiting: 5 req/30s without key, 50/30s with key
   const delay = NVD_API_KEY ? 700 : 6500; // ms between requests
-  await new Promise(r => setTimeout(r, delay));
+  await new Promise((r) => setTimeout(r, delay));
 
   const resp = await fetch(url.toString(), {
     headers,
@@ -82,7 +83,9 @@ function mapCvss(score: number): string {
 // ─── Sync ───
 
 export async function syncNVD(packages: string[]): Promise<NvdCve[]> {
-  console.log(`[nvd-sync] Starting NVD sync for ${packages.length} packages...`);
+  console.log(
+    `[nvd-sync] Starting NVD sync for ${packages.length} packages...`,
+  );
 
   // Load sync state
   let state: SyncState = { last_sync: "", total_cves: 0 };
@@ -96,15 +99,39 @@ export async function syncNVD(packages: string[]): Promise<NvdCve[]> {
 
   // Query NVD for each package (batch by keyword)
   // Focus on high-value packages that are commonly vulnerable
-  const priorityPackages = packages.filter(p =>
-    ["openssl", "openssh", "nginx", "curl", "glibc", "linux", "docker",
-     "postgresql", "nodejs", "python", "go", "rust", "cups", "bind",
-     "nats", "grafana", "prometheus", "systemd", "sudo", "bash",
-     "xz", "gnutls", "libxml", "libpng", "zlib", "sqlite",
-    ].includes(p.toLowerCase())
+  const priorityPackages = packages.filter((p) =>
+    [
+      "openssl",
+      "openssh",
+      "nginx",
+      "curl",
+      "glibc",
+      "linux",
+      "docker",
+      "postgresql",
+      "nodejs",
+      "python",
+      "go",
+      "rust",
+      "cups",
+      "bind",
+      "nats",
+      "grafana",
+      "prometheus",
+      "systemd",
+      "sudo",
+      "bash",
+      "xz",
+      "gnutls",
+      "libxml",
+      "libpng",
+      "zlib",
+      "sqlite",
+    ].includes(p.toLowerCase()),
   );
 
-  const searchPackages = priorityPackages.length > 0 ? priorityPackages : packages.slice(0, 20);
+  const searchPackages =
+    priorityPackages.length > 0 ? priorityPackages : packages.slice(0, 20);
 
   for (const pkg of searchPackages) {
     try {
@@ -132,20 +159,28 @@ export async function syncNVD(packages: string[]): Promise<NvdCve[]> {
         const id = cve.id; // e.g., CVE-2024-6387
 
         // Get severity from CVSS
-        const metrics = cve.metrics?.cvssMetricV31?.[0] || cve.metrics?.cvssMetricV30?.[0] || cve.metrics?.cvssMetricV2?.[0];
+        const metrics =
+          cve.metrics?.cvssMetricV31?.[0] ||
+          cve.metrics?.cvssMetricV30?.[0] ||
+          cve.metrics?.cvssMetricV2?.[0];
         const score = metrics?.cvssData?.baseScore || 0;
         const severity = mapCvss(score);
 
         // Get description
-        const description = cve.descriptions?.find((d: any) => d.lang === "en")?.value || "";
+        const description =
+          cve.descriptions?.find((d: any) => d.lang === "en")?.value || "";
 
         // Try to find affected/fixed versions from configurations
         let affectedBefore = "";
         let fixed = "";
         for (const node of cve.configurations?.[0]?.nodes || []) {
           for (const match of node.cpeMatch || []) {
-            if (match.vulnerable && match.criteria?.toLowerCase().includes(pkg.toLowerCase())) {
-              affectedBefore = match.versionEndExcluding || match.versionEndIncluding || "";
+            if (
+              match.vulnerable &&
+              match.criteria?.toLowerCase().includes(pkg.toLowerCase())
+            ) {
+              affectedBefore =
+                match.versionEndExcluding || match.versionEndIncluding || "";
               fixed = match.versionEndExcluding || "";
             }
           }
@@ -179,14 +214,16 @@ export async function syncNVD(packages: string[]): Promise<NvdCve[]> {
       }
 
       // Deduplicate by CVE ID
-      const existing = new Set(existingDb.map(c => c.cve));
-      const added = newCves.filter(c => !existing.has(c.cve));
+      const existing = new Set(existingDb.map((c) => c.cve));
+      const added = newCves.filter((c) => !existing.has(c.cve));
       const merged = [...existingDb, ...added];
 
       const dir = path.dirname(CVE_DB_PATH);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(CVE_DB_PATH, JSON.stringify(merged, null, 2));
-      console.log(`[nvd-sync] CVE DB updated: ${added.length} new, ${merged.length} total`);
+      console.log(
+        `[nvd-sync] CVE DB updated: ${added.length} new, ${merged.length} total`,
+      );
     } catch (e: any) {
       console.error(`[nvd-sync] Failed to save CVE DB: ${e.message}`);
     }
@@ -220,14 +257,26 @@ export function startNvdSync() {
       try {
         const { stdout } = await execAsync(
           "dpkg-query -W -f='${Package}\\n' 2>/dev/null | head -100",
-          { timeout: 10000 }
+          { timeout: 10000 },
         );
-        packages = stdout.trim().split("\n").filter(p => p.length > 0);
+        packages = stdout
+          .trim()
+          .split("\n")
+          .filter((p) => p.length > 0);
       } catch {}
 
       if (packages.length === 0) {
         // Fallback: check common packages
-        packages = ["openssl", "openssh", "curl", "nginx", "docker", "postgresql", "nodejs", "python3"];
+        packages = [
+          "openssl",
+          "openssh",
+          "curl",
+          "nginx",
+          "docker",
+          "postgresql",
+          "nodejs",
+          "python3",
+        ];
       }
 
       await syncNVD(packages);
@@ -242,11 +291,21 @@ export function startNvdSync() {
       const { exec } = await import("child_process");
       const { promisify } = await import("util");
       const execAsync = promisify(exec);
-      const { stdout } = await execAsync("dpkg-query -W -f='${Package}\\n' 2>/dev/null | head -100", { timeout: 10000 });
-      const packages = stdout.trim().split("\n").filter((p: string) => p.length > 0);
-      await syncNVD(packages.length > 0 ? packages : ["openssl", "openssh", "curl"]);
+      const { stdout } = await execAsync(
+        "dpkg-query -W -f='${Package}\\n' 2>/dev/null | head -100",
+        { timeout: 10000 },
+      );
+      const packages = stdout
+        .trim()
+        .split("\n")
+        .filter((p: string) => p.length > 0);
+      await syncNVD(
+        packages.length > 0 ? packages : ["openssl", "openssh", "curl"],
+      );
     } catch {}
   }, NVD_SYNC_INTERVAL);
 }
 
-console.log(`[security-agent] NVD sync module loaded — interval: ${NVD_SYNC_INTERVAL / 3600000}h`);
+console.log(
+  `[security-agent] NVD sync module loaded — interval: ${NVD_SYNC_INTERVAL / 3600000}h`,
+);

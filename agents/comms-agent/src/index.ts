@@ -34,8 +34,17 @@ const TOOLS = [
 
 // ─── Email via IMAP ───
 
-async function fetchEmails(limit: number = 10, folder: string = "INBOX"): Promise<any[]> {
-  if (!IMAP_HOST) return [{ error: "IMAP not configured — set IMAP_HOST, IMAP_USER, IMAP_PASS environment variables" }];
+async function fetchEmails(
+  limit: number = 10,
+  folder: string = "INBOX",
+): Promise<any[]> {
+  if (!IMAP_HOST)
+    return [
+      {
+        error:
+          "IMAP not configured — set IMAP_HOST, IMAP_USER, IMAP_PASS environment variables",
+      },
+    ];
 
   const { ImapFlow } = await import("imapflow");
 
@@ -55,11 +64,14 @@ async function fetchEmails(limit: number = 10, folder: string = "INBOX"): Promis
 
     try {
       // Fetch latest messages
-      const messages = client.fetch(`${Math.max(1, client.mailbox.exists - limit + 1)}:*`, {
-        envelope: true,
-        bodyStructure: true,
-        source: { maxBytes: 5000 }, // first 5KB of body
-      });
+      const messages = client.fetch(
+        `${Math.max(1, client.mailbox.exists - limit + 1)}:*`,
+        {
+          envelope: true,
+          bodyStructure: true,
+          source: { maxBytes: 5000 }, // first 5KB of body
+        },
+      );
 
       for await (const msg of messages) {
         const env = msg.envelope;
@@ -87,8 +99,16 @@ async function fetchEmails(limit: number = 10, folder: string = "INBOX"): Promis
 
 // ─── Email Sending via SMTP ───
 
-async function sendEmail(to: string, subject: string, body: string): Promise<{ ok: boolean; message: string }> {
-  if (!SMTP_HOST) return { ok: false, message: "SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASS" };
+async function sendEmail(
+  to: string,
+  subject: string,
+  body: string,
+): Promise<{ ok: boolean; message: string }> {
+  if (!SMTP_HOST)
+    return {
+      ok: false,
+      message: "SMTP not configured — set SMTP_HOST, SMTP_USER, SMTP_PASS",
+    };
 
   const nodemailer = await import("nodemailer");
 
@@ -114,7 +134,10 @@ async function sendEmail(to: string, subject: string, body: string): Promise<{ o
 
 // ─── LLM Summarization ───
 
-async function summarizeWithLLM(text: string, instruction: string): Promise<string> {
+async function summarizeWithLLM(
+  text: string,
+  instruction: string,
+): Promise<string> {
   try {
     const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
       method: "POST",
@@ -122,14 +145,17 @@ async function summarizeWithLLM(text: string, instruction: string): Promise<stri
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: "system", content: "You are a concise assistant. Be brief and clear." },
+          {
+            role: "system",
+            content: "You are a concise assistant. Be brief and clear.",
+          },
           { role: "user", content: `${instruction}\n\n${text}` },
         ],
         stream: false,
         options: { temperature: 0.3, num_predict: 512 },
       }),
     });
-    const data = await resp.json() as any;
+    const data = (await resp.json()) as any;
     return data.message?.content || "No summary generated";
   } catch (e: any) {
     return `LLM unavailable: ${e.message}`;
@@ -139,7 +165,13 @@ async function summarizeWithLLM(text: string, instruction: string): Promise<stri
 // ─── CalDAV Calendar ───
 
 async function fetchCalendarEvents(days: number = 7): Promise<any[]> {
-  if (!CALDAV_URL) return [{ error: "CalDAV not configured — set CALDAV_URL, CALDAV_USER, CALDAV_PASS" }];
+  if (!CALDAV_URL)
+    return [
+      {
+        error:
+          "CalDAV not configured — set CALDAV_URL, CALDAV_USER, CALDAV_PASS",
+      },
+    ];
 
   try {
     const { DAVClient } = await import("tsdav");
@@ -177,7 +209,13 @@ async function fetchCalendarEvents(days: number = 7): Promise<any[]> {
         const dtend = data.match(/DTEND[^:]*:(.*)/)?.[1]?.trim() || "";
         const location = data.match(/LOCATION:(.*)/)?.[1]?.trim() || "";
 
-        events.push({ summary, start: dtstart, end: dtend, location, calendar: cal.displayName });
+        events.push({
+          summary,
+          start: dtstart,
+          end: dtend,
+          location,
+          calendar: cal.displayName,
+        });
       }
     }
 
@@ -204,9 +242,14 @@ class CommsAgent extends RedNodeAgent {
           const lines = emails.map((e: any) =>
             e.error
               ? e.error
-              : `${e.date?.substring(0, 16) || "?"} | ${e.from_name || e.from} | ${e.subject}`
+              : `${e.date?.substring(0, 16) || "?"} | ${e.from_name || e.from} | ${e.subject}`,
           );
-          return { ok: true, output: lines.join("\n"), emails, count: emails.length };
+          return {
+            ok: true,
+            output: lines.join("\n"),
+            emails,
+            count: emails.length,
+          };
         }
 
         case "email.summarize": {
@@ -217,12 +260,15 @@ class CommsAgent extends RedNodeAgent {
           }
 
           const emailText = emails
-            .map((e: any) => `From: ${e.from_name || e.from}\nSubject: ${e.subject}\nSnippet: ${e.snippet}`)
+            .map(
+              (e: any) =>
+                `From: ${e.from_name || e.from}\nSubject: ${e.subject}\nSnippet: ${e.snippet}`,
+            )
             .join("\n---\n");
 
           const summary = await summarizeWithLLM(
             emailText,
-            `Summarize these ${emails.length} emails in 2-3 sentences. Highlight anything urgent or actionable.`
+            `Summarize these ${emails.length} emails in 2-3 sentences. Highlight anything urgent or actionable.`,
           );
 
           return { ok: true, output: summary, email_count: emails.length };
@@ -232,14 +278,22 @@ class CommsAgent extends RedNodeAgent {
           const to = args.to || "";
           const about = args.about || args.subject || "";
           const context = args.context || "";
-          if (!about) return { ok: false, error: "Missing 'about' or 'subject' argument" };
+          if (!about)
+            return {
+              ok: false,
+              error: "Missing 'about' or 'subject' argument",
+            };
 
           const draft = await summarizeWithLLM(
             context,
-            `Draft a professional email about: ${about}${to ? ` to ${to}` : ""}. Keep it concise. Include subject line.`
+            `Draft a professional email about: ${about}${to ? ` to ${to}` : ""}. Keep it concise. Include subject line.`,
           );
 
-          return { ok: true, output: `Draft:\n\n${draft}\n\n(Use email.send to send this)`, draft };
+          return {
+            ok: true,
+            output: `Draft:\n\n${draft}\n\n(Use email.send to send this)`,
+            draft,
+          };
         }
 
         case "email.send": {
@@ -247,7 +301,10 @@ class CommsAgent extends RedNodeAgent {
           const subject = args.subject;
           const body = args.body;
           if (!to || !subject || !body) {
-            return { ok: false, error: "Missing required arguments: to, subject, body" };
+            return {
+              ok: false,
+              error: "Missing required arguments: to, subject, body",
+            };
           }
           const result = await sendEmail(to, subject, body);
           return { ok: result.ok, output: result.message };
@@ -256,7 +313,8 @@ class CommsAgent extends RedNodeAgent {
         case "email.rules": {
           return {
             ok: true,
-            output: "Email rules management: configure IMAP filters directly in your email provider. RedNode can auto-label via email.fetch + LLM classification — coming in Phase 5b.",
+            output:
+              "Email rules management: configure IMAP filters directly in your email provider. RedNode can auto-label via email.fetch + LLM classification — coming in Phase 5b.",
           };
         }
 
@@ -264,44 +322,65 @@ class CommsAgent extends RedNodeAgent {
           const days = args.days || 7;
           const events = await fetchCalendarEvents(days);
           if (events.length === 0 || events[0]?.error) {
-            return { ok: true, output: events[0]?.error || "No upcoming events" };
+            return {
+              ok: true,
+              output: events[0]?.error || "No upcoming events",
+            };
           }
-          const lines = events.map((e: any) =>
-            `${e.start || "?"} | ${e.summary}${e.location ? ` @ ${e.location}` : ""}`
+          const lines = events.map(
+            (e: any) =>
+              `${e.start || "?"} | ${e.summary}${e.location ? ` @ ${e.location}` : ""}`,
           );
-          return { ok: true, output: `Upcoming events (next ${days} days):\n${lines.join("\n")}`, events };
+          return {
+            ok: true,
+            output: `Upcoming events (next ${days} days):\n${lines.join("\n")}`,
+            events,
+          };
         }
 
         case "calendar.create": {
           return {
             ok: true,
-            output: "Calendar event creation via CalDAV — requires building iCal VEVENT. Coming in Phase 5b. For now, use your calendar app directly.",
+            output:
+              "Calendar event creation via CalDAV — requires building iCal VEVENT. Coming in Phase 5b. For now, use your calendar app directly.",
           };
         }
 
         case "calendar.conflicts": {
           const events = await fetchCalendarEvents(7);
-          if (events.length < 2) return { ok: true, output: "Not enough events to check for conflicts" };
+          if (events.length < 2)
+            return {
+              ok: true,
+              output: "Not enough events to check for conflicts",
+            };
           // Simple overlap detection
           const conflicts: string[] = [];
           for (let i = 0; i < events.length - 1; i++) {
             for (let j = i + 1; j < events.length; j++) {
               if (events[i].start && events[j].start && events[i].end) {
                 if (events[j].start < events[i].end) {
-                  conflicts.push(`Conflict: "${events[i].summary}" overlaps with "${events[j].summary}"`);
+                  conflicts.push(
+                    `Conflict: "${events[i].summary}" overlaps with "${events[j].summary}"`,
+                  );
                 }
               }
             }
           }
           return {
             ok: true,
-            output: conflicts.length > 0 ? conflicts.join("\n") : "No scheduling conflicts found ✅",
+            output:
+              conflicts.length > 0
+                ? conflicts.join("\n")
+                : "No scheduling conflicts found ✅",
             conflicts,
           };
         }
 
         case "contacts.search": {
-          return { ok: true, output: "Contact search via CardDAV — coming in Phase 5b" };
+          return {
+            ok: true,
+            output: "Contact search via CardDAV — coming in Phase 5b",
+          };
         }
 
         case "notifications.digest": {
@@ -311,8 +390,10 @@ class CommsAgent extends RedNodeAgent {
           // Security events
           try {
             const secResp = await fetch(`${CNS}/security/events`);
-            const secData = await secResp.json() as any;
-            const unacked = (secData.events || []).filter((e: any) => !e.acknowledged);
+            const secData = (await secResp.json()) as any;
+            const unacked = (secData.events || []).filter(
+              (e: any) => !e.acknowledged,
+            );
             if (unacked.length > 0) {
               parts.push(`🛡️ ${unacked.length} unacknowledged security events`);
               for (const e of unacked.slice(0, 3)) {
@@ -324,7 +405,7 @@ class CommsAgent extends RedNodeAgent {
           // Approvals
           try {
             const appResp = await fetch(`${CNS}/approvals`);
-            const appData = await appResp.json() as any;
+            const appData = (await appResp.json()) as any;
             const pending = appData.approvals || [];
             if (pending.length > 0) {
               parts.push(`⏳ ${pending.length} pending approvals`);
@@ -348,7 +429,9 @@ class CommsAgent extends RedNodeAgent {
             if (events.length > 0 && !events[0]?.error) {
               parts.push(`📅 ${events.length} events today`);
               for (const e of events.slice(0, 3)) {
-                parts.push(`  ${e.start?.substring(9, 14) || "?"} ${e.summary}`);
+                parts.push(
+                  `  ${e.start?.substring(9, 14) || "?"} ${e.summary}`,
+                );
               }
             }
           } catch {}
@@ -357,7 +440,10 @@ class CommsAgent extends RedNodeAgent {
             parts.push("All clear — no notifications");
           }
 
-          return { ok: true, output: `📋 Notification Digest:\n\n${parts.join("\n")}` };
+          return {
+            ok: true,
+            output: `📋 Notification Digest:\n\n${parts.join("\n")}`,
+          };
         }
 
         default:
@@ -377,7 +463,9 @@ await agent.connect();
 // Checks upcoming calendar events every 5 minutes.
 // If an event starts within 30 minutes, sends a security event as a reminder.
 
-const REMINDER_MINUTES = parseInt(process.env.CALENDAR_REMINDER_MINUTES || "30");
+const REMINDER_MINUTES = parseInt(
+  process.env.CALENDAR_REMINDER_MINUTES || "30",
+);
 const REMINDER_INTERVAL = 300000; // 5 minutes
 const remindedEvents = new Set<string>(); // prevent duplicate reminders
 
@@ -398,7 +486,10 @@ async function checkUpcomingEvents() {
       try {
         // CalDAV returns various formats: 20260615T100000Z, 2026-06-15T10:00:00
         const cleaned = event.start
-          .replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6")
+          .replace(
+            /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/,
+            "$1-$2-$3T$4:$5:$6",
+          )
           .replace(/Z$/, "+00:00");
         eventTime = new Date(cleaned);
         if (isNaN(eventTime.getTime())) continue;
@@ -410,7 +501,11 @@ async function checkUpcomingEvents() {
       const eventKey = `${event.summary}-${event.start}`;
 
       // Reminder: event starts within REMINDER_MINUTES and hasn't been reminded
-      if (minutesUntil > 0 && minutesUntil <= REMINDER_MINUTES && !remindedEvents.has(eventKey)) {
+      if (
+        minutesUntil > 0 &&
+        minutesUntil <= REMINDER_MINUTES &&
+        !remindedEvents.has(eventKey)
+      ) {
         remindedEvents.add(eventKey);
 
         const summary = `📅 Upcoming: "${event.summary}" in ${Math.round(minutesUntil)} minutes${event.location ? ` @ ${event.location}` : ""}`;
@@ -425,7 +520,12 @@ async function checkUpcomingEvents() {
               severity: minutesUntil <= 10 ? "MEDIUM" : "LOW",
               source: "calendar-reminder",
               summary,
-              raw: { event: event.summary, start: event.start, location: event.location, minutes_until: Math.round(minutesUntil) },
+              raw: {
+                event: event.summary,
+                start: event.start,
+                location: event.location,
+                minutes_until: Math.round(minutesUntil),
+              },
             }),
           });
         } catch {}
@@ -456,6 +556,8 @@ async function checkUpcomingEvents() {
 // Start calendar awareness loop
 setTimeout(checkUpcomingEvents, 15000); // first check after 15s
 setInterval(checkUpcomingEvents, REMINDER_INTERVAL);
-console.log(`[comms-agent] Calendar awareness active — reminders ${REMINDER_MINUTES}min before events`);
+console.log(
+  `[comms-agent] Calendar awareness active — reminders ${REMINDER_MINUTES}min before events`,
+);
 
 await agent.serve();

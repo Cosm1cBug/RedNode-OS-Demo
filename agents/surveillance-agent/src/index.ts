@@ -25,7 +25,8 @@ const TOOLS = [
 
 async function frigateGet(path: string): Promise<any> {
   const resp = await fetch(`${FRIGATE_URL}/api${path}`);
-  if (!resp.ok) throw new Error(`Frigate API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok)
+    throw new Error(`Frigate API error: ${resp.status} ${resp.statusText}`);
   return resp.json();
 }
 
@@ -49,7 +50,8 @@ function isAnomalous(camera: string, label: string): boolean {
 
   // Count recent events for this camera+label
   const recent = recentEvents.filter(
-    (e) => e.camera === camera && e.label === label && Date.now() - e.hour < 3600000
+    (e) =>
+      e.camera === camera && e.label === label && Date.now() - e.hour < 3600000,
   ).length;
 
   // More than 10 events per hour for same camera+label is unusual
@@ -66,7 +68,9 @@ function startMqttBridge() {
   });
 
   mqttClient.on("connect", () => {
-    console.log("[surveillance-agent] MQTT connected — subscribing to frigate/events");
+    console.log(
+      "[surveillance-agent] MQTT connected — subscribing to frigate/events",
+    );
     mqttClient.subscribe("frigate/events", (err) => {
       if (err) console.error("[surveillance-agent] MQTT subscribe error:", err);
     });
@@ -81,11 +85,12 @@ function startMqttBridge() {
       if (topic === "frigate/events") {
         const event = JSON.parse(message.toString());
         if (event.type === "new" && event.after) {
-          const { camera, label, score, id, has_snapshot, has_clip } = event.after;
+          const { camera, label, score, id, has_snapshot, has_clip } =
+            event.after;
           const zone = event.after.entered_zones?.[0] || "unknown";
 
           console.log(
-            `[surveillance] ${label} detected on ${camera} (zone: ${zone}, score: ${(score * 100).toFixed(0)}%)`
+            `[surveillance] ${label} detected on ${camera} (zone: ${zone}, score: ${(score * 100).toFixed(0)}%)`,
           );
 
           // Track for anomaly detection
@@ -95,7 +100,11 @@ function startMqttBridge() {
 
           // Determine severity
           const anomalous = isAnomalous(camera, label);
-          const severity = anomalous ? "CRITICAL" : label === "person" ? "MEDIUM" : "LOW";
+          const severity = anomalous
+            ? "CRITICAL"
+            : label === "person"
+              ? "MEDIUM"
+              : "LOW";
 
           // Report to CNS as security event
           if (severity !== "LOW") {
@@ -118,8 +127,12 @@ function startMqttBridge() {
                   zone,
                   has_snapshot,
                   has_clip,
-                  snapshot_url: has_snapshot ? `${FRIGATE_URL}/api/events/${id}/snapshot.jpg` : null,
-                  clip_url: has_clip ? `${FRIGATE_URL}/api/events/${id}/clip.mp4` : null,
+                  snapshot_url: has_snapshot
+                    ? `${FRIGATE_URL}/api/events/${id}/snapshot.jpg`
+                    : null,
+                  clip_url: has_clip
+                    ? `${FRIGATE_URL}/api/events/${id}/clip.mp4`
+                    : null,
                 },
               }),
             });
@@ -146,7 +159,10 @@ function startMqttBridge() {
         }
       }
     } catch (e: any) {
-      console.error("[surveillance-agent] MQTT message handler error:", e.message);
+      console.error(
+        "[surveillance-agent] MQTT message handler error:",
+        e.message,
+      );
     }
   });
 
@@ -171,16 +187,23 @@ class SurveillanceAgent extends RedNodeAgent {
       switch (tool) {
         case "cam.status": {
           const stats = await frigateGet("/stats");
-          const cameras = Object.entries(stats.cameras || {}).map(([name, data]: [string, any]) => ({
-            name,
-            fps: data.camera_fps,
-            detection_fps: data.detection_fps,
-            pid: data.pid,
-          }));
-          const lines = cameras.map(
-            (c) => `${c.name}: ${c.fps > 0 ? "✅ Online" : "❌ Offline"} | ${c.fps} fps | Detection: ${c.detection_fps} fps`
+          const cameras = Object.entries(stats.cameras || {}).map(
+            ([name, data]: [string, any]) => ({
+              name,
+              fps: data.camera_fps,
+              detection_fps: data.detection_fps,
+              pid: data.pid,
+            }),
           );
-          return { ok: true, output: lines.join("\n") || "No cameras configured", cameras };
+          const lines = cameras.map(
+            (c) =>
+              `${c.name}: ${c.fps > 0 ? "✅ Online" : "❌ Offline"} | ${c.fps} fps | Detection: ${c.detection_fps} fps`,
+          );
+          return {
+            ok: true,
+            output: lines.join("\n") || "No cameras configured",
+            cameras,
+          };
         }
 
         case "cam.events": {
@@ -195,7 +218,11 @@ class SurveillanceAgent extends RedNodeAgent {
             const time = new Date(e.start_time * 1000).toLocaleString();
             return `${time} | ${e.camera} | ${e.label} (${(e.top_score * 100).toFixed(0)}%) | Zone: ${e.zones?.join(", ") || "—"} | ${e.has_clip ? "📹 clip" : ""} ${e.has_snapshot ? "📸 snap" : ""}`;
           });
-          return { ok: true, output: lines.join("\n") || "No events found", events };
+          return {
+            ok: true,
+            output: lines.join("\n") || "No events found",
+            events,
+          };
         }
 
         case "cam.snapshot": {
@@ -207,10 +234,16 @@ class SurveillanceAgent extends RedNodeAgent {
 
         case "cam.clip": {
           const eventId = args.event_id || args.id;
-          if (!eventId) return { ok: false, error: "Missing 'event_id' argument" };
+          if (!eventId)
+            return { ok: false, error: "Missing 'event_id' argument" };
           const clipUrl = `${FRIGATE_URL}/api/events/${eventId}/clip.mp4`;
           const snapUrl = `${FRIGATE_URL}/api/events/${eventId}/snapshot.jpg`;
-          return { ok: true, output: `Clip: ${clipUrl}\nSnapshot: ${snapUrl}`, clip_url: clipUrl, snapshot_url: snapUrl };
+          return {
+            ok: true,
+            output: `Clip: ${clipUrl}\nSnapshot: ${snapUrl}`,
+            clip_url: clipUrl,
+            snapshot_url: snapUrl,
+          };
         }
 
         case "cam.search": {
@@ -227,20 +260,38 @@ class SurveillanceAgent extends RedNodeAgent {
             const time = new Date(e.start_time * 1000).toLocaleString();
             return `${time} | ${e.camera} | ${e.label} (${(e.top_score * 100).toFixed(0)}%) | Zones: ${e.zones?.join(", ") || "—"}`;
           });
-          return { ok: true, output: lines.join("\n") || `No ${label} events found`, count: events?.length || 0, events };
+          return {
+            ok: true,
+            output: lines.join("\n") || `No ${label} events found`,
+            count: events?.length || 0,
+            events,
+          };
         }
 
         case "cam.zones": {
           const config = await frigateGet("/config");
           const zones: any[] = [];
-          for (const [camName, camConfig] of Object.entries(config.cameras || {})) {
+          for (const [camName, camConfig] of Object.entries(
+            config.cameras || {},
+          )) {
             const camZones = (camConfig as any).zones || {};
             for (const [zoneName, zoneConfig] of Object.entries(camZones)) {
-              zones.push({ camera: camName, zone: zoneName, objects: (zoneConfig as any).objects || [] });
+              zones.push({
+                camera: camName,
+                zone: zoneName,
+                objects: (zoneConfig as any).objects || [],
+              });
             }
           }
-          const lines = zones.map((z) => `${z.camera} → ${z.zone}: tracking [${z.objects.join(", ")}]`);
-          return { ok: true, output: lines.join("\n") || "No zones configured", zones };
+          const lines = zones.map(
+            (z) =>
+              `${z.camera} → ${z.zone}: tracking [${z.objects.join(", ")}]`,
+          );
+          return {
+            ok: true,
+            output: lines.join("\n") || "No zones configured",
+            zones,
+          };
         }
 
         case "cam.person_detect": {
@@ -250,23 +301,45 @@ class SurveillanceAgent extends RedNodeAgent {
             const time = new Date(e.start_time * 1000).toLocaleString();
             return `${time} | ${e.camera} | confidence: ${(e.top_score * 100).toFixed(0)}% | ${e.has_snapshot ? `📸 ${FRIGATE_URL}/api/events/${e.id}/snapshot.jpg` : ""}`;
           });
-          return { ok: true, output: lines.join("\n") || "No recent person detections", count: events?.length || 0 };
+          return {
+            ok: true,
+            output: lines.join("\n") || "No recent person detections",
+            count: events?.length || 0,
+          };
         }
 
         case "cam.anomaly": {
-          const anomalies = recentEvents.filter((e) => isAnomalous(e.camera, e.label));
+          const anomalies = recentEvents.filter((e) =>
+            isAnomalous(e.camera, e.label),
+          );
           if (anomalies.length === 0) {
-            return { ok: true, output: "No anomalous camera activity detected ✅", anomalies: [] };
+            return {
+              ok: true,
+              output: "No anomalous camera activity detected ✅",
+              anomalies: [],
+            };
           }
-          const lines = anomalies.map((a) => `${a.camera}: ${a.label} — unusual pattern`);
-          return { ok: true, output: `${anomalies.length} anomalies:\n${lines.join("\n")}`, anomalies };
+          const lines = anomalies.map(
+            (a) => `${a.camera}: ${a.label} — unusual pattern`,
+          );
+          return {
+            ok: true,
+            output: `${anomalies.length} anomalies:\n${lines.join("\n")}`,
+            anomalies,
+          };
         }
 
         case "cam.retain_event": {
           const eventId = args.event_id || args.id;
-          if (!eventId) return { ok: false, error: "Missing 'event_id' argument" };
-          await fetch(`${FRIGATE_URL}/api/events/${eventId}/retain`, { method: "POST" });
-          return { ok: true, output: `Event ${eventId} marked for permanent retention` };
+          if (!eventId)
+            return { ok: false, error: "Missing 'event_id' argument" };
+          await fetch(`${FRIGATE_URL}/api/events/${eventId}/retain`, {
+            method: "POST",
+          });
+          return {
+            ok: true,
+            output: `Event ${eventId} marked for permanent retention`,
+          };
         }
 
         case "cam.review": {
@@ -277,9 +350,18 @@ class SurveillanceAgent extends RedNodeAgent {
               const time = new Date(r.start_time * 1000).toLocaleString();
               return `${time} | ${r.camera} | ${r.severity} | ${r.summary || "no summary"}`;
             });
-            return { ok: true, output: lines.join("\n") || "No reviews available (requires Frigate 0.17+)", reviews };
+            return {
+              ok: true,
+              output:
+                lines.join("\n") ||
+                "No reviews available (requires Frigate 0.17+)",
+              reviews,
+            };
           } catch {
-            return { ok: true, output: "Review summaries not available — requires Frigate 0.17+" };
+            return {
+              ok: true,
+              output: "Review summaries not available — requires Frigate 0.17+",
+            };
           }
         }
 

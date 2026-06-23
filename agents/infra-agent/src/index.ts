@@ -27,11 +27,16 @@ async function piholeAuth(): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: PIHOLE_PASSWORD }),
     });
-    const data = await resp.json() as any;
+    const data = (await resp.json()) as any;
     piholeSession = data?.session?.sid || null;
     if (!piholeSession) throw new Error("No session ID returned");
     // Auto-expire session after 5 minutes
-    setTimeout(() => { piholeSession = null; }, 5 * 60 * 1000);
+    setTimeout(
+      () => {
+        piholeSession = null;
+      },
+      5 * 60 * 1000,
+    );
     return piholeSession;
   } catch (e: any) {
     console.warn("[infra-agent] Pi-hole auth failed:", e.message);
@@ -42,7 +47,8 @@ async function piholeAuth(): Promise<string> {
 async function piholeGet(path: string): Promise<any> {
   const sid = await piholeAuth();
   const resp = await fetch(`${PIHOLE_URL}/api${path}?sid=${sid}`);
-  if (!resp.ok) throw new Error(`Pi-hole API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok)
+    throw new Error(`Pi-hole API error: ${resp.status} ${resp.statusText}`);
   return resp.json();
 }
 
@@ -53,7 +59,8 @@ async function piholePost(path: string, body: any): Promise<any> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!resp.ok) throw new Error(`Pi-hole API error: ${resp.status} ${resp.statusText}`);
+  if (!resp.ok)
+    throw new Error(`Pi-hole API error: ${resp.status} ${resp.statusText}`);
   return resp.json();
 }
 
@@ -69,10 +76,14 @@ function detectAnomalies(stats: any): string[] {
 
   // Spike detection: >2x normal rate
   if (lastQueryCount > 0 && totalQueries > lastQueryCount * 2) {
-    anomalies.push(`DNS query spike: ${totalQueries} (was ${lastQueryCount}) — possible malware C2 callback`);
+    anomalies.push(
+      `DNS query spike: ${totalQueries} (was ${lastQueryCount}) — possible malware C2 callback`,
+    );
   }
   if (lastBlockedCount > 0 && blockedQueries > lastBlockedCount * 3) {
-    anomalies.push(`Blocked query spike: ${blockedQueries} (was ${lastBlockedCount}) — device may be compromised`);
+    anomalies.push(
+      `Blocked query spike: ${blockedQueries} (was ${lastBlockedCount}) — device may be compromised`,
+    );
   }
 
   lastQueryCount = totalQueries;
@@ -81,7 +92,9 @@ function detectAnomalies(stats: any): string[] {
   // High block ratio
   const blockPct = totalQueries > 0 ? (blockedQueries / totalQueries) * 100 : 0;
   if (blockPct > 50) {
-    anomalies.push(`Block ratio very high: ${blockPct.toFixed(1)}% — review blocklists or check for misconfiguration`);
+    anomalies.push(
+      `Block ratio very high: ${blockPct.toFixed(1)}% — review blocklists or check for misconfiguration`,
+    );
   }
 
   return anomalies;
@@ -125,13 +138,24 @@ class InfraAgent extends RedNodeAgent {
         case "pihole.query_log": {
           const limit = args.limit || 20;
           const data = await piholeGet(`/queries?limit=${limit}`);
-          return { ok: true, output: JSON.stringify(data?.queries?.slice(0, limit), null, 2), data };
+          return {
+            ok: true,
+            output: JSON.stringify(data?.queries?.slice(0, limit), null, 2),
+            data,
+          };
         }
 
         case "pihole.disable": {
           const timer = args.timer || 300; // 5 minutes default
-          const data = await piholePost("/dns/blocking", { blocking: false, timer });
-          return { ok: true, output: `Pi-hole blocking disabled for ${timer}s`, data };
+          const data = await piholePost("/dns/blocking", {
+            blocking: false,
+            timer,
+          });
+          return {
+            ok: true,
+            output: `Pi-hole blocking disabled for ${timer}s`,
+            data,
+          };
         }
 
         case "pihole.enable": {
@@ -155,7 +179,10 @@ class InfraAgent extends RedNodeAgent {
           const domain = args.domain;
           if (!domain) return { ok: false, error: "Missing domain argument" };
           // This requires finding the list ID first — simplified
-          return { ok: true, output: `Unblock ${domain}: use Pi-hole admin UI for list management` };
+          return {
+            ok: true,
+            output: `Unblock ${domain}: use Pi-hole admin UI for list management`,
+          };
         }
 
         case "pihole.anomaly": {
@@ -166,9 +193,17 @@ class InfraAgent extends RedNodeAgent {
             for (const a of anomalies) {
               await this.reportSecurityEvent("MEDIUM", a);
             }
-            return { ok: true, output: `${anomalies.length} anomalies detected:\n${anomalies.join("\n")}`, anomalies };
+            return {
+              ok: true,
+              output: `${anomalies.length} anomalies detected:\n${anomalies.join("\n")}`,
+              anomalies,
+            };
           }
-          return { ok: true, output: "No DNS anomalies detected", anomalies: [] };
+          return {
+            ok: true,
+            output: "No DNS anomalies detected",
+            anomalies: [],
+          };
         }
 
         default:
@@ -186,7 +221,12 @@ class InfraAgent extends RedNodeAgent {
       await fetch(`${CNS}/security/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ severity, source: "infra-agent/pihole", summary, raw: {} }),
+        body: JSON.stringify({
+          severity,
+          source: "infra-agent/pihole",
+          summary,
+          raw: {},
+        }),
       });
     } catch {}
   }

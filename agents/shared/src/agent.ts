@@ -2,8 +2,17 @@ import { connect, NatsConnection, StringCodec, JSONCodec } from "nats";
 const sc = StringCodec();
 const jc = JSONCodec();
 
-export interface ToolCall { tool: string; args?: any }
-export interface AgentTask { tool: string; args?: any; intent?: string; session_id?: string; risk?: string }
+export interface ToolCall {
+  tool: string;
+  args?: any;
+}
+export interface AgentTask {
+  tool: string;
+  args?: any;
+  intent?: string;
+  session_id?: string;
+  risk?: string;
+}
 
 export class RedNodeAgent {
   nc!: NatsConnection;
@@ -20,25 +29,36 @@ export class RedNodeAgent {
     console.log(`[${this.name}-agent] connected to ${url}`);
     // heartbeat
     setInterval(() => {
-      this.nc.publish(`rednode.agent.${this.name}.heartbeat`, sc.encode(JSON.stringify({
-        agent: this.name, ts: Date.now(), capabilities: [...this.capabilities]
-      })));
+      this.nc.publish(
+        `rednode.agent.${this.name}.heartbeat`,
+        sc.encode(
+          JSON.stringify({
+            agent: this.name,
+            ts: Date.now(),
+            capabilities: [...this.capabilities],
+          }),
+        ),
+      );
     }, 15000);
   }
 
   async callTool(tool: string, args: any = {}, actor?: string): Promise<any> {
     if (!this.capabilities.has(tool)) {
-      console.warn(`[${this.name}] tool ${tool} not in capability list – forwarding anyway (policy enforced in Rust)`);
+      console.warn(
+        `[${this.name}] tool ${tool} not in capability list – forwarding anyway (policy enforced in Rust)`,
+      );
     }
     const req = {
       tool,
       args,
       actor: actor || `${this.name}-agent`,
       agent: this.name,
-      session_id: "default"
+      session_id: "default",
     };
     try {
-      const msg = await this.nc.request("rednode.tool.exec", jc.encode(req), { timeout: 8000 });
+      const msg = await this.nc.request("rednode.tool.exec", jc.encode(req), {
+        timeout: 8000,
+      });
       const resp = jc.decode(msg.data) as any;
       // Rust Executor response: {ok, tool, exit_code, stdout, stderr, risk, audit_id, sandbox}
       if (!resp.ok) {
@@ -77,19 +97,25 @@ export class RedNodeAgent {
       try {
         // Agent-specific pre-processing hook
         const handled = await this.handleTool(task.tool, task.args || {});
-        const result = handled ?? await this.callTool(task.tool, task.args || {});
-        
+        const result =
+          handled ?? (await this.callTool(task.tool, task.args || {}));
+
         const response = {
           ok: true,
           agent: this.name,
           tool: task.tool,
           result,
-          duration_ms: Date.now() - start
+          duration_ms: Date.now() - start,
         };
         if (m.reply) m.respond(jc.encode(response));
       } catch (err: any) {
         console.error(`[${this.name}] task failed:`, err.message);
-        const response = { ok: false, agent: this.name, tool: task.tool, error: err.message };
+        const response = {
+          ok: false,
+          agent: this.name,
+          tool: task.tool,
+          error: err.message,
+        };
         if (m.reply) m.respond(jc.encode(response));
       }
     }
