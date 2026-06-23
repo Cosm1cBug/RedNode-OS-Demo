@@ -1,6 +1,6 @@
 {
   "name": "rednode-os",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "description": "RedNode-OS \u2013 The Personal Autonomous Operating System",
   "packageManager": "pnpm@9.1.0",

@@ -30,14 +30,17 @@ workflows.set("goodnight", {
 
 workflows.set("morning", {
   name: "morning",
-  description: "Morning brief — weather, system health, overnight events, DNS, storage, emails, tasks",
+  description: "Morning brief — weather, news, system health, overnight events, DNS, storage, emails, tasks, calendar",
   steps: [
+    { intent: "show weather forecast" },
+    { intent: "show latest news" },
     { intent: "show system health and sentience drives" },
     { intent: "show camera events from overnight" },
     { intent: "show any unacknowledged security events" },
     { intent: "show Pi-hole DNS stats" },
     { intent: "check TrueNAS pool health and disk SMART status" },
     { intent: "summarize my recent emails" },
+    { intent: "show my calendar events for today" },
     { intent: "show my tasks" },
     { intent: "show notification digest" },
   ],

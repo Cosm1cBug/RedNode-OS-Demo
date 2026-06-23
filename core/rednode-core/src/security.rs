@@ -64,7 +64,7 @@ pub fn assess_risk(tool: &str) -> Risk {
         "fs.read" | "process.list" | "docker.ps" | "service.status"
         | "net.status" | "dns.check" | "traffic.analyze" | "net.devices"
         | "sec.triage" | "sec.cve_check" | "sec.threat_intel" | "sec.ioc_check"
-        | "research.search" | "research.query" | "research.deep" | "kb.query"
+        | "research.search" | "research.query" | "research.deep" | "research.weather" | "research.news" | "kb.query"
         | "code.analyze" | "code.verify" | "code.review" | "git.status"
         | "pihole.stats" | "pihole.top_blocked" | "pihole.top_clients" | "pihole.enable"
         | "nas.health" | "nas.usage" | "nas.datasets" | "nas.disks"

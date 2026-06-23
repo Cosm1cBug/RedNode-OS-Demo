@@ -36,22 +36,22 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)    │
+│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)   │
 │  LLM Planner • Security Validator • Approval Gate            │
 │  Sandboxed Executor • Event Bus • Auth • Sentience Engine    │
-└──────────────────────────┬───────────────────────────────────┘
+└──────────────────────────┬──────────────────────────────────┘
                            ▼ NATS JetStream
 ┌──────────────────────────────────────────────────────────────┐
 │  13 AGENTS: System • Security • Coding • Research            │
 │  Automation • Network • Infrastructure (Pi-hole) • Storage   │
-│  (TrueNAS) • Surveillance (Frigate) • Communications         │
+│  (TrueNAS) • Surveillance (Frigate) • Communications        │
 │  (Email/Calendar) • Productivity • Media • Home (HA)         │
-└──────────────────────────┬───────────────────────────────────┘
+└──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  MEMORY: PostgreSQL 16 • Qdrant (vectors) • Kuzu (graph)     │
 │  SECURITY: firejail/bubblewrap • seccomp • SHA-256 audit     │
-│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS              │
+│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS             │
 │  OBSERVABILITY: OpenTelemetry → Grafana + Loki + Prometheus  │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -96,14 +96,14 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 
 ---
 
-## Agent Society — 16 Agents, 120 Tools
+## Agent Society — 16 Agents, 122 Tools
 
 | Agent | Tools | What It Does |
 |---|---|---|
 | 🔧 **System** | 6 | Processes, Docker, services, filesystem, safe shell |
 | 🛡️ **Security** | 8 | CVE scanning (NVD sync), auto-patching (btrfs/zfs rollback), Falco eBPF, YARA, threat intel (abuse.ch/OTX/ET → pfSense auto-block), dark web OSINT (Tor) |
 | 💻 **Coding** | 7 | LLM code generation, refactoring, tests, clippy/eslint, git, verification gate, security code review |
-| 🔬 **Research** | 8 | RAG search, SearXNG web search, deep research (multi-source cited reports), document OCR, PDF ingestion, knowledge graph |
+| 🔬 **Research** | 12 | RAG search, SearXNG web search, deep research (cited reports), weather, news, document OCR, PDF ingestion, knowledge graph |
 | ⚙️ **Automation** | 4 | Workflows (goodnight/morning/focus/leaving), scheduler, triggers |
 | 🌐 **Network** | 10 | Connections, firewall, VPN, DNS, traffic analysis, device isolation, Nmap network scanning, ARP device discovery |
 | 🏗️ **Infrastructure** | 9 | Pi-hole v6 API — DNS stats, blocking, anomaly detection |
@@ -130,6 +130,9 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 - **Circuit breaker**: Max 20 steps per plan, 120s execution timeout, max recursion depth 5 — prevents infinite loops
 - **Pattern promotion**: Entities mentioned 3+ times across documents get "established" status for better search ranking
 - **Knowledge consolidation**: Prunes stale memory entries, judges insight quality, prevents knowledge decay
+- **Multi-turn conversation**: Per-session history (last 10 turns), reference resolution ("do that again", "same thing"), context carried across intents
+- **Predictive intent**: Learns daily usage patterns — "you always check cameras at 10pm" → proactively suggests it
+- **Calendar awareness**: Proactive reminders 30 minutes before calendar events, visible in dashboard + Signal
 
 ---
 
@@ -158,7 +161,7 @@ Additional intelligence:
 Intent → Policy Engine → Risk Assessment → Approval Gate → Sandbox → Audit Log (SHA-256 chain)
 ```
 
-- **120 tools risk-tagged**: Low (auto-execute), Medium (logged), High (requires approval), Critical (denied)
+- **122 tools risk-tagged**: Low (auto-execute), Medium (logged), High (requires approval), Critical (denied)
 - **25+ deny patterns**: rm -rf, dd, fork bombs, chmod 777, wget|sh, etc.
 - **Sandboxed execution**: firejail → bubblewrap → unshare → fallback (seccomp BPF, --net=none, --noroot, --caps.drop=all)
 - **Hash-chained audit**: every action → SHA-256 linked to previous → tamper-evident
@@ -324,7 +327,7 @@ RedNode-OS-Demo/
 │   ├── BUILD-APK.md            # Android build guide
 │   └── BUILD-WINDOWS-APP.md    # Desktop build guide
 ├── execution/tool-registry/
-│   └── tools.json              # 120 tools, risk-tagged
+│   └── tools.json              # 122 tools, risk-tagged
 └── .github/workflows/ci.yml   # GitHub Actions CI/CD
 ```
 

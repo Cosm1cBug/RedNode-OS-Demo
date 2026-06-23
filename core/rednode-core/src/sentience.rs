@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use std::time::Duration;
+use chrono::Timelike;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SelfModel {
@@ -383,6 +384,63 @@ impl SentienceEngine {
                 status: "pending".into(),
                 created_at: chrono::Utc::now(),
             });
+        }
+
+        if new_goals.is_empty() {
+            // ── Predictive Intent — Time-based pattern suggestions ──
+            // Analyze what the user typically does at this hour.
+            // If they always check cameras at 10pm, proactively suggest it.
+            let hour = chrono::Local::now().hour();
+
+            if let Some(pool) = crate::memory::pool() {
+                // Query audit log for intents at this hour (±1 hour) from past 7 days
+                let pattern_rows: Vec<(String, i64)> = sqlx::query_as(
+                    "SELECT args->>'intent' as intent, COUNT(*) as cnt \
+                     FROM audit_log \
+                     WHERE action = 'intent' \
+                       AND args->>'intent' IS NOT NULL \
+                       AND ts > now() - interval '7 days' \
+                       AND EXTRACT(HOUR FROM ts) BETWEEN $1 AND $2 \
+                     GROUP BY args->>'intent' \
+                     HAVING COUNT(*) >= 3 \
+                     ORDER BY cnt DESC \
+                     LIMIT 3"
+                )
+                .bind((hour as i32 - 1).max(0))
+                .bind((hour as i32 + 1).min(23))
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
+
+                for (intent, count) in &pattern_rows {
+                    if !intent.is_empty() && !pending_drives.contains(&"prediction".to_string()) {
+                        tracing::info!(
+                            intent = %intent, count = count, hour = hour,
+                            "predictive: you usually do '{}' around this time ({} times in past week)",
+                            intent, count
+                        );
+
+                        new_goals.push(Goal {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            drive: "prediction".into(),
+                            description: intent.clone(),
+                            priority: 0.3, // low priority — suggestion, not urgent
+                            status: "pending".into(),
+                            created_at: chrono::Utc::now(),
+                        });
+
+                        crate::events::emit(serde_json::json!({
+                            "type": "predictive_intent",
+                            "intent": intent,
+                            "frequency": count,
+                            "hour": hour,
+                            "ts": chrono::Utc::now().to_rfc3339()
+                        }));
+
+                        break; // one prediction per cycle is enough
+                    }
+                }
+            }
         }
 
         if new_goals.is_empty() {

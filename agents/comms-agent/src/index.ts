@@ -372,4 +372,90 @@ class CommsAgent extends RedNodeAgent {
 
 const agent = new CommsAgent();
 await agent.connect();
+
+// ─── Calendar Awareness — Proactive Reminders ───
+// Checks upcoming calendar events every 5 minutes.
+// If an event starts within 30 minutes, sends a security event as a reminder.
+
+const REMINDER_MINUTES = parseInt(process.env.CALENDAR_REMINDER_MINUTES || "30");
+const REMINDER_INTERVAL = 300000; // 5 minutes
+const remindedEvents = new Set<string>(); // prevent duplicate reminders
+
+async function checkUpcomingEvents() {
+  if (!CALDAV_URL) return; // Calendar not configured
+
+  try {
+    const events = await fetchCalendarEvents(1); // today only
+    if (!events || events.length === 0 || events[0]?.error) return;
+
+    const now = new Date();
+
+    for (const event of events) {
+      if (!event.start) continue;
+
+      // Parse event start time
+      let eventTime: Date;
+      try {
+        // CalDAV returns various formats: 20260615T100000Z, 2026-06-15T10:00:00
+        const cleaned = event.start
+          .replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6")
+          .replace(/Z$/, "+00:00");
+        eventTime = new Date(cleaned);
+        if (isNaN(eventTime.getTime())) continue;
+      } catch {
+        continue;
+      }
+
+      const minutesUntil = (eventTime.getTime() - now.getTime()) / 60000;
+      const eventKey = `${event.summary}-${event.start}`;
+
+      // Reminder: event starts within REMINDER_MINUTES and hasn't been reminded
+      if (minutesUntil > 0 && minutesUntil <= REMINDER_MINUTES && !remindedEvents.has(eventKey)) {
+        remindedEvents.add(eventKey);
+
+        const summary = `📅 Upcoming: "${event.summary}" in ${Math.round(minutesUntil)} minutes${event.location ? ` @ ${event.location}` : ""}`;
+        console.log(`[comms-agent] ${summary}`);
+
+        // Send as security event (shows in dashboard + Signal bot)
+        try {
+          await fetch(`${CNS}/security/events`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              severity: minutesUntil <= 10 ? "MEDIUM" : "LOW",
+              source: "calendar-reminder",
+              summary,
+              raw: { event: event.summary, start: event.start, location: event.location, minutes_until: Math.round(minutesUntil) },
+            }),
+          });
+        } catch {}
+
+        // Emit to event bus for real-time dashboard
+        try {
+          await fetch(`${CNS}/intent`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              intent: `calendar reminder: ${event.summary} starts in ${Math.round(minutesUntil)} minutes`,
+              session_id: "calendar-awareness",
+            }),
+          });
+        } catch {}
+      }
+    }
+
+    // Clean old reminded events (older than 2 hours)
+    if (remindedEvents.size > 100) {
+      remindedEvents.clear();
+    }
+  } catch (e: any) {
+    // Silent fail — calendar might not be configured
+  }
+}
+
+// Start calendar awareness loop
+setTimeout(checkUpcomingEvents, 15000); // first check after 15s
+setInterval(checkUpcomingEvents, REMINDER_INTERVAL);
+console.log(`[comms-agent] Calendar awareness active — reminders ${REMINDER_MINUTES}min before events`);
+
 await agent.serve();

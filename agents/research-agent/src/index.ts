@@ -7,6 +7,7 @@ const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888";
 
 const TOOLS = [
   "research.search", "research.query", "research.deep",
+  "research.weather", "research.news",
   "kb.query", "kb.ingest",
   "docs.ocr", "docs.ingest_pdf",
 ];
@@ -265,6 +266,109 @@ class ResearchAgent extends RedNodeAgent {
           return { ok: true, output: lines.join("\n\n") || "No web results found", results };
         } catch {
           return this.handleTool("research.query", args);
+        }
+      }
+
+      case "research.weather": {
+        // Weather via wttr.in (free, no API key, privacy-friendly)
+        const location = args.location || args.city || process.env.WEATHER_LOCATION || "";
+        const loc = encodeURIComponent(location || "");
+        try {
+          const resp = await fetch(`https://wttr.in/${loc}?format=j1`, {
+            headers: { "User-Agent": "RedNode-OS/0.5.0" },
+            signal: AbortSignal.timeout(10000),
+          });
+          const data = await resp.json() as any;
+          const current = data.current_condition?.[0] || {};
+          const area = data.nearest_area?.[0] || {};
+          const forecast = (data.weather || []).slice(0, 3);
+
+          const areaName = area.areaName?.[0]?.value || location || "Unknown";
+          const country = area.country?.[0]?.value || "";
+
+          let output = `🌤️ Weather for ${areaName}${country ? `, ${country}` : ""}\n\n`;
+          output += `Current: ${current.weatherDesc?.[0]?.value || "?"}\n`;
+          output += `Temperature: ${current.temp_C || "?"}°C (feels like ${current.FeelsLikeC || "?"}°C)\n`;
+          output += `Humidity: ${current.humidity || "?"}%\n`;
+          output += `Wind: ${current.windspeedKmph || "?"}km/h ${current.winddir16Point || ""}\n`;
+          output += `Visibility: ${current.visibility || "?"}km\n`;
+          output += `UV Index: ${current.uvIndex || "?"}\n\n`;
+
+          if (forecast.length > 0) {
+            output += "Forecast:\n";
+            for (const day of forecast) {
+              output += `  ${day.date}: ${day.mintempC}°-${day.maxtempC}°C, ${day.hourly?.[4]?.weatherDesc?.[0]?.value || "?"}\n`;
+            }
+          }
+
+          return { ok: true, output, current, forecast, location: areaName };
+        } catch (e: any) {
+          return { ok: false, error: `Weather fetch failed: ${e.message}` };
+        }
+      }
+
+      case "research.news": {
+        // News via SearXNG (privacy-first) or RSS
+        const topic = args.topic || args.query || "latest news";
+        const region = args.region || process.env.NEWS_REGION || "";
+
+        // Try SearXNG news category
+        try {
+          const query = region ? `${topic} ${region}` : topic;
+          const resp = await fetch(
+            `${SEARXNG_URL}/search?q=${encodeURIComponent(query)}&format=json&categories=news&language=en&time_range=day`,
+            { signal: AbortSignal.timeout(15000) }
+          );
+          const data = await resp.json() as any;
+          const articles = (data.results || []).slice(0, 8);
+
+          if (articles.length === 0) {
+            return { ok: true, output: `No recent news for: "${topic}"` };
+          }
+
+          const lines = articles.map((a: any, i: number) => {
+            const age = a.publishedDate ? ` (${new Date(a.publishedDate).toLocaleDateString()})` : "";
+            return `[${i + 1}] ${a.title}${age}\n    ${a.url}\n    ${(a.content || "").substring(0, 150)}`;
+          });
+
+          // Summarize with LLM if available
+          let summary = "";
+          try {
+            const articleText = articles.map((a: any) => `${a.title}: ${(a.content || "").substring(0, 200)}`).join("\n");
+            const resp = await fetch(`${OLLAMA_URL}/api/chat`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: MODEL,
+                messages: [
+                  { role: "system", content: "Summarize these news headlines in 3-4 bullet points. Be brief." },
+                  { role: "user", content: articleText },
+                ],
+                stream: false,
+                options: { temperature: 0.3, num_predict: 256 },
+              }),
+            });
+            const sData = await resp.json() as any;
+            summary = sData.message?.content || "";
+          } catch {}
+
+          let output = `📰 News: ${topic}\n\n`;
+          if (summary) output += `Summary:\n${summary}\n\n`;
+          output += `Articles:\n${lines.join("\n\n")}`;
+
+          // Ingest into memory
+          await fetch(`${CNS}/memory/ingest`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source: `news/${new Date().toISOString().slice(0, 10)}`,
+              content: `News (${topic}): ${summary || articles.map((a: any) => a.title).join("; ")}`,
+            }),
+          }).catch(() => {});
+
+          return { ok: true, output, articles: articles.length, summary };
+        } catch (e: any) {
+          return { ok: false, error: `News fetch failed: ${e.message}. Is SearXNG running?` };
         }
       }
 

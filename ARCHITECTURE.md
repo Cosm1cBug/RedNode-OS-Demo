@@ -15,7 +15,7 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society (TS) → Execu
 | `memory.rs` | 550+ | PostgreSQL + Qdrant vectors + Kuzu/Postgres knowledge graph, RAG pipeline, entity extraction |
 | `executor.rs` | 380 | Sandboxed tool execution (firejail/bubblewrap/seccomp) with resource limits |
 | `api.rs` | 350+ | 17 REST endpoints + real-time WebSocket event streaming |
-| `security.rs` | 220+ | 120 tools risk-tagged, 25+ deny patterns, path traversal + injection protection |
+| `security.rs` | 220+ | 122 tools risk-tagged, 25+ deny patterns, path traversal + injection protection |
 | `events.rs` | 137 | `tokio::broadcast` event bus — all modules publish, WebSocket subscribes |
 | `auth.rs` | 107 | Bearer token middleware with constant-time comparison |
 | `coordinator.rs` | 97 | Plan execution: security check → approval gate → NATS dispatch → audit |
@@ -59,7 +59,7 @@ Each agent connects to NATS, subscribes to `rednode.agent.{name}.task`, and disp
 
 ## Execution
 
-Tool Registry (`tools.json`) — 120 tools, each with name, agent, risk level, description. Executor runs commands inside firejail/bubblewrap sandbox with seccomp BPF, resource limits, and timeout. Every execution is hash-chain audited.
+Tool Registry (`tools.json`) — 122 tools, each with name, agent, risk level, description. Executor runs commands inside firejail/bubblewrap sandbox with seccomp BPF, resource limits, and timeout. Every execution is hash-chain audited.
 
 ### Parallel Execution
 
