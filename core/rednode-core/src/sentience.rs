@@ -9,11 +9,11 @@
 // - Memory consolidation – periodic "dream" – episodic → long-term
 // - Self-healing – detect → isolate → patch → verify
 
+use chrono::Timelike;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::time::Duration;
-use chrono::Timelike;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SelfModel {
@@ -73,7 +73,13 @@ pub struct Drives {
 
 impl Default for Drives {
     fn default() -> Self {
-        Self { security: 0.9, integrity: 0.9, knowledge: 0.7, energy: 1.0, availability: 1.0 }
+        Self {
+            security: 0.9,
+            integrity: 0.9,
+            knowledge: 0.7,
+            energy: 1.0,
+            availability: 1.0,
+        }
     }
 }
 
@@ -89,9 +95,21 @@ pub struct Goal {
 
 // ─── All known agents (including new infrastructure agents) ───
 const ALL_AGENTS: &[&str] = &[
-    "system", "security", "coding", "research", "automation", "network",
-    "infra", "storage", "surveillance", "comms",
-    "productivity", "media", "home", "browser", "social",
+    "system",
+    "security",
+    "coding",
+    "research",
+    "automation",
+    "network",
+    "infra",
+    "storage",
+    "surveillance",
+    "comms",
+    "productivity",
+    "media",
+    "home",
+    "browser",
+    "social",
 ];
 
 pub struct SentienceEngine {
@@ -155,7 +173,8 @@ impl SentienceEngine {
                     let _ = crate::bus::publish(
                         "rednode.sentience.drives",
                         serde_json::to_value(&model.drives).unwrap_or_default(),
-                    ).await;
+                    )
+                    .await;
                 }
             }
         });
@@ -235,7 +254,9 @@ impl SentienceEngine {
 
         // ── Security drive ──
         // Based on: unacknowledged security events in last hour
-        let sec_events = crate::memory::list_security_events(100).await.unwrap_or_default();
+        let sec_events = crate::memory::list_security_events(100)
+            .await
+            .unwrap_or_default();
         let unacked_recent: usize = sec_events
             .iter()
             .filter(|e| {
@@ -250,7 +271,11 @@ impl SentienceEngine {
         // Based on: agents alive + disk health + resource headroom
         let total_agents = model.agents.len() as f32;
         let alive_agents = model.agents.iter().filter(|a| a.is_alive()).count() as f32;
-        let agent_ratio = if total_agents > 0.0 { alive_agents / total_agents } else { 0.5 };
+        let agent_ratio = if total_agents > 0.0 {
+            alive_agents / total_agents
+        } else {
+            0.5
+        };
 
         // Mark stale agents
         for a in model.agents.iter_mut() {
@@ -267,18 +292,38 @@ impl SentienceEngine {
         } else {
             0.5
         };
-        let disk_health = if disk_pressure > 0.90 { 0.3 } else if disk_pressure > 0.80 { 0.6 } else { 1.0 };
+        let disk_health = if disk_pressure > 0.90 {
+            0.3
+        } else if disk_pressure > 0.80 {
+            0.6
+        } else {
+            1.0
+        };
 
         // CPU pressure check
-        let cpu_health = if model.resources.cpu_percent > 95.0 { 0.5 } else if model.resources.cpu_percent > 85.0 { 0.7 } else { 1.0 };
+        let cpu_health = if model.resources.cpu_percent > 95.0 {
+            0.5
+        } else if model.resources.cpu_percent > 85.0 {
+            0.7
+        } else {
+            1.0
+        };
 
-        model.drives.integrity = (agent_ratio * 0.5 + disk_health * 0.3 + cpu_health * 0.2).min(1.0);
+        model.drives.integrity =
+            (agent_ratio * 0.5 + disk_health * 0.3 + cpu_health * 0.2).min(1.0);
 
         // ── Knowledge drive ──
         // Based on: do we have a vector DB with documents?
-        let rag_results = crate::memory::rag_query("rednode", 1).await.unwrap_or_default();
+        let rag_results = crate::memory::rag_query("rednode", 1)
+            .await
+            .unwrap_or_default();
         let has_real_knowledge = rag_results.iter().any(|r| {
-            r.score > 0.6 && !r.metadata.get("fallback").and_then(|v| v.as_bool()).unwrap_or(false)
+            r.score > 0.6
+                && !r
+                    .metadata
+                    .get("fallback")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
         });
         if has_real_knowledge {
             model.drives.knowledge = (model.drives.knowledge + 0.01).min(1.0);
@@ -295,8 +340,8 @@ impl SentienceEngine {
         let pg_ok = crate::memory::pool().is_some();
         let nats_ok = crate::bus::get_client().is_some();
         // Quick Ollama check — real HTTP ping with 2s timeout
-        let ollama_url = std::env::var("OLLAMA_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:11434".into());
+        let ollama_url =
+            std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://127.0.0.1:11434".into());
         let ollama_ok = match reqwest::Client::builder()
             .timeout(Duration::from_secs(2))
             .build()
@@ -310,11 +355,7 @@ impl SentienceEngine {
             Err(_) => false,
         };
 
-        let infra_score = [pg_ok, nats_ok, ollama_ok]
-            .iter()
-            .filter(|&&x| x)
-            .count() as f32
-            / 3.0;
+        let infra_score = [pg_ok, nats_ok, ollama_ok].iter().filter(|&&x| x).count() as f32 / 3.0;
         model.drives.availability = (agent_ratio * 0.4 + infra_score * 0.6).min(1.0);
 
         model.last_introspection = chrono::Utc::now();
@@ -351,7 +392,8 @@ impl SentienceEngine {
             new_goals.push(Goal {
                 id: uuid::Uuid::new_v4().to_string(),
                 drive: "security".into(),
-                description: "Run security triage – check recent security events and system logs".into(),
+                description: "Run security triage – check recent security events and system logs"
+                    .into(),
                 priority: 1.0 - drives.security,
                 status: "pending".into(),
                 created_at: chrono::Utc::now(),
@@ -363,7 +405,8 @@ impl SentienceEngine {
             new_goals.push(Goal {
                 id: uuid::Uuid::new_v4().to_string(),
                 drive: "integrity".into(),
-                description: "System health check – verify agents, disk space, and service status".into(),
+                description: "System health check – verify agents, disk space, and service status"
+                    .into(),
                 priority: 1.0 - drives.integrity,
                 status: "pending".into(),
                 created_at: chrono::Utc::now(),
@@ -387,7 +430,9 @@ impl SentienceEngine {
             new_goals.push(Goal {
                 id: uuid::Uuid::new_v4().to_string(),
                 drive: "availability".into(),
-                description: "Availability check – verify Postgres, NATS, Ollama, and agent connectivity".into(),
+                description:
+                    "Availability check – verify Postgres, NATS, Ollama, and agent connectivity"
+                        .into(),
                 priority: 1.0 - drives.availability,
                 status: "pending".into(),
                 created_at: chrono::Utc::now(),
@@ -412,7 +457,7 @@ impl SentienceEngine {
                      GROUP BY args->>'intent' \
                      HAVING COUNT(*) >= 3 \
                      ORDER BY cnt DESC \
-                     LIMIT 3"
+                     LIMIT 3",
                 )
                 .bind((hour as i32 - 1).max(0))
                 .bind((hour as i32 + 1).min(23))
@@ -457,7 +502,10 @@ impl SentienceEngine {
 
         // Execute each goal
         let mut model = self.model.write().await;
-        tracing::info!(count = new_goals.len(), "sentience: autonomous goals generated");
+        tracing::info!(
+            count = new_goals.len(),
+            "sentience: autonomous goals generated"
+        );
 
         for mut goal in new_goals {
             tracing::info!(
@@ -493,7 +541,8 @@ impl SentienceEngine {
                         .unwrap_or(false)
                 });
 
-                let failed_tools: Vec<String> = results.iter()
+                let failed_tools: Vec<String> = results
+                    .iter()
                     .filter(|r| r.get("status").and_then(|s| s.as_str()) == Some("failed"))
                     .filter_map(|r| r.get("tool").and_then(|t| t.as_str()).map(String::from))
                     .collect();
@@ -513,10 +562,12 @@ impl SentienceEngine {
                 // If a goal failed, analyze WHY and create a diagnostic report.
                 // This helps RedNode learn from failures and avoid repeating them.
                 if !all_ok && !failed_tools.is_empty() {
-                    let errors: Vec<String> = results.iter()
+                    let errors: Vec<String> = results
+                        .iter()
                         .filter_map(|r| {
                             let tool = r.get("tool").and_then(|t| t.as_str()).unwrap_or("-");
-                            let error = r.get("result")
+                            let error = r
+                                .get("result")
                                 .and_then(|res| res.get("error"))
                                 .and_then(|e| e.as_str())
                                 .or_else(|| r.get("error").and_then(|e| e.as_str()));
@@ -526,13 +577,21 @@ impl SentienceEngine {
 
                     // Classify failure type
                     let error_text = errors.join(" ").to_lowercase();
-                    let failure_type = if error_text.contains("timeout") || error_text.contains("timed out") {
+                    let failure_type = if error_text.contains("timeout")
+                        || error_text.contains("timed out")
+                    {
                         "timeout"
-                    } else if error_text.contains("permission") || error_text.contains("denied") || error_text.contains("approval") {
+                    } else if error_text.contains("permission")
+                        || error_text.contains("denied")
+                        || error_text.contains("approval")
+                    {
                         "permission"
                     } else if error_text.contains("not found") || error_text.contains("no such") {
                         "not_found"
-                    } else if error_text.contains("connection") || error_text.contains("refused") || error_text.contains("unreachable") {
+                    } else if error_text.contains("connection")
+                        || error_text.contains("refused")
+                        || error_text.contains("unreachable")
+                    {
                         "connectivity"
                     } else {
                         "unknown"
@@ -564,7 +623,8 @@ impl SentienceEngine {
 
                     // Ingest the diagnostic into memory so future planning can avoid the same failure
                     drop(model);
-                    let _ = crate::memory::ingest_document("sentience/introspection", &diagnostic).await;
+                    let _ = crate::memory::ingest_document("sentience/introspection", &diagnostic)
+                        .await;
 
                     crate::events::emit(serde_json::json!({
                         "type": "sentience_introspection",
@@ -628,8 +688,14 @@ impl SentienceEngine {
 
             let content = format!(
                 "Audit summary ({} to {}): {} actions\n{}",
-                recent_audit.last().map(|e| e.ts.format("%H:%M").to_string()).unwrap_or_default(),
-                recent_audit.first().map(|e| e.ts.format("%H:%M").to_string()).unwrap_or_default(),
+                recent_audit
+                    .last()
+                    .map(|e| e.ts.format("%H:%M").to_string())
+                    .unwrap_or_default(),
+                recent_audit
+                    .first()
+                    .map(|e| e.ts.format("%H:%M").to_string())
+                    .unwrap_or_default(),
                 recent_audit.len(),
                 summary
             );
@@ -637,7 +703,9 @@ impl SentienceEngine {
         }
 
         // ── Phase 2: Security event summarization (existing) ──
-        let recent_security = crate::memory::list_security_events(20).await.unwrap_or_default();
+        let recent_security = crate::memory::list_security_events(20)
+            .await
+            .unwrap_or_default();
         if !recent_security.is_empty() {
             let sec_summary = recent_security
                 .iter()
@@ -661,9 +729,12 @@ impl SentienceEngine {
         //   - Approval bottlenecks → suggest risk level adjustments
 
         if recent_audit.len() >= 10 {
-            let mut tool_counts: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
-            let mut tool_failures: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
-            let mut intent_patterns: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+            let mut tool_counts: std::collections::HashMap<String, u32> =
+                std::collections::HashMap::new();
+            let mut tool_failures: std::collections::HashMap<String, u32> =
+                std::collections::HashMap::new();
+            let mut intent_patterns: std::collections::HashMap<String, u32> =
+                std::collections::HashMap::new();
             let mut approval_count: u32 = 0;
 
             for entry in &recent_audit {
@@ -677,12 +748,18 @@ impl SentienceEngine {
                     if let Some(args) = &entry.args {
                         if let Some(intent) = args.get("intent").and_then(|v| v.as_str()) {
                             // Extract first 3 words as pattern key
-                            let pattern: String = intent.split_whitespace().take(3).collect::<Vec<_>>().join(" ");
+                            let pattern: String = intent
+                                .split_whitespace()
+                                .take(3)
+                                .collect::<Vec<_>>()
+                                .join(" ");
                             *intent_patterns.entry(pattern).or_insert(0) += 1;
                         }
                     }
                 }
-                if entry.action == "approval_created" || entry.result.as_deref() == Some("needs_approval") {
+                if entry.action == "approval_created"
+                    || entry.result.as_deref() == Some("needs_approval")
+                {
                     approval_count += 1;
                 }
             }
@@ -704,7 +781,10 @@ impl SentienceEngine {
                 if fail_rate > 0.3 && *fail_count >= 2 {
                     insights.push(format!(
                         "⚠️ Tool '{}' failing {:.0}% of the time ({}/{}) — investigate",
-                        tool, fail_rate * 100.0, fail_count, total
+                        tool,
+                        fail_rate * 100.0,
+                        fail_count,
+                        total
                     ));
                 }
             }
@@ -736,7 +816,8 @@ impl SentienceEngine {
                     insights.join("\n")
                 );
                 tracing::info!("sentience self-improvement:\n{}", insight_text);
-                let _ = crate::memory::ingest_document("sentience/self-improvement", &insight_text).await;
+                let _ = crate::memory::ingest_document("sentience/self-improvement", &insight_text)
+                    .await;
 
                 crate::events::emit(serde_json::json!({
                     "type": "sentience_self_improvement",
@@ -752,15 +833,28 @@ impl SentienceEngine {
         // Judge which insights are actually useful vs noise
         if !recent_audit.is_empty() {
             let total_actions = recent_audit.len();
-            let successful = recent_audit.iter().filter(|e| e.approved == Some(true)).count();
-            let success_rate = if total_actions > 0 { successful as f32 / total_actions as f32 } else { 0.5 };
+            let successful = recent_audit
+                .iter()
+                .filter(|e| e.approved == Some(true))
+                .count();
+            let success_rate = if total_actions > 0 {
+                successful as f32 / total_actions as f32
+            } else {
+                0.5
+            };
 
             // If success rate is high, knowledge is growing (good insights)
             // If low, knowledge may be degrading (bad patterns being learned)
             if success_rate > 0.7 {
-                tracing::info!(rate = success_rate, "JUDGE: high success rate — insights are valuable");
+                tracing::info!(
+                    rate = success_rate,
+                    "JUDGE: high success rate — insights are valuable"
+                );
             } else if success_rate < 0.3 {
-                tracing::warn!(rate = success_rate, "JUDGE: low success rate — review recent patterns");
+                tracing::warn!(
+                    rate = success_rate,
+                    "JUDGE: low success rate — review recent patterns"
+                );
             }
         }
 
@@ -770,7 +864,9 @@ impl SentienceEngine {
         if let Some(pool) = pool() {
             // Count documents in memory
             let doc_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents")
-                .fetch_one(pool).await.unwrap_or((0,));
+                .fetch_one(pool)
+                .await
+                .unwrap_or((0,));
 
             // If we have > 5000 documents, prune the oldest low-relevance ones
             if doc_count.0 > 5000 {
@@ -778,8 +874,10 @@ impl SentienceEngine {
                     "DELETE FROM documents WHERE id IN (\
                      SELECT id FROM documents \
                      WHERE source LIKE 'sentience/%' \
-                     ORDER BY created_at ASC LIMIT 100)"
-                ).execute(pool).await;
+                     ORDER BY created_at ASC LIMIT 100)",
+                )
+                .execute(pool)
+                .await;
 
                 if let Ok(result) = pruned {
                     let count = result.rows_affected();
@@ -830,8 +928,8 @@ impl SentienceEngine {
 
 // ─── Resource sampling — real sysinfo + real disk ───
 
-use std::sync::Mutex;
 use once_cell::sync::Lazy;
+use std::sync::Mutex;
 
 static SYS: Lazy<Mutex<sysinfo::System>> = Lazy::new(|| {
     use sysinfo::System;

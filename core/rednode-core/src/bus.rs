@@ -29,14 +29,14 @@ pub fn get_client() -> Option<async_nats::Client> {
 
 pub async fn publish(subject: &str, payload: serde_json::Value) -> Result<()> {
     if let Some(nc) = get_client() {
-        nc.publish(
-            subject.to_string(),
-            serde_json::to_vec(&payload)?.into(),
-        )
-        .await?;
+        nc.publish(subject.to_string(), serde_json::to_vec(&payload)?.into())
+            .await?;
         return Ok(());
     }
-    tracing::debug!(subject, "bus publish skipped — no NATS connection (local mode)");
+    tracing::debug!(
+        subject,
+        "bus publish skipped — no NATS connection (local mode)"
+    );
     Ok(())
 }
 
@@ -48,10 +48,7 @@ pub async fn request(
     let nc = get_client().ok_or_else(|| anyhow::anyhow!("NATS not connected — cannot request"))?;
     let resp = tokio::time::timeout(
         std::time::Duration::from_millis(timeout_ms),
-        nc.request(
-            subject.to_string(),
-            serde_json::to_vec(&payload)?.into(),
-        ),
+        nc.request(subject.to_string(), serde_json::to_vec(&payload)?.into()),
     )
     .await
     .map_err(|_| anyhow::anyhow!("NATS request timed out after {}ms: {}", timeout_ms, subject))??;

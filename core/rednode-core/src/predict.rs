@@ -57,7 +57,9 @@ pub enum PredictionStatus {
 /// Linear regression: y = a + bx. Returns (slope, intercept).
 fn linear_regression(samples: &[MetricSample]) -> Option<(f64, f64)> {
     let n = samples.len() as f64;
-    if n < 3.0 { return None; } // need at least 3 points
+    if n < 3.0 {
+        return None;
+    } // need at least 3 points
 
     let sum_x: f64 = samples.iter().map(|s| s.timestamp as f64).sum();
     let sum_y: f64 = samples.iter().map(|s| s.value).sum();
@@ -65,7 +67,9 @@ fn linear_regression(samples: &[MetricSample]) -> Option<(f64, f64)> {
     let sum_x2: f64 = samples.iter().map(|s| (s.timestamp as f64).powi(2)).sum();
 
     let denom = n * sum_x2 - sum_x.powi(2);
-    if denom.abs() < 1e-10 { return None; } // perfectly flat or degenerate
+    if denom.abs() < 1e-10 {
+        return None;
+    } // perfectly flat or degenerate
 
     let slope = (n * sum_xy - sum_x * sum_y) / denom;
     let intercept = (sum_y - slope * sum_x) / n;
@@ -86,13 +90,21 @@ fn days_until_threshold(
 
     // Check if trend is heading toward threshold
     if higher_is_worse {
-        if slope <= 0.0 { return None; } // improving
-        if current >= threshold { return Some(0.0); } // already past
+        if slope <= 0.0 {
+            return None;
+        } // improving
+        if current >= threshold {
+            return Some(0.0);
+        } // already past
         let seconds = (threshold - current) / slope;
         Some(seconds / 86400.0) // convert to days
     } else {
-        if slope >= 0.0 { return None; } // improving
-        if current <= threshold { return Some(0.0); } // already past
+        if slope >= 0.0 {
+            return None;
+        } // improving
+        if current <= threshold {
+            return Some(0.0);
+        } // already past
         let seconds = (current - threshold) / slope.abs();
         Some(seconds / 86400.0)
     }
@@ -103,7 +115,9 @@ pub fn analyze_health(metrics: &[HealthMetric]) -> Vec<PredictionResult> {
     let mut results = Vec::new();
 
     for metric in metrics {
-        if metric.samples.is_empty() { continue; }
+        if metric.samples.is_empty() {
+            continue;
+        }
 
         let current = metric.samples.last().map(|s| s.value).unwrap_or(0.0);
         let trend = linear_regression(&metric.samples)
@@ -111,19 +125,34 @@ pub fn analyze_health(metrics: &[HealthMetric]) -> Vec<PredictionResult> {
             .unwrap_or(0.0);
 
         let days_warn = days_until_threshold(
-            &metric.samples, metric.threshold_warn, metric.higher_is_worse);
+            &metric.samples,
+            metric.threshold_warn,
+            metric.higher_is_worse,
+        );
         let days_crit = days_until_threshold(
-            &metric.samples, metric.threshold_critical, metric.higher_is_worse);
+            &metric.samples,
+            metric.threshold_critical,
+            metric.higher_is_worse,
+        );
 
         let status = if let Some(d) = days_crit {
-            if d <= 0.0 { PredictionStatus::Critical }
-            else if d <= 7.0 { PredictionStatus::FailureImminent }
-            else if d <= 30.0 { PredictionStatus::Warning }
-            else { PredictionStatus::Degrading }
+            if d <= 0.0 {
+                PredictionStatus::Critical
+            } else if d <= 7.0 {
+                PredictionStatus::FailureImminent
+            } else if d <= 30.0 {
+                PredictionStatus::Warning
+            } else {
+                PredictionStatus::Degrading
+            }
         } else if let Some(d) = days_warn {
-            if d <= 0.0 { PredictionStatus::Warning }
-            else if d <= 30.0 { PredictionStatus::Degrading }
-            else { PredictionStatus::Healthy }
+            if d <= 0.0 {
+                PredictionStatus::Warning
+            } else if d <= 30.0 {
+                PredictionStatus::Degrading
+            } else {
+                PredictionStatus::Healthy
+            }
         } else {
             PredictionStatus::Healthy
         };
@@ -136,7 +165,8 @@ pub fn analyze_health(metrics: &[HealthMetric]) -> Vec<PredictionResult> {
             ),
             PredictionStatus::Warning => format!(
                 "⚠️ {} approaching warning threshold — predicted in {:.0} days — plan replacement",
-                metric.name, days_warn.unwrap_or(0.0)
+                metric.name,
+                days_warn.unwrap_or(0.0)
             ),
             PredictionStatus::Critical => format!(
                 "🔴 {} at critical level ({:.1}) — immediate attention required",
@@ -144,7 +174,8 @@ pub fn analyze_health(metrics: &[HealthMetric]) -> Vec<PredictionResult> {
             ),
             PredictionStatus::FailureImminent => format!(
                 "🚨 {} predicted to fail within {:.0} days — replace NOW",
-                metric.name, days_crit.unwrap_or(0.0)
+                metric.name,
+                days_crit.unwrap_or(0.0)
             ),
         };
 
@@ -178,7 +209,10 @@ pub fn analyze_health(metrics: &[HealthMetric]) -> Vec<PredictionResult> {
 /// Build SMART health metrics from raw smartctl data.
 pub fn smart_to_metrics(smart_data: &serde_json::Value) -> Vec<HealthMetric> {
     let mut metrics = Vec::new();
-    let device = smart_data.get("device").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let device = smart_data
+        .get("device")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown");
     let now = chrono::Utc::now().timestamp();
 
     // Key SMART attributes that predict failure
@@ -193,17 +227,28 @@ pub fn smart_to_metrics(smart_data: &serde_json::Value) -> Vec<HealthMetric> {
         ("Media_Wearout_Indicator", 100.0, 20.0, 5.0, false),
     ];
 
-    if let Some(ata_attrs) = smart_data.get("ata_smart_attributes").and_then(|v| v.get("table")).and_then(|v| v.as_array()) {
+    if let Some(ata_attrs) = smart_data
+        .get("ata_smart_attributes")
+        .and_then(|v| v.get("table"))
+        .and_then(|v| v.as_array())
+    {
         for attr in ata_attrs {
             let name = attr.get("name").and_then(|v| v.as_str()).unwrap_or("");
-            let raw_value = attr.get("raw").and_then(|v| v.get("value")).and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let raw_value = attr
+                .get("raw")
+                .and_then(|v| v.get("value"))
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
 
             for (target_name, _default, warn, crit, higher_is_worse) in &attrs {
                 if name == *target_name {
                     metrics.push(HealthMetric {
                         name: name.to_string(),
                         device: device.to_string(),
-                        samples: vec![MetricSample { timestamp: now, value: raw_value }],
+                        samples: vec![MetricSample {
+                            timestamp: now,
+                            value: raw_value,
+                        }],
                         threshold_warn: *warn,
                         threshold_critical: *crit,
                         higher_is_worse: *higher_is_worse,
@@ -223,9 +268,18 @@ mod tests {
     #[test]
     fn test_linear_regression() {
         let samples = vec![
-            MetricSample { timestamp: 100, value: 10.0 },
-            MetricSample { timestamp: 200, value: 20.0 },
-            MetricSample { timestamp: 300, value: 30.0 },
+            MetricSample {
+                timestamp: 100,
+                value: 10.0,
+            },
+            MetricSample {
+                timestamp: 200,
+                value: 20.0,
+            },
+            MetricSample {
+                timestamp: 300,
+                value: 30.0,
+            },
         ];
         let (slope, _intercept) = linear_regression(&samples).unwrap();
         assert!((slope - 0.1).abs() < 0.01); // 10 per 100 seconds
@@ -236,9 +290,18 @@ mod tests {
         let now = chrono::Utc::now().timestamp();
         let day = 86400;
         let samples = vec![
-            MetricSample { timestamp: now - 10 * day, value: 0.0 },
-            MetricSample { timestamp: now - 5 * day, value: 5.0 },
-            MetricSample { timestamp: now, value: 10.0 },
+            MetricSample {
+                timestamp: now - 10 * day,
+                value: 0.0,
+            },
+            MetricSample {
+                timestamp: now - 5 * day,
+                value: 5.0,
+            },
+            MetricSample {
+                timestamp: now,
+                value: 10.0,
+            },
         ];
 
         let days = days_until_threshold(&samples, 20.0, true);
@@ -255,9 +318,18 @@ mod tests {
             name: "Temperature".into(),
             device: "sda".into(),
             samples: vec![
-                MetricSample { timestamp: now - 30 * day, value: 35.0 },
-                MetricSample { timestamp: now - 15 * day, value: 35.0 },
-                MetricSample { timestamp: now, value: 35.0 },
+                MetricSample {
+                    timestamp: now - 30 * day,
+                    value: 35.0,
+                },
+                MetricSample {
+                    timestamp: now - 15 * day,
+                    value: 35.0,
+                },
+                MetricSample {
+                    timestamp: now,
+                    value: 35.0,
+                },
             ],
             threshold_warn: 55.0,
             threshold_critical: 65.0,

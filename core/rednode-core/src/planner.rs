@@ -1,6 +1,6 @@
 use crate::security::Risk;
-use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlanStep {
@@ -45,7 +45,12 @@ fn load_tool_context() -> String {
 pub async fn plan(intent: &str) -> Vec<PlanStep> {
     match plan_with_llm(intent).await {
         Ok(steps) if !steps.is_empty() => {
-            tracing::info!(intent, steps = steps.len(), "LLM planner: {} steps", steps.len());
+            tracing::info!(
+                intent,
+                steps = steps.len(),
+                "LLM planner: {} steps",
+                steps.len()
+            );
             steps
         }
         Ok(_) => {
@@ -61,10 +66,10 @@ pub async fn plan(intent: &str) -> Vec<PlanStep> {
 
 /// Call Ollama to generate a structured plan from natural language.
 async fn plan_with_llm(intent: &str) -> Result<Vec<PlanStep>> {
-    let ollama_url = std::env::var("OLLAMA_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:11434".into());
-    let model = std::env::var("REDNODE_MODEL")
-        .unwrap_or_else(|_| "qwen2.5:14b-instruct-q4_K_M".into());
+    let ollama_url =
+        std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://127.0.0.1:11434".into());
+    let model =
+        std::env::var("REDNODE_MODEL").unwrap_or_else(|_| "qwen2.5:14b-instruct-q4_K_M".into());
 
     let system_prompt = format!(
         "You are the RedNode-OS planner. You convert user intentions into \
@@ -115,13 +120,16 @@ async fn plan_with_llm(intent: &str) -> Result<Vec<PlanStep>> {
     }
 
     let body: serde_json::Value = resp.json().await?;
-    let response_text = body["message"]["content"]
-        .as_str()
-        .unwrap_or("[]");
+    let response_text = body["message"]["content"].as_str().unwrap_or("[]");
 
     let json_str = extract_json_array(response_text);
-    let raw_steps: Vec<serde_json::Value> = serde_json::from_str(&json_str)
-        .map_err(|e| anyhow::anyhow!("Failed to parse LLM response as JSON: {} — raw: {}", e, &json_str[..json_str.len().min(200)]))?;
+    let raw_steps: Vec<serde_json::Value> = serde_json::from_str(&json_str).map_err(|e| {
+        anyhow::anyhow!(
+            "Failed to parse LLM response as JSON: {} — raw: {}",
+            e,
+            &json_str[..json_str.len().min(200)]
+        )
+    })?;
 
     // Parse and validate each step
     let mut steps = Vec::new();
@@ -185,71 +193,173 @@ fn plan_keyword_fallback(intent: &str) -> Vec<PlanStep> {
     // Security
     if s.contains("ssh") && s.contains("harden") {
         return vec![
-            PlanStep { tool: "sec.ssh_audit".into(), agent: "security-agent".into(), args: serde_json::json!({}), risk: Risk::Medium },
-            PlanStep { tool: "sec.harden_ssh".into(), agent: "security-agent".into(), args: serde_json::json!({}), risk: Risk::High },
+            PlanStep {
+                tool: "sec.ssh_audit".into(),
+                agent: "security-agent".into(),
+                args: serde_json::json!({}),
+                risk: Risk::Medium,
+            },
+            PlanStep {
+                tool: "sec.harden_ssh".into(),
+                agent: "security-agent".into(),
+                args: serde_json::json!({}),
+                risk: Risk::High,
+            },
         ];
     }
     if s.contains("cve") || s.contains("vulnerabilit") {
-        return vec![PlanStep { tool: "sec.cve_check".into(), agent: "security-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "sec.cve_check".into(),
+            agent: "security-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
-    if s.contains("security") && (s.contains("event") || s.contains("alert") || s.contains("threat")) {
-        return vec![PlanStep { tool: "sec.triage".into(), agent: "security-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+    if s.contains("security")
+        && (s.contains("event") || s.contains("alert") || s.contains("threat"))
+    {
+        return vec![PlanStep {
+            tool: "sec.triage".into(),
+            agent: "security-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
 
     // System
     if s.contains("docker") || s.contains("container") {
-        return vec![PlanStep { tool: "docker.ps".into(), agent: "system-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "docker.ps".into(),
+            agent: "system-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
     if s.contains("process") || s.contains("cpu") || s.contains("top") {
-        return vec![PlanStep { tool: "process.list".into(), agent: "system-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "process.list".into(),
+            agent: "system-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
     if s.contains("system") || s.contains("health") || s.contains("status") {
         return vec![
-            PlanStep { tool: "process.list".into(), agent: "system-agent".into(), args: serde_json::json!({}), risk: Risk::Low },
-            PlanStep { tool: "docker.ps".into(), agent: "system-agent".into(), args: serde_json::json!({}), risk: Risk::Low },
+            PlanStep {
+                tool: "process.list".into(),
+                agent: "system-agent".into(),
+                args: serde_json::json!({}),
+                risk: Risk::Low,
+            },
+            PlanStep {
+                tool: "docker.ps".into(),
+                agent: "system-agent".into(),
+                args: serde_json::json!({}),
+                risk: Risk::Low,
+            },
         ];
     }
     if s.contains("disk") || s.contains("storage") || s.contains("space") {
-        return vec![PlanStep { tool: "shell.run_safe".into(), agent: "system-agent".into(), args: serde_json::json!({"cmd": "df"}), risk: Risk::Medium }];
+        return vec![PlanStep {
+            tool: "shell.run_safe".into(),
+            agent: "system-agent".into(),
+            args: serde_json::json!({"cmd": "df"}),
+            risk: Risk::Medium,
+        }];
     }
 
     // Network
     if s.contains("network") || s.contains("connection") || s.contains("port") {
-        return vec![PlanStep { tool: "net.status".into(), agent: "network-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "net.status".into(),
+            agent: "network-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
     if s.contains("firewall") {
-        return vec![PlanStep { tool: "firewall.rules".into(), agent: "network-agent".into(), args: serde_json::json!({}), risk: Risk::High }];
+        return vec![PlanStep {
+            tool: "firewall.rules".into(),
+            agent: "network-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::High,
+        }];
     }
     if s.contains("dns") || s.contains("pihole") || s.contains("pi-hole") || s.contains("blocked") {
-        return vec![PlanStep { tool: "pihole.stats".into(), agent: "infra-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "pihole.stats".into(),
+            agent: "infra-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
 
     // Storage
     if s.contains("nas") || s.contains("truenas") || s.contains("pool") || s.contains("smart") {
-        return vec![PlanStep { tool: "nas.health".into(), agent: "storage-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "nas.health".into(),
+            agent: "storage-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
     if s.contains("snapshot") || s.contains("backup") {
-        return vec![PlanStep { tool: "nas.snapshot_list".into(), agent: "storage-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "nas.snapshot_list".into(),
+            agent: "storage-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
 
     // Cameras
-    if s.contains("camera") || s.contains("cctv") || s.contains("surveillance") || s.contains("front door") || s.contains("driveway") {
-        return vec![PlanStep { tool: "cam.events".into(), agent: "surveillance-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+    if s.contains("camera")
+        || s.contains("cctv")
+        || s.contains("surveillance")
+        || s.contains("front door")
+        || s.contains("driveway")
+    {
+        return vec![PlanStep {
+            tool: "cam.events".into(),
+            agent: "surveillance-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
     if s.contains("who") && (s.contains("door") || s.contains("outside") || s.contains("porch")) {
-        return vec![PlanStep { tool: "cam.search".into(), agent: "surveillance-agent".into(), args: serde_json::json!({"label": "person"}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "cam.search".into(),
+            agent: "surveillance-agent".into(),
+            args: serde_json::json!({"label": "person"}),
+            risk: Risk::Low,
+        }];
     }
 
     // Code
     if s.contains("code") || s.contains("debug") || s.contains("lint") || s.contains("clippy") {
-        return vec![PlanStep { tool: "code.analyze".into(), agent: "coding-agent".into(), args: serde_json::json!({}), risk: Risk::Low }];
+        return vec![PlanStep {
+            tool: "code.analyze".into(),
+            agent: "coding-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Low,
+        }];
     }
     if s.contains("test") {
-        return vec![PlanStep { tool: "code.test".into(), agent: "coding-agent".into(), args: serde_json::json!({}), risk: Risk::Medium }];
+        return vec![PlanStep {
+            tool: "code.test".into(),
+            agent: "coding-agent".into(),
+            args: serde_json::json!({}),
+            risk: Risk::Medium,
+        }];
     }
 
     // Default: research
-    vec![PlanStep { tool: "research.query".into(), agent: "research-agent".into(), args: serde_json::json!({"query": intent}), risk: Risk::Low }]
+    vec![PlanStep {
+        tool: "research.query".into(),
+        agent: "research-agent".into(),
+        args: serde_json::json!({"query": intent}),
+        risk: Risk::Low,
+    }]
 }
 
 #[cfg(test)]

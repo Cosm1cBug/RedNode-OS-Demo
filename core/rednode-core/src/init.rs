@@ -71,25 +71,42 @@ fn mount_all() -> anyhow::Result<()> {
     use nix::mount::{mount, MsFlags};
 
     let mounts = [
-        ("/proc", "proc", "proc", MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID),
-        ("/sys", "sysfs", "sysfs", MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID),
+        (
+            "/proc",
+            "proc",
+            "proc",
+            MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID,
+        ),
+        (
+            "/sys",
+            "sysfs",
+            "sysfs",
+            MsFlags::MS_NODEV | MsFlags::MS_NOEXEC | MsFlags::MS_NOSUID,
+        ),
         ("/dev", "devtmpfs", "devtmpfs", MsFlags::MS_NOSUID),
-        ("/run", "tmpfs", "tmpfs", MsFlags::MS_NOSUID | MsFlags::MS_NODEV),
-        ("/tmp", "tmpfs", "tmpfs", MsFlags::MS_NOSUID | MsFlags::MS_NODEV),
+        (
+            "/run",
+            "tmpfs",
+            "tmpfs",
+            MsFlags::MS_NOSUID | MsFlags::MS_NODEV,
+        ),
+        (
+            "/tmp",
+            "tmpfs",
+            "tmpfs",
+            MsFlags::MS_NOSUID | MsFlags::MS_NODEV,
+        ),
     ];
 
     for (target, source, fstype, flags) in &mounts {
         let _ = std::fs::create_dir_all(target);
-        let result = mount(
-            Some(*source),
-            *target,
-            Some(*fstype),
-            *flags,
-            None::<&str>,
-        );
+        let result = mount(Some(*source), *target, Some(*fstype), *flags, None::<&str>);
         match result {
             Ok(()) => println!("[init] mounted {}", target),
-            Err(e) => eprintln!("[init] mount {} failed: {} (may already be mounted)", target, e),
+            Err(e) => eprintln!(
+                "[init] mount {} failed: {} (may already be mounted)",
+                target, e
+            ),
         }
     }
 
@@ -169,7 +186,10 @@ fn load_environment() {
         ("RUST_LOG", "info"),
         ("REDNODE_SENTIENCE", "on"),
         ("REDNODE_MODE", "os"),
-        ("DATABASE_URL", "postgres://rednode:rednode@localhost/rednode"),
+        (
+            "DATABASE_URL",
+            "postgres://rednode:rednode@localhost/rednode",
+        ),
         ("NATS_URL", "nats://127.0.0.1:4222"),
         ("QDRANT_URL", "http://127.0.0.1:6334"),
         ("OLLAMA_URL", "http://127.0.0.1:11434"),
@@ -268,7 +288,9 @@ fn shutdown(services: &mut [ManagedService], mode: RebootMode) {
 
     // Sync filesystems
     println!("[init] syncing filesystems...");
-    unsafe { libc::sync(); }
+    unsafe {
+        libc::sync();
+    }
 
     // Unmount /proc, /sys, etc.
     println!("[init] unmounting filesystems...");
@@ -313,8 +335,8 @@ fn main() -> anyhow::Result<()> {
     println!("[init] early init complete — starting services...\n");
 
     // Phase 2: Service definitions
-    let rednode_core_bin = std::env::var("REDNODE_CORE")
-        .unwrap_or_else(|_| "/usr/bin/rednode-core".into());
+    let rednode_core_bin =
+        std::env::var("REDNODE_CORE").unwrap_or_else(|_| "/usr/bin/rednode-core".into());
 
     let mut services: Vec<ManagedService> = vec![
         // PostgreSQL — must start first (memory depends on it)
@@ -355,14 +377,20 @@ fn main() -> anyhow::Result<()> {
     for svc in services.iter_mut() {
         let ok = svc.start();
         if !ok && svc.required {
-            eprintln!("[init] CRITICAL: required service '{}' failed to start", svc.name);
+            eprintln!(
+                "[init] CRITICAL: required service '{}' failed to start",
+                svc.name
+            );
             if svc.name == "rednode-core" {
                 eprintln!("[init] CNS binary not found — check REDNODE_CORE env var");
             }
             // Wait 3s and retry once
             std::thread::sleep(Duration::from_secs(3));
             if !svc.start() {
-                eprintln!("[init] FATAL: {} failed on retry — continuing in degraded mode", svc.name);
+                eprintln!(
+                    "[init] FATAL: {} failed on retry — continuing in degraded mode",
+                    svc.name
+                );
             }
         }
         // Small delay between service starts to let ports bind

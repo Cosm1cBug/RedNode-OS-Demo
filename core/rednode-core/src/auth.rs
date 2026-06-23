@@ -99,7 +99,7 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 
 /// Generate a random API token (called once during first setup).
 pub fn generate_token() -> String {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(uuid::Uuid::new_v4().to_string().as_bytes());
     hasher.update(chrono::Utc::now().to_rfc3339().as_bytes());

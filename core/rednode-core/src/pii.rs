@@ -10,9 +10,9 @@
 //   let result = pii::scan("Call me at 555-123-4567");
 //   // → PiiScanResult { has_pii: true, findings: [...], redacted: "Call me at [PHONE_REDACTED]" }
 
-use serde::{Deserialize, Serialize};
-use regex::Regex;
 use once_cell::sync::Lazy;
+use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 /// PII detection result
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,7 +27,7 @@ pub struct PiiScanResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PiiFinding {
     pub pii_type: String,
-    pub severity: String,  // "high", "medium", "low"
+    pub severity: String, // "high", "medium", "low"
     pub position: usize,
     pub length: usize,
     pub redacted_preview: String,
@@ -48,7 +48,9 @@ static PATTERNS: &[PiiPattern] = &[
     PiiPattern {
         name: "credit_card",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b").unwrap()
+        }),
         redact_label: "[CREDIT_CARD_REDACTED]",
     },
     PiiPattern {
@@ -72,21 +74,26 @@ static PATTERNS: &[PiiPattern] = &[
     PiiPattern {
         name: "bank_account_iban",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b").unwrap()
+        }),
         redact_label: "[IBAN_REDACTED]",
     },
-
     // MEDIUM severity — contact / location
     PiiPattern {
         name: "email",
         severity: "medium",
-        regex: Lazy::new(|| Regex::new(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b").unwrap()
+        }),
         redact_label: "[EMAIL_REDACTED]",
     },
     PiiPattern {
         name: "phone_international",
         severity: "medium",
-        regex: Lazy::new(|| Regex::new(r"\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}").unwrap()
+        }),
         redact_label: "[PHONE_REDACTED]",
     },
     PiiPattern {
@@ -98,21 +105,27 @@ static PATTERNS: &[PiiPattern] = &[
     PiiPattern {
         name: "ip_address",
         severity: "medium",
-        regex: Lazy::new(|| Regex::new(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b").unwrap()
+        }),
         redact_label: "[IP_REDACTED]",
     },
     PiiPattern {
         name: "date_of_birth",
         severity: "medium",
-        regex: Lazy::new(|| Regex::new(r"\b(?:DOB|Date of Birth|Born)[:\s]*\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b(?:DOB|Date of Birth|Born)[:\s]*\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b")
+                .unwrap()
+        }),
         redact_label: "[DOB_REDACTED]",
     },
-
     // LOW severity — potentially PII in context
     PiiPattern {
         name: "api_key",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"\b(?:sk-|pk-|api[_-]?key[=:\s]+)[a-zA-Z0-9]{20,}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b(?:sk-|pk-|api[_-]?key[=:\s]+)[a-zA-Z0-9]{20,}\b").unwrap()
+        }),
         redact_label: "[API_KEY_REDACTED]",
     },
     PiiPattern {
@@ -130,7 +143,10 @@ static PATTERNS: &[PiiPattern] = &[
     PiiPattern {
         name: "jwt_token",
         severity: "medium",
-        regex: Lazy::new(|| Regex::new(r"\beyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\beyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\b")
+                .unwrap()
+        }),
         redact_label: "[JWT_REDACTED]",
     },
 ];
@@ -148,11 +164,17 @@ pub fn scan(text: &str) -> PiiScanResult {
                 severity: pattern.severity.to_string(),
                 position: mat.start(),
                 length: mat.len(),
-                redacted_preview: format!("{}...{}", &text[mat.start()..mat.start().saturating_add(3).min(mat.end())], pattern.redact_label),
+                redacted_preview: format!(
+                    "{}...{}",
+                    &text[mat.start()..mat.start().saturating_add(3).min(mat.end())],
+                    pattern.redact_label
+                ),
             });
         }
         // Apply redaction
-        redacted = regex.replace_all(&redacted, pattern.redact_label).to_string();
+        redacted = regex
+            .replace_all(&redacted, pattern.redact_label)
+            .to_string();
     }
 
     // Deduplicate overlapping findings

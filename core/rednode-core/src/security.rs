@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 /// Risk levels for tool execution. Determines approval requirements.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -36,7 +36,7 @@ const DENY_PATTERNS: &[&str] = &[
     "userdel",
     "groupadd",
     "chown -R root",
-    "iptables -F",   # flushing firewall = bad
+    "iptables -F", // flushing firewall = bad
     "nft flush",
 ];
 
@@ -131,7 +131,11 @@ pub fn validate_tool(tool: &str, args: &serde_json::Value) -> Result<Risk> {
     // Check deny patterns in arguments
     for pat in DENY_PATTERNS {
         if args_str.contains(&pat.to_lowercase()) {
-            anyhow::bail!("SECURITY DENY: pattern '{}' matched in args for tool '{}'", pat, tool);
+            anyhow::bail!(
+                "SECURITY DENY: pattern '{}' matched in args for tool '{}'",
+                pat,
+                tool
+            );
         }
     }
 
@@ -140,7 +144,10 @@ pub fn validate_tool(tool: &str, args: &serde_json::Value) -> Result<Risk> {
         if let Some(path) = args.get("path").and_then(|v| v.as_str()) {
             // Path traversal
             if path.contains("..") {
-                anyhow::bail!("SECURITY DENY: path traversal '..' in fs.read path: {}", path);
+                anyhow::bail!(
+                    "SECURITY DENY: path traversal '..' in fs.read path: {}",
+                    path
+                );
             }
             // Denied paths
             for deny in DENY_PATHS {
@@ -155,7 +162,10 @@ pub fn validate_tool(tool: &str, args: &serde_json::Value) -> Result<Risk> {
     if tool == "shell.run_safe" {
         if let Some(cmd) = args.get("cmd").and_then(|v| v.as_str()) {
             if cmd.contains([';', '|', '&', '$', '`', '>', '<', '\\', '\n']) {
-                anyhow::bail!("SECURITY DENY: shell metacharacters in shell.run_safe: {}", cmd);
+                anyhow::bail!(
+                    "SECURITY DENY: shell metacharacters in shell.run_safe: {}",
+                    cmd
+                );
             }
         }
     }
@@ -222,7 +232,10 @@ mod tests {
 
     #[test]
     fn test_shell_metachar_denied() {
-        let result = validate_tool("shell.run_safe", &serde_json::json!({"cmd": "ls | grep foo"}));
+        let result = validate_tool(
+            "shell.run_safe",
+            &serde_json::json!({"cmd": "ls | grep foo"}),
+        );
         assert!(result.is_err());
     }
 }

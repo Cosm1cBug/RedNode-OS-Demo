@@ -1,9 +1,9 @@
-use anyhow::{Result, bail, Context};
-use serde::{Deserialize, Serialize};
-use tokio::time::{timeout, Duration};
-use tokio::process::Command;
+use anyhow::{bail, Context, Result};
 use futures::StreamExt;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
+use tokio::process::Command;
+use tokio::time::{timeout, Duration};
 
 #[derive(Debug, Deserialize)]
 pub struct ExecRequest {
@@ -16,7 +16,9 @@ pub struct ExecRequest {
     #[serde(default)]
     pub session_id: String,
 }
-fn default_actor() -> String { "agent".into() }
+fn default_actor() -> String {
+    "agent".into()
+}
 
 #[derive(Serialize)]
 pub struct ExecResponse {
@@ -38,8 +40,16 @@ pub async fn execute(tool: &str, args: &serde_json::Value, actor: &str) -> Resul
     }
     let output = run_tool_sandboxed(tool, args).await?;
     let audit_id = crate::memory::audit_log(
-        actor, "tool_exec", Some(tool), args, &risk_str, true, &output
-    ).await.unwrap_or(0);
+        actor,
+        "tool_exec",
+        Some(tool),
+        args,
+        &risk_str,
+        true,
+        &output,
+    )
+    .await
+    .unwrap_or(0);
     tracing::info!(tool, actor, audit_id, "executed");
     Ok((output, audit_id))
 }
@@ -47,13 +57,26 @@ pub async fn execute(tool: &str, args: &serde_json::Value, actor: &str) -> Resul
 // --- Sandbox Detection ---
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum SandboxEngine { Firejail, Bubblewrap, Unshare, None }
+enum SandboxEngine {
+    Firejail,
+    Bubblewrap,
+    Unshare,
+    None,
+}
 
 fn detect_sandbox() -> SandboxEngine {
-    if Path::new("/usr/bin/firejail").exists() { return SandboxEngine::Firejail; }
-    if Path::new("/usr/bin/bwrap").exists() { return SandboxEngine::Bubblewrap; }
+    if Path::new("/usr/bin/firejail").exists() {
+        return SandboxEngine::Firejail;
+    }
+    if Path::new("/usr/bin/bwrap").exists() {
+        return SandboxEngine::Bubblewrap;
+    }
     // check unshare
-    if std::process::Command::new("unshare").arg("--help").output().is_ok() {
+    if std::process::Command::new("unshare")
+        .arg("--help")
+        .output()
+        .is_ok()
+    {
         return SandboxEngine::Unshare;
     }
     SandboxEngine::None
@@ -67,19 +90,30 @@ async fn run_tool_sandboxed(tool: &str, args: &serde_json::Value) -> Result<Stri
         "fs.read" => {
             let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("/tmp");
             // Strict path validation – prevent traversal, restrict to safe roots
-            let allowed_prefixes = ["/tmp/", "/var/tmp/", "/home/", "/etc/hostname", "/proc/version"];
+            let allowed_prefixes = [
+                "/tmp/",
+                "/var/tmp/",
+                "/home/",
+                "/etc/hostname",
+                "/proc/version",
+            ];
             let is_allowed = allowed_prefixes.iter().any(|p| path.starts_with(p)) || path == "/tmp";
             if !is_allowed && !path.starts_with("/tmp/") {
                 // For production: only allow /tmp and explicitly whitelisted
                 // In dev: allow read but log
-                tracing::warn!(path, "fs.read outside /tmp – allowed in dev mode, deny in prod");
+                tracing::warn!(
+                    path,
+                    "fs.read outside /tmp – allowed in dev mode, deny in prod"
+                );
             }
-            if path.contains("..") { bail!("path traversal denied"); }
+            if path.contains("..") {
+                bail!("path traversal denied");
+            }
             match tokio::fs::read_to_string(path).await {
                 Ok(s) => Ok(s.chars().take(8000).collect()),
                 Err(e) => Ok(format!("fs.read: {} – path={}", e, path)),
             }
-        },
+        }
         // All other tools go through sandboxed subprocess
         _ => {
             let (cmd, cmd_args) = tool_to_command(tool, args)?;
@@ -93,23 +127,45 @@ async fn run_tool_sandboxed(tool: &str, args: &serde_json::Value) -> Result<Stri
 fn tool_to_command(tool: &str, args: &serde_json::Value) -> Result<(String, Vec<String>)> {
     Ok(match tool {
         "process.list" => ("ps".into(), vec!["aux".into(), "--sort=-%cpu".into()]),
-        "docker.ps" => ("docker".into(), vec!["ps".into(), "--format".into(), "table {{.ID}}\t{{.Image}}\t{{.Status}}".into()]),
+        "docker.ps" => (
+            "docker".into(),
+            vec![
+                "ps".into(),
+                "--format".into(),
+                "table {{.ID}}\t{{.Image}}\t{{.Status}}".into(),
+            ],
+        ),
         "net.status" => ("ss".into(), vec!["-tuln".into()]),
         "service.status" => {
-            let svc = args.get("service").and_then(|v| v.as_str()).unwrap_or("rednode-core");
+            let svc = args
+                .get("service")
+                .and_then(|v| v.as_str())
+                .unwrap_or("rednode-core");
             // sanitize service name – alphanumeric, dash, dot only
-            if !svc.chars().all(|c| c.is_alphanumeric() || "-_.".contains(c)) {
+            if !svc
+                .chars()
+                .all(|c| c.is_alphanumeric() || "-_.".contains(c))
+            {
                 bail!("invalid service name");
             }
             ("systemctl".into(), vec!["is-active".into(), svc.into()])
-        },
+        }
         "shell.run_safe" => {
             let cmd_str = args.get("cmd").and_then(|v| v.as_str()).unwrap_or("");
             // Strict allowlist – no pipes, no redirects, no subshells
             let allow = [
-                "ls", "ps", "df", "uptime", "whoami", "pwd",
-                "free", "uname", "date", "id",
-                "docker ps", "git status"
+                "ls",
+                "ps",
+                "df",
+                "uptime",
+                "whoami",
+                "pwd",
+                "free",
+                "uname",
+                "date",
+                "id",
+                "docker ps",
+                "git status",
             ];
             let mut allowed = false;
             for a in allow {
@@ -127,21 +183,49 @@ fn tool_to_command(tool: &str, args: &serde_json::Value) -> Result<(String, Vec<
             }
             // Split safely – no shell
             let parts: Vec<String> = cmd_str.split_whitespace().map(|s| s.to_string()).collect();
-            if parts.is_empty() { bail!("empty cmd") }
+            if parts.is_empty() {
+                bail!("empty cmd")
+            }
             let bin = parts[0].clone();
             let rest = parts[1..].to_vec();
             return Ok((bin, rest));
-        },
+        }
         // Security tools – wrapped
-        "sec.triage" => ("journalctl".into(), vec!["-p".into(), "warning".into(), "-n".into(), "50".into(), "--no-pager".into()]),
+        "sec.triage" => (
+            "journalctl".into(),
+            vec![
+                "-p".into(),
+                "warning".into(),
+                "-n".into(),
+                "50".into(),
+                "--no-pager".into(),
+            ],
+        ),
         "sec.cve_check" => ("true".into(), vec![]), // handled in Security Agent TS – return stub here
-        "sec.yara" => ("yara".into(), vec!["-r".into(), "/var/lib/rednode/yara/rules".into(), "/tmp".into()]),
+        "sec.yara" => (
+            "yara".into(),
+            vec![
+                "-r".into(),
+                "/var/lib/rednode/yara/rules".into(),
+                "/tmp".into(),
+            ],
+        ),
         // Coding tools
         "code.test" => ("cargo".into(), vec!["test".into(), "--quiet".into()]),
         // Research tools – no direct OS command – handled in agent
-        "research.query" | "kb.query" => return Ok(format!("Research query: {} – use RAG pipeline", args.get("query").and_then(|v| v.as_str()).unwrap_or(""))),
-        "code.analyze" => return Ok("Code analysis: 0 errors, 2 warnings – clippy clean (simulated)".into()),
-        _ => bail!("tool denied by policy or not implemented in executor: {}", tool),
+        "research.query" | "kb.query" => {
+            return Ok(format!(
+                "Research query: {} – use RAG pipeline",
+                args.get("query").and_then(|v| v.as_str()).unwrap_or("")
+            ))
+        }
+        "code.analyze" => {
+            return Ok("Code analysis: 0 errors, 2 warnings – clippy clean (simulated)".into())
+        }
+        _ => bail!(
+            "tool denied by policy or not implemented in executor: {}",
+            tool
+        ),
     })
 }
 
@@ -183,7 +267,7 @@ fn build_firejail_cmd(cmd: &str, args: &[String], tool: &str) -> Result<(String,
         "--nonewprivs".to_string(),
         // Resource limits
         "--rlimit-cpu=5".to_string(),
-        "--rlimit-as=536870912".to_string(), // 512 MB
+        "--rlimit-as=536870912".to_string(),   // 512 MB
         "--rlimit-fsize=10485760".to_string(), // 10 MB
         "--rlimit-nproc=32".to_string(),
         "--timeout=00:00:05".to_string(),
@@ -203,7 +287,7 @@ fn build_firejail_cmd(cmd: &str, args: &[String], tool: &str) -> Result<(String,
     // Final command
     fj_args.push(cmd.to_string());
     fj_args.extend_from_slice(args);
-    
+
     Ok(("/usr/bin/firejail".to_string(), fj_args))
 }
 
@@ -215,18 +299,33 @@ fn build_bwrap_cmd(cmd: &str, args: &[String]) -> Result<(String, Vec<String>)> 
         "--die-with-parent".to_string(),
         "--as-pid-1".to_string(),
         // RO root
-        "--ro-bind".to_string(), "/usr".to_string(), "/usr".to_string(),
-        "--ro-bind".to_string(), "/bin".to_string(), "/bin".to_string(),
-        "--ro-bind".to_string(), "/lib".to_string(), "/lib".to_string(),
-        "--ro-bind".to_string(), "/lib64".to_string(), "/lib64".to_string(),
+        "--ro-bind".to_string(),
+        "/usr".to_string(),
+        "/usr".to_string(),
+        "--ro-bind".to_string(),
+        "/bin".to_string(),
+        "/bin".to_string(),
+        "--ro-bind".to_string(),
+        "/lib".to_string(),
+        "/lib".to_string(),
+        "--ro-bind".to_string(),
+        "/lib64".to_string(),
+        "/lib64".to_string(),
         // tmp
-        "--tmpfs".to_string(), "/tmp".to_string(),
-        "--proc".to_string(), "/proc".to_string(),
-        "--dev".to_string(), "/dev".to_string(),
-        "--chdir".to_string(), "/tmp".to_string(),
+        "--tmpfs".to_string(),
+        "/tmp".to_string(),
+        "--proc".to_string(),
+        "/proc".to_string(),
+        "--dev".to_string(),
+        "/dev".to_string(),
+        "--chdir".to_string(),
+        "/tmp".to_string(),
         // env
-        "--setenv".to_string(), "PATH".to_string(), "/usr/bin:/bin".to_string(),
-        "--unsetenv".to_string(), "LD_PRELOAD".to_string(),
+        "--setenv".to_string(),
+        "PATH".to_string(),
+        "/usr/bin:/bin".to_string(),
+        "--unsetenv".to_string(),
+        "LD_PRELOAD".to_string(),
         // seccomp – use external filter if available
         // "--seccomp".to_string(), "11".to_string(), // fd 11 – advanced, skip for Phase 1
     ];
@@ -259,7 +358,12 @@ fn build_unshare_cmd(cmd: &str, args: &[String]) -> Result<(String, Vec<String>)
     Ok(("/usr/bin/unshare".to_string(), uargs))
 }
 
-async fn run_cmd_timeout_sandboxed(bin: &str, args: &[String], secs: u64, mem_mb: u64) -> Result<String> {
+async fn run_cmd_timeout_sandboxed(
+    bin: &str,
+    args: &[String],
+    secs: u64,
+    mem_mb: u64,
+) -> Result<String> {
     use tokio::process::Command;
     let mut c = Command::new(bin);
     c.args(args);
@@ -272,7 +376,7 @@ async fn run_cmd_timeout_sandboxed(bin: &str, args: &[String], secs: u64, mem_mb
     // Stdio
     c.stdout(std::process::Stdio::piped());
     c.stderr(std::process::Stdio::piped());
-    
+
     let fut = c.output();
     let output = match timeout(Duration::from_secs(secs), fut).await {
         Ok(Ok(o)) => o,
@@ -310,15 +414,24 @@ pub async fn start_nats_executor() -> Result<()> {
     tokio::time::sleep(Duration::from_millis(500)).await;
     let nats_client = match crate::bus::get_client() {
         Some(c) => c,
-        None => { tracing::warn!("Tool Executor NATS service disabled – no NATS"); return Ok(()); }
+        None => {
+            tracing::warn!("Tool Executor NATS service disabled – no NATS");
+            return Ok(());
+        }
     };
     let engine = detect_sandbox();
     let engine_name = format!("{:?}", engine).to_lowercase();
-    tracing::info!(?engine, "Tool Executor NATS service listening on rednode.tool.exec – sandbox={:?}", engine);
+    tracing::info!(
+        ?engine,
+        "Tool Executor NATS service listening on rednode.tool.exec – sandbox={:?}",
+        engine
+    );
     if engine == SandboxEngine::None {
         tracing::warn!("⚠️  NO SANDBOX ENGINE FOUND – install firejail or bubblewrap for production! – apt install firejail / nix-env -i bubblewrap");
     }
-    let mut sub = nats_client.subscribe("rednode.tool.exec".to_string()).await?;
+    let mut sub = nats_client
+        .subscribe("rednode.tool.exec".to_string())
+        .await?;
     tokio::spawn(async move {
         while let Some(msg) = sub.next().await {
             let nc = nats_client.clone();
@@ -327,8 +440,13 @@ pub async fn start_nats_executor() -> Result<()> {
                 let resp = match serde_json::from_slice::<ExecRequest>(&msg.payload) {
                     Ok(req) => {
                         let tool = req.tool.clone();
-                        let actor = if req.actor.is_empty() { req.agent.clone() } else { req.actor.clone() };
-                        let risk_str = format!("{:?}", crate::security::assess_risk(&tool)).to_lowercase();
+                        let actor = if req.actor.is_empty() {
+                            req.agent.clone()
+                        } else {
+                            req.actor.clone()
+                        };
+                        let risk_str =
+                            format!("{:?}", crate::security::assess_risk(&tool)).to_lowercase();
                         match execute(&req.tool, &req.args, &actor).await {
                             Ok((stdout, audit_id)) => ExecResponse {
                                 ok: true,
@@ -343,9 +461,16 @@ pub async fn start_nats_executor() -> Result<()> {
                             Err(e) => {
                                 // Audit failed executions too
                                 let audit_id = crate::memory::audit_log(
-                                    &actor, "tool_exec_failed", Some(&tool), &req.args,
-                                    "unknown", false, &e.to_string()
-                                ).await.unwrap_or(0);
+                                    &actor,
+                                    "tool_exec_failed",
+                                    Some(&tool),
+                                    &req.args,
+                                    "unknown",
+                                    false,
+                                    &e.to_string(),
+                                )
+                                .await
+                                .unwrap_or(0);
                                 ExecResponse {
                                     ok: false,
                                     tool,
@@ -358,7 +483,7 @@ pub async fn start_nats_executor() -> Result<()> {
                                 }
                             }
                         }
-                    },
+                    }
                     Err(e) => ExecResponse {
                         ok: false,
                         tool: "unknown".into(),
@@ -368,10 +493,12 @@ pub async fn start_nats_executor() -> Result<()> {
                         risk: "unknown".into(),
                         audit_id: 0,
                         sandbox: "none".into(),
-                    }
+                    },
                 };
                 if let Some(reply) = msg.reply {
-                    let _ = nc.publish(reply, serde_json::to_vec(&resp).unwrap().into()).await;
+                    let _ = nc
+                        .publish(reply, serde_json::to_vec(&resp).unwrap().into())
+                        .await;
                 }
             });
         }

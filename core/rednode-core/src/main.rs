@@ -1,6 +1,6 @@
 use rednode_core::{api, bus, events, executor, memory, sentience};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use std::net::SocketAddr;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -29,9 +29,8 @@ async fn main() -> anyhow::Result<()> {
 
     // ── 5. Sentience Engine – self-aware loop ──
     if std::env::var("REDNODE_SENTIENCE").unwrap_or_else(|_| "on".into()) != "off" {
-        let node_id = std::env::var("REDNODE_NODE_ID").unwrap_or_else(|_| {
-            gethostname::gethostname().to_string_lossy().into_owned()
-        });
+        let node_id = std::env::var("REDNODE_NODE_ID")
+            .unwrap_or_else(|_| gethostname::gethostname().to_string_lossy().into_owned());
         let _sentience = sentience::init(node_id).await;
         tracing::info!(
             "Sentience Engine online – self-model / drives / goal generator / memory consolidation"

@@ -1,5 +1,8 @@
 use axum::{
-    extract::{ws::{WebSocket, WebSocketUpgrade}, Path, Query},
+    extract::{
+        ws::{WebSocket, WebSocketUpgrade},
+        Path, Query,
+    },
     response::Response,
     routing::{get, post},
     Json, Router,
@@ -53,8 +56,12 @@ async fn intent_handler(Json(req): Json<IntentRequest>) -> Json<IntentResponse> 
     for r in &results {
         let tool = r.get("tool").and_then(|v| v.as_str()).unwrap_or("-");
         let agent = r.get("agent").and_then(|v| v.as_str()).unwrap_or("-");
-        let status = r.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
-        let audit_id = r.get("result")
+        let status = r
+            .get("status")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+        let audit_id = r
+            .get("result")
             .and_then(|v| v.get("audit_id"))
             .and_then(|v| v.as_i64());
         crate::events::emit_tool_result(tool, agent, status, audit_id);
@@ -206,7 +213,9 @@ async fn memory_query(Query(params): Query<HashMap<String, String>>) -> Json<ser
         .unwrap_or(5);
     match crate::memory::rag_query(&q, limit).await {
         Ok(results) => Json(serde_json::json!({ "ok": true, "query": q, "results": results })),
-        Err(e) => Json(serde_json::json!({ "ok": false, "query": q, "error": e.to_string(), "results": [] })),
+        Err(e) => Json(
+            serde_json::json!({ "ok": false, "query": q, "error": e.to_string(), "results": [] }),
+        ),
     }
 }
 
@@ -301,10 +310,18 @@ async fn sentience_status() -> Json<serde_json::Value> {
 
 // ─── Knowledge Graph ───
 
-async fn kg_query_handler(Query(params): Query<HashMap<String, String>>) -> Json<serde_json::Value> {
-    let q = params.get("q").or(params.get("cypher")).cloned().unwrap_or_default();
+async fn kg_query_handler(
+    Query(params): Query<HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let q = params
+        .get("q")
+        .or(params.get("cypher"))
+        .cloned()
+        .unwrap_or_default();
     if q.is_empty() {
-        return Json(serde_json::json!({"ok": false, "error": "Missing 'q' or 'cypher' query parameter"}));
+        return Json(
+            serde_json::json!({"ok": false, "error": "Missing 'q' or 'cypher' query parameter"}),
+        );
     }
     match crate::memory::kg_query(&q) {
         Ok(results) => Json(serde_json::json!({"ok": true, "query": q, "results": results})),
@@ -335,7 +352,9 @@ async fn kg_add_entity_handler(Json(body): Json<KgEntityBody>) -> Json<serde_jso
     for rel in &body.relationships {
         let _ = crate::memory::kg_add_rel(&body.name, &rel.to, &rel.relation);
     }
-    Json(serde_json::json!({"ok": true, "entity": body.name, "kind": body.kind, "relationships": body.relationships.len()}))
+    Json(
+        serde_json::json!({"ok": true, "entity": body.name, "kind": body.kind, "relationships": body.relationships.len()}),
+    )
 }
 
 // ─── Tool Evolution ───

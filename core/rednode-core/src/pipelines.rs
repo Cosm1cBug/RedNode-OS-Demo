@@ -34,7 +34,10 @@ pub enum PipelineTrigger {
     /// Run on a cron schedule (e.g., "0 7 * * *" = daily 7 AM)
     Cron(String),
     /// Run when an event matching this pattern arrives on NATS
-    Event { subject: String, filter: Option<String> },
+    Event {
+        subject: String,
+        filter: Option<String>,
+    },
     /// Run when a Sentience drive drops below threshold
     DriveBelow { drive: String, threshold: f32 },
     /// Run manually via API or intent
@@ -134,64 +137,188 @@ pub fn builtin_pipelines() -> Vec<Pipeline> {
                     condition: None,
                 },
             ],
-            on_failure: FailureAction::Notify { message: "Threat response pipeline failed — manual review needed".into() },
+            on_failure: FailureAction::Notify {
+                message: "Threat response pipeline failed — manual review needed".into(),
+            },
             enabled: true,
         },
-
         // ── 2. Morning Briefing Pipeline ──
         Pipeline {
             name: "morning_briefing".into(),
             description: "Daily morning brief: weather, cameras, email, calendar, health".into(),
             trigger: PipelineTrigger::Cron("30 7 * * *".into()), // 7:30 AM daily
             steps: vec![
-                PipelineStep { id: "weather".into(), tool: "research.weather".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "news".into(), tool: "research.news".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "health".into(), tool: "service.status".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "cameras".into(), tool: "cam.events".into(), args: serde_json::json!({"period": "overnight"}), continue_on_error: true, condition: None },
-                PipelineStep { id: "security".into(), tool: "sec.triage".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "dns".into(), tool: "pihole.stats".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "storage".into(), tool: "nas.health".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "email".into(), tool: "email.triage".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "calendar".into(), tool: "calendar.view".into(), args: serde_json::json!({"period": "today"}), continue_on_error: true, condition: None },
-                PipelineStep { id: "tasks".into(), tool: "tasks.list".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "rss".into(), tool: "rss.digest".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "notify".into(), tool: "signal.send".into(), args: serde_json::json!({"message": "compile_briefing"}), continue_on_error: true, condition: None },
+                PipelineStep {
+                    id: "weather".into(),
+                    tool: "research.weather".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "news".into(),
+                    tool: "research.news".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "health".into(),
+                    tool: "service.status".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "cameras".into(),
+                    tool: "cam.events".into(),
+                    args: serde_json::json!({"period": "overnight"}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "security".into(),
+                    tool: "sec.triage".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "dns".into(),
+                    tool: "pihole.stats".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "storage".into(),
+                    tool: "nas.health".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "email".into(),
+                    tool: "email.triage".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "calendar".into(),
+                    tool: "calendar.view".into(),
+                    args: serde_json::json!({"period": "today"}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "tasks".into(),
+                    tool: "tasks.list".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "rss".into(),
+                    tool: "rss.digest".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "notify".into(),
+                    tool: "signal.send".into(),
+                    args: serde_json::json!({"message": "compile_briefing"}),
+                    continue_on_error: true,
+                    condition: None,
+                },
             ],
             on_failure: FailureAction::Continue,
             enabled: true,
         },
-
         // ── 3. Predictive Maintenance Pipeline ──
         Pipeline {
             name: "predictive_maintenance".into(),
             description: "Collect hardware metrics, detect trends, predict failures".into(),
             trigger: PipelineTrigger::Cron("0 3 * * *".into()), // 3 AM daily
             steps: vec![
-                PipelineStep { id: "smart".into(), tool: "nas.smart".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "disks".into(), tool: "nas.disks".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "pools".into(), tool: "nas.pools".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "predict".into(), tool: "predict.maintenance".into(), args: serde_json::json!({"data": "$smart.output"}), continue_on_error: false, condition: None },
-                PipelineStep { id: "alert".into(), tool: "signal.send".into(), args: serde_json::json!({"message": "$predict.alerts"}), continue_on_error: true, condition: Some("$predict.has_alerts == true".into()) },
+                PipelineStep {
+                    id: "smart".into(),
+                    tool: "nas.smart".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "disks".into(),
+                    tool: "nas.disks".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "pools".into(),
+                    tool: "nas.pools".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "predict".into(),
+                    tool: "predict.maintenance".into(),
+                    args: serde_json::json!({"data": "$smart.output"}),
+                    continue_on_error: false,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "alert".into(),
+                    tool: "signal.send".into(),
+                    args: serde_json::json!({"message": "$predict.alerts"}),
+                    continue_on_error: true,
+                    condition: Some("$predict.has_alerts == true".into()),
+                },
             ],
             on_failure: FailureAction::Continue,
             enabled: true,
         },
-
         // ── 4. Presence Detection Pipeline ──
         Pipeline {
             name: "presence_detection".into(),
             description: "Determine occupancy from cameras + network + phone presence".into(),
             trigger: PipelineTrigger::Interval(300), // every 5 minutes
             steps: vec![
-                PipelineStep { id: "camera_people".into(), tool: "cam.person_detect".into(), args: serde_json::json!({"period": "5m"}), continue_on_error: true, condition: None },
-                PipelineStep { id: "network_devices".into(), tool: "net.devices".into(), args: serde_json::json!({}), continue_on_error: true, condition: None },
-                PipelineStep { id: "evaluate".into(), tool: "presence.evaluate".into(), args: serde_json::json!({"cameras": "$camera_people", "network": "$network_devices"}), continue_on_error: false, condition: None },
-                PipelineStep { id: "automate".into(), tool: "home.scenes".into(), args: serde_json::json!({"scene": "$evaluate.recommended_scene"}), continue_on_error: true, condition: Some("$evaluate.changed == true".into()) },
+                PipelineStep {
+                    id: "camera_people".into(),
+                    tool: "cam.person_detect".into(),
+                    args: serde_json::json!({"period": "5m"}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "network_devices".into(),
+                    tool: "net.devices".into(),
+                    args: serde_json::json!({}),
+                    continue_on_error: true,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "evaluate".into(),
+                    tool: "presence.evaluate".into(),
+                    args: serde_json::json!({"cameras": "$camera_people", "network": "$network_devices"}),
+                    continue_on_error: false,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "automate".into(),
+                    tool: "home.scenes".into(),
+                    args: serde_json::json!({"scene": "$evaluate.recommended_scene"}),
+                    continue_on_error: true,
+                    condition: Some("$evaluate.changed == true".into()),
+                },
             ],
             on_failure: FailureAction::Continue,
             enabled: false, // user enables after connecting HA
         },
-
         // ── 5. IDS Response Pipeline ──
         Pipeline {
             name: "ids_response".into(),
@@ -201,12 +328,38 @@ pub fn builtin_pipelines() -> Vec<Pipeline> {
                 filter: Some("severity >= high".into()),
             },
             steps: vec![
-                PipelineStep { id: "analyze".into(), tool: "sec.triage".into(), args: serde_json::json!({"alert": "$event"}), continue_on_error: false, condition: None },
-                PipelineStep { id: "block".into(), tool: "fw.block_ip".into(), args: serde_json::json!({"ip": "$event.src_ip", "reason": "IDS alert: $event.signature"}), continue_on_error: true, condition: Some("$analyze.action == 'block'".into()) },
-                PipelineStep { id: "isolate".into(), tool: "fw.isolate_device".into(), args: serde_json::json!({"ip": "$event.dst_ip"}), continue_on_error: true, condition: Some("$analyze.action == 'isolate'".into()) },
-                PipelineStep { id: "notify".into(), tool: "signal.send".into(), args: serde_json::json!({"message": "🛡️ IDS: $event.signature — $analyze.action taken"}), continue_on_error: true, condition: None },
+                PipelineStep {
+                    id: "analyze".into(),
+                    tool: "sec.triage".into(),
+                    args: serde_json::json!({"alert": "$event"}),
+                    continue_on_error: false,
+                    condition: None,
+                },
+                PipelineStep {
+                    id: "block".into(),
+                    tool: "fw.block_ip".into(),
+                    args: serde_json::json!({"ip": "$event.src_ip", "reason": "IDS alert: $event.signature"}),
+                    continue_on_error: true,
+                    condition: Some("$analyze.action == 'block'".into()),
+                },
+                PipelineStep {
+                    id: "isolate".into(),
+                    tool: "fw.isolate_device".into(),
+                    args: serde_json::json!({"ip": "$event.dst_ip"}),
+                    continue_on_error: true,
+                    condition: Some("$analyze.action == 'isolate'".into()),
+                },
+                PipelineStep {
+                    id: "notify".into(),
+                    tool: "signal.send".into(),
+                    args: serde_json::json!({"message": "🛡️ IDS: $event.signature — $analyze.action taken"}),
+                    continue_on_error: true,
+                    condition: None,
+                },
             ],
-            on_failure: FailureAction::Notify { message: "IDS response pipeline failed".into() },
+            on_failure: FailureAction::Notify {
+                message: "IDS response pipeline failed".into(),
+            },
             enabled: true,
         },
     ]
@@ -241,15 +394,21 @@ pub async fn execute_pipeline(pipeline: &Pipeline) -> PipelineResult {
 
         // Execute via coordinator
         let (ok, errs) = crate::coordinator::coordinate(
-            &format!("pipeline:{} tool:{} args:{}", pipeline.name, step.tool, resolved_args),
+            &format!(
+                "pipeline:{} tool:{} args:{}",
+                pipeline.name, step.tool, resolved_args
+            ),
             &format!("pipeline-{}", pipeline.name),
-        ).await;
+        )
+        .await;
 
         let success = errs.is_empty();
         let output = if !ok.is_empty() {
             ok.into_iter().next().unwrap_or(serde_json::json!({}))
         } else if !errs.is_empty() {
-            errs.into_iter().next().unwrap_or(serde_json::json!({"error": "unknown"}))
+            errs.into_iter()
+                .next()
+                .unwrap_or(serde_json::json!({"error": "unknown"}))
         } else {
             serde_json::json!({})
         };
@@ -292,7 +451,9 @@ pub async fn execute_pipeline(pipeline: &Pipeline) -> PipelineResult {
 fn evaluate_condition(cond: &str, outputs: &HashMap<String, serde_json::Value>) -> bool {
     // Parse: "$step.field op value"
     let parts: Vec<&str> = cond.splitn(3, ' ').collect();
-    if parts.len() < 3 { return true; } // malformed → run anyway
+    if parts.len() < 3 {
+        return true;
+    } // malformed → run anyway
 
     let path = parts[0];
     let op = parts[1];
@@ -302,19 +463,29 @@ fn evaluate_condition(cond: &str, outputs: &HashMap<String, serde_json::Value>) 
     if let Some(val) = resolve_path(path, outputs) {
         match op {
             "==" => {
-                if expected == "true" { return val.as_bool().unwrap_or(false); }
-                if expected == "false" { return !val.as_bool().unwrap_or(true); }
-                if expected == "null" { return val.is_null(); }
+                if expected == "true" {
+                    return val.as_bool().unwrap_or(false);
+                }
+                if expected == "false" {
+                    return !val.as_bool().unwrap_or(true);
+                }
+                if expected == "null" {
+                    return val.is_null();
+                }
                 val.as_str().map(|s| s == expected).unwrap_or(false)
             }
             "!=" => {
-                if expected == "null" { return !val.is_null(); }
+                if expected == "null" {
+                    return !val.is_null();
+                }
                 val.as_str().map(|s| s != expected).unwrap_or(true)
             }
             ">=" => {
                 if let (Some(a), Ok(b)) = (val.as_f64(), expected.parse::<f64>()) {
                     a >= b
-                } else { false }
+                } else {
+                    false
+                }
             }
             _ => true,
         }
@@ -324,8 +495,13 @@ fn evaluate_condition(cond: &str, outputs: &HashMap<String, serde_json::Value>) 
 }
 
 /// Resolve a $step.field path to a JSON value
-fn resolve_path(path: &str, outputs: &HashMap<String, serde_json::Value>) -> Option<serde_json::Value> {
-    if !path.starts_with('$') { return None; }
+fn resolve_path(
+    path: &str,
+    outputs: &HashMap<String, serde_json::Value>,
+) -> Option<serde_json::Value> {
+    if !path.starts_with('$') {
+        return None;
+    }
     let path = &path[1..]; // strip $
     let parts: Vec<&str> = path.splitn(2, '.').collect();
     let step_id = parts[0];
@@ -340,7 +516,10 @@ fn resolve_path(path: &str, outputs: &HashMap<String, serde_json::Value>) -> Opt
 }
 
 /// Replace $step.field references in args with actual values
-fn resolve_variables(args: &serde_json::Value, outputs: &HashMap<String, serde_json::Value>) -> serde_json::Value {
+fn resolve_variables(
+    args: &serde_json::Value,
+    outputs: &HashMap<String, serde_json::Value>,
+) -> serde_json::Value {
     match args {
         serde_json::Value::String(s) => {
             if s.starts_with('$') {
@@ -397,7 +576,10 @@ mod tests {
     #[test]
     fn test_evaluate_condition_eq() {
         let mut outputs = HashMap::new();
-        outputs.insert("check".into(), serde_json::json!({"action": "block", "found": true}));
+        outputs.insert(
+            "check".into(),
+            serde_json::json!({"action": "block", "found": true}),
+        );
 
         assert!(evaluate_condition("$check.action == block", &outputs));
         assert!(!evaluate_condition("$check.action == allow", &outputs));
@@ -409,7 +591,10 @@ mod tests {
     #[test]
     fn test_resolve_variables() {
         let mut outputs = HashMap::new();
-        outputs.insert("step1".into(), serde_json::json!({"ip": "192.168.1.100", "count": 5}));
+        outputs.insert(
+            "step1".into(),
+            serde_json::json!({"ip": "192.168.1.100", "count": 5}),
+        );
 
         let args = serde_json::json!({"target": "$step1.ip", "msg": "Found $step1.count items"});
         let resolved = resolve_variables(&args, &outputs);

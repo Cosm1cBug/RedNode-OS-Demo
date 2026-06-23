@@ -5,7 +5,6 @@
 ///   - Enriches each intent with session context + RAG memory
 ///   - Resolves pronouns/references ("do that again", "on the same machine")
 ///   - Logs every intent for future pattern analysis
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -39,12 +38,18 @@ pub async fn handle_intent(
 
     // ── Step 3: Query RAG for relevant knowledge ──
     let rag_context = match crate::memory::rag_query(&resolved_intent, 3).await {
-        Ok(hits) => {
-            hits.iter()
-                .filter(|h| h.score > 0.6 && !h.metadata.get("fallback").and_then(|v| v.as_bool()).unwrap_or(false))
-                .map(|h| h.content.chars().take(200).collect::<String>())
-                .collect::<Vec<_>>()
-        }
+        Ok(hits) => hits
+            .iter()
+            .filter(|h| {
+                h.score > 0.6
+                    && !h
+                        .metadata
+                        .get("fallback")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+            })
+            .map(|h| h.content.chars().take(200).collect::<String>())
+            .collect::<Vec<_>>(),
         Err(_) => vec![],
     };
 
@@ -53,7 +58,8 @@ pub async fn handle_intent(
 
     // Add session history (last 3 turns)
     if !session_context.is_empty() {
-        let history: Vec<String> = session_context.iter()
+        let history: Vec<String> = session_context
+            .iter()
             .rev()
             .take(3)
             .rev()
@@ -70,7 +76,11 @@ pub async fn handle_intent(
     let enriched_intent = if context_parts.is_empty() {
         resolved_intent.clone()
     } else {
-        format!("{}\n\n[Context:\n{}]", resolved_intent, context_parts.join("\n"))
+        format!(
+            "{}\n\n[Context:\n{}]",
+            resolved_intent,
+            context_parts.join("\n")
+        )
     };
 
     // ── Step 5: Execute via coordinator ──
@@ -107,7 +117,8 @@ async fn get_session_context(session: &str) -> Vec<ConversationTurn> {
     if let Some(turns) = sessions.get(session) {
         // Filter out expired turns
         let now = chrono::Utc::now();
-        turns.iter()
+        turns
+            .iter()
             .filter(|t| (now - t.ts).num_seconds() < SESSION_EXPIRY_SECS)
             .cloned()
             .collect()
@@ -138,7 +149,10 @@ async fn store_session_turn(session: &str, intent: &str, summary: &str) {
     if COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 100 == 0 {
         let now = chrono::Utc::now();
         sessions.retain(|_, turns| {
-            turns.last().map(|t| (now - t.ts).num_seconds() < SESSION_EXPIRY_SECS).unwrap_or(false)
+            turns
+                .last()
+                .map(|t| (now - t.ts).num_seconds() < SESSION_EXPIRY_SECS)
+                .unwrap_or(false)
         });
     }
 }
@@ -183,7 +197,8 @@ fn summarize_results(results: &[serde_json::Value]) -> String {
         return "no results".to_string();
     }
 
-    let parts: Vec<String> = results.iter()
+    let parts: Vec<String> = results
+        .iter()
         .map(|r| {
             let tool = r.get("tool").and_then(|v| v.as_str()).unwrap_or("-");
             let status = r.get("status").and_then(|v| v.as_str()).unwrap_or("?");

@@ -3,7 +3,7 @@
 // Requires: NATS, Postgres running – see docker-compose.yml
 // Tests gracefully skip if services unavailable – CI friendly
 
-use rednode_core::{events, security, memory, planner, bus};
+use rednode_core::{bus, events, memory, planner, security};
 
 // ═══════════════════════════════════════════════
 // Security Module Tests
@@ -29,7 +29,10 @@ async fn test_security_validator_deny_list() {
             args_json
         );
     }
-    println!("✓ security validator – {} deny patterns enforced", dangerous.len());
+    println!(
+        "✓ security validator – {} deny patterns enforced",
+        dangerous.len()
+    );
 }
 
 #[tokio::test]
@@ -62,30 +65,62 @@ async fn test_security_shell_metachar_denied() {
     for cmd in &dangerous_cmds {
         let args = serde_json::json!({"cmd": cmd});
         let res = security::validate_tool("shell.run_safe", &args);
-        assert!(
-            res.is_err(),
-            "shell metachar should be denied: {}",
-            cmd
-        );
+        assert!(res.is_err(), "shell metachar should be denied: {}", cmd);
     }
-    println!("✓ shell metacharacter injection prevented — {} patterns blocked", dangerous_cmds.len());
+    println!(
+        "✓ shell metacharacter injection prevented — {} patterns blocked",
+        dangerous_cmds.len()
+    );
 }
 
 #[tokio::test]
 async fn test_security_risk_levels() {
-    assert!(matches!(security::assess_risk("fs.read"), security::Risk::Low));
-    assert!(matches!(security::assess_risk("shell.run_safe"), security::Risk::Medium));
-    assert!(matches!(security::assess_risk("sec.harden_ssh"), security::Risk::High));
-    assert!(matches!(security::assess_risk("unknown_tool"), security::Risk::Critical));
+    assert!(matches!(
+        security::assess_risk("fs.read"),
+        security::Risk::Low
+    ));
+    assert!(matches!(
+        security::assess_risk("shell.run_safe"),
+        security::Risk::Medium
+    ));
+    assert!(matches!(
+        security::assess_risk("sec.harden_ssh"),
+        security::Risk::High
+    ));
+    assert!(matches!(
+        security::assess_risk("unknown_tool"),
+        security::Risk::Critical
+    ));
 
     // New infrastructure tools
-    assert!(matches!(security::assess_risk("pihole.stats"), security::Risk::Low));
-    assert!(matches!(security::assess_risk("pihole.disable"), security::Risk::Medium));
-    assert!(matches!(security::assess_risk("nas.health"), security::Risk::Low));
-    assert!(matches!(security::assess_risk("nas.snapshot_create"), security::Risk::Medium));
-    assert!(matches!(security::assess_risk("nas.snapshot_delete"), security::Risk::High));
-    assert!(matches!(security::assess_risk("cam.events"), security::Risk::Low));
-    assert!(matches!(security::assess_risk("cam.alert_config"), security::Risk::Medium));
+    assert!(matches!(
+        security::assess_risk("pihole.stats"),
+        security::Risk::Low
+    ));
+    assert!(matches!(
+        security::assess_risk("pihole.disable"),
+        security::Risk::Medium
+    ));
+    assert!(matches!(
+        security::assess_risk("nas.health"),
+        security::Risk::Low
+    ));
+    assert!(matches!(
+        security::assess_risk("nas.snapshot_create"),
+        security::Risk::Medium
+    ));
+    assert!(matches!(
+        security::assess_risk("nas.snapshot_delete"),
+        security::Risk::High
+    ));
+    assert!(matches!(
+        security::assess_risk("cam.events"),
+        security::Risk::Low
+    ));
+    assert!(matches!(
+        security::assess_risk("cam.alert_config"),
+        security::Risk::Medium
+    ));
 
     println!("✓ risk levels correct for all 63 tools");
 }
@@ -172,7 +207,10 @@ async fn test_event_bus_multiple_receivers() {
 async fn test_planner_keyword_fallback_ssh() {
     // When Ollama is not running, planner falls back to keywords
     let steps = planner::plan("harden ssh config").await;
-    assert!(steps.len() >= 1, "should produce at least 1 step for SSH hardening");
+    assert!(
+        steps.len() >= 1,
+        "should produce at least 1 step for SSH hardening"
+    );
     assert!(
         steps.iter().any(|s| s.tool.contains("ssh")),
         "should include an SSH-related tool"
@@ -235,15 +273,29 @@ async fn test_audit_log_hash_chain() {
     }
 
     let id1 = memory::audit_log(
-        "test", "tool_exec", Some("fs.read"),
-        &serde_json::json!({"path":"/tmp"}), "low", true, "ok",
-    ).await.unwrap();
+        "test",
+        "tool_exec",
+        Some("fs.read"),
+        &serde_json::json!({"path":"/tmp"}),
+        "low",
+        true,
+        "ok",
+    )
+    .await
+    .unwrap();
     assert!(id1 > 0);
 
     let id2 = memory::audit_log(
-        "test", "tool_exec", Some("process.list"),
-        &serde_json::json!({}), "low", true, "ok",
-    ).await.unwrap();
+        "test",
+        "tool_exec",
+        Some("process.list"),
+        &serde_json::json!({}),
+        "low",
+        true,
+        "ok",
+    )
+    .await
+    .unwrap();
     assert!(id2 > id1);
 
     let entries = memory::get_audit(2).await.unwrap();
@@ -279,7 +331,8 @@ async fn test_security_event_logging() {
         "test-suite",
         "Integration test security event",
         serde_json::json!({"test": true}),
-    ).await;
+    )
+    .await;
 
     if let Ok(id) = id {
         // Verify it appears in the list
@@ -308,7 +361,9 @@ async fn test_approval_workflow() {
         "high",
         Some("test intent"),
         Some("test-session"),
-    ).await.unwrap();
+    )
+    .await
+    .unwrap();
 
     // Should appear as pending
     let approvals = memory::list_approvals("pending").await.unwrap();
@@ -322,14 +377,20 @@ async fn test_approval_workflow() {
     let approvals_after = memory::list_approvals("pending").await.unwrap();
     assert!(!approvals_after.iter().any(|a| a.id == id));
 
-    println!("✓ approval workflow – create → list → approve → verified: {}", id);
+    println!(
+        "✓ approval workflow – create → list → approve → verified: {}",
+        id
+    );
 }
 
 #[tokio::test]
 async fn test_rag_query_fallback() {
     // RAG should always return results – even if Qdrant/Ollama are down
     let results = memory::rag_query("RedNode agents", 3).await.unwrap();
-    assert!(!results.is_empty(), "RAG must never return empty – fallback chain broken");
+    assert!(
+        !results.is_empty(),
+        "RAG must never return empty – fallback chain broken"
+    );
     assert!(!results[0].content.is_empty());
     println!(
         "✓ RAG query – {} hits – first source: {} (score: {:.2})",
@@ -348,10 +409,16 @@ async fn test_bus_connect_graceful() {
     // Bus should not panic if NATS is unavailable
     std::env::set_var("NATS_URL", "nats://127.0.0.1:19999"); // wrong port
     let result = bus::connect().await;
-    assert!(result.is_ok(), "bus::connect should not error — should degrade gracefully");
+    assert!(
+        result.is_ok(),
+        "bus::connect should not error — should degrade gracefully"
+    );
     // Client should be None
     let client = bus::get_client();
-    assert!(client.is_none(), "client should be None when NATS is unavailable");
+    assert!(
+        client.is_none(),
+        "client should be None when NATS is unavailable"
+    );
     println!("✓ bus graceful degradation — no NATS = no panic, local mode");
 }
 

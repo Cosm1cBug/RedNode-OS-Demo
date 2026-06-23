@@ -21,10 +21,10 @@ pub struct MemoryStatus {
 
 #[derive(Debug, Clone, Serialize)]
 pub enum PressureLevel {
-    Normal,    // < 70% RAM used
-    Elevated,  // 70-85% RAM used
-    High,      // 85-95% RAM used
-    Critical,  // > 95% RAM used
+    Normal,   // < 70% RAM used
+    Elevated, // 70-85% RAM used
+    High,     // 85-95% RAM used
+    Critical, // > 95% RAM used
 }
 
 impl std::fmt::Display for PressureLevel {
@@ -72,8 +72,10 @@ pub async fn optimize() -> MemoryStatus {
             if let Some(pool) = crate::memory::pool() {
                 let pruned = sqlx::query(
                     "DELETE FROM audit_log WHERE id IN (\
-                     SELECT id FROM audit_log ORDER BY ts ASC LIMIT 500)"
-                ).execute(pool).await;
+                     SELECT id FROM audit_log ORDER BY ts ASC LIMIT 500)",
+                )
+                .execute(pool)
+                .await;
                 if let Ok(r) = pruned {
                     let count = r.rows_affected();
                     if count > 0 {
@@ -85,8 +87,10 @@ pub async fn optimize() -> MemoryStatus {
                 let pruned_sec = sqlx::query(
                     "DELETE FROM security_events WHERE id IN (\
                      SELECT id FROM security_events WHERE acknowledged = true \
-                     ORDER BY ts ASC LIMIT 200)"
-                ).execute(pool).await;
+                     ORDER BY ts ASC LIMIT 200)",
+                )
+                .execute(pool)
+                .await;
                 if let Ok(r) = pruned_sec {
                     let count = r.rows_affected();
                     if count > 0 {
@@ -99,7 +103,10 @@ pub async fn optimize() -> MemoryStatus {
             crate::events::emit_security_event(
                 "CRITICAL",
                 "memory-optimizer",
-                &format!("Memory pressure CRITICAL: {}% used, {} MB available", used_pct as u32, available_mb),
+                &format!(
+                    "Memory pressure CRITICAL: {}% used, {} MB available",
+                    used_pct as u32, available_mb
+                ),
             );
         }
 
@@ -118,8 +125,10 @@ pub async fn optimize() -> MemoryStatus {
                      SELECT id FROM documents \
                      WHERE source LIKE 'sentience/%' \
                      ORDER BY created_at ASC \
-                     LIMIT 50)"
-                ).execute(pool).await;
+                     LIMIT 50)",
+                )
+                .execute(pool)
+                .await;
                 if let Ok(r) = pruned {
                     let count = r.rows_affected();
                     if count > 0 {
@@ -130,10 +139,7 @@ pub async fn optimize() -> MemoryStatus {
         }
 
         PressureLevel::Elevated => {
-            tracing::info!(
-                used_pct = used_pct,
-                "Elevated memory pressure — monitoring"
-            );
+            tracing::info!(used_pct = used_pct, "Elevated memory pressure — monitoring");
         }
 
         PressureLevel::Normal => {
@@ -176,14 +182,20 @@ fn get_memory_info() -> (u64, u64) {
 
         for line in content.lines() {
             if line.starts_with("MemTotal:") {
-                total = line.split_whitespace().nth(1)
+                total = line
+                    .split_whitespace()
+                    .nth(1)
                     .and_then(|v| v.parse::<u64>().ok())
-                    .unwrap_or(0) / 1024; // kB → MB
+                    .unwrap_or(0)
+                    / 1024; // kB → MB
             }
             if line.starts_with("MemAvailable:") {
-                available = line.split_whitespace().nth(1)
+                available = line
+                    .split_whitespace()
+                    .nth(1)
                     .and_then(|v| v.parse::<u64>().ok())
-                    .unwrap_or(0) / 1024; // kB → MB
+                    .unwrap_or(0)
+                    / 1024; // kB → MB
             }
         }
 

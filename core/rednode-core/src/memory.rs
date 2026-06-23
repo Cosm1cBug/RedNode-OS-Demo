@@ -4,7 +4,8 @@ use std::sync::OnceLock;
 static POOL: OnceLock<Option<PgPool>> = OnceLock::new();
 
 pub async fn init() -> Result<()> {
-    let url = std::env::var("DATABASE_URL").unwrap_or("postgres://rednode:rednode@127.0.0.1:5432/rednode".into());
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or("postgres://rednode:rednode@127.0.0.1:5432/rednode".into());
     match PgPool::connect(&url).await {
         Ok(pool) => {
             tracing::info!("Postgres connected");
@@ -22,8 +23,10 @@ pub async fn init() -> Result<()> {
                     result TEXT,
                     prev_hash TEXT,
                     hash TEXT
-                )"#
-            ).execute(&pool).await;
+                )"#,
+            )
+            .execute(&pool)
+            .await;
             let _ = sqlx::query(
                 r#"CREATE TABLE IF NOT EXISTS security_events (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -33,8 +36,10 @@ pub async fn init() -> Result<()> {
                     summary TEXT NOT NULL,
                     raw JSONB,
                     acknowledged BOOLEAN DEFAULT false
-                )"#
-            ).execute(&pool).await;
+                )"#,
+            )
+            .execute(&pool)
+            .await;
             let _ = sqlx::query(
                 r#"CREATE TABLE IF NOT EXISTS approvals (
                     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -46,11 +51,13 @@ pub async fn init() -> Result<()> {
                     status TEXT NOT NULL DEFAULT 'pending',
                     intent TEXT,
                     session_id TEXT
-                )"#
-            ).execute(&pool).await;
+                )"#,
+            )
+            .execute(&pool)
+            .await;
             POOL.set(Some(pool)).ok();
             Ok(())
-        },
+        }
         Err(e) => {
             tracing::warn!("Postgres unavailable (running without DB): {}", e);
             POOL.set(None).ok();
@@ -63,7 +70,7 @@ pub fn pool() -> Option<&'static PgPool> {
     POOL.get().and_then(|o| o.as_ref())
 }
 
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 pub async fn audit_log(
     actor: &str,
     action: &str,
@@ -78,8 +85,10 @@ pub async fn audit_log(
         return Ok(0);
     };
     // get prev_hash
-    let prev: Option<String> = sqlx::query_scalar("SELECT hash FROM audit_log ORDER BY id DESC LIMIT 1")
-        .fetch_optional(pool).await?;
+    let prev: Option<String> =
+        sqlx::query_scalar("SELECT hash FROM audit_log ORDER BY id DESC LIMIT 1")
+            .fetch_optional(pool)
+            .await?;
     let prev_hash = prev.unwrap_or_else(|| "genesis".into());
     // compute hash
     let mut hasher = Sha256::new();
@@ -90,10 +99,10 @@ pub async fn audit_log(
     hasher.update(args.to_string().as_bytes());
     hasher.update(risk.as_bytes());
     let hash = format!("{:x}", hasher.finalize());
-    
+
     let rec: (i64,) = sqlx::query_as(
         "INSERT INTO audit_log (actor, action, tool, args, risk, approved, result, prev_hash, hash)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id"
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id",
     )
     .bind(actor)
     .bind(action)
@@ -104,7 +113,8 @@ pub async fn audit_log(
     .bind(result)
     .bind(prev_hash)
     .bind(hash)
-    .fetch_one(pool).await?;
+    .fetch_one(pool)
+    .await?;
     Ok(rec.0)
 }
 
@@ -124,7 +134,9 @@ pub struct AuditEntry {
 }
 
 pub async fn get_audit(limit: i64) -> Result<Vec<AuditEntry>> {
-    let Some(pool) = pool() else { return Ok(vec![]) };
+    let Some(pool) = pool() else {
+        return Ok(vec![]);
+    };
     let rows = sqlx::query_as::<_, AuditEntry>(
         "SELECT id, ts, actor, action, tool, args, risk, approved, result, prev_hash, hash FROM audit_log ORDER BY id DESC LIMIT $1"
     ).bind(limit).fetch_all(pool).await?;
@@ -144,8 +156,17 @@ pub struct ApprovalRow {
     pub session_id: Option<String>,
 }
 
-pub async fn create_approval(actor: &str, tool: &str, args: &serde_json::Value, risk: &str, intent: Option<&str>, session_id: Option<&str>) -> Result<uuid::Uuid> {
-    let Some(pool) = pool() else { anyhow::bail!("no db") };
+pub async fn create_approval(
+    actor: &str,
+    tool: &str,
+    args: &serde_json::Value,
+    risk: &str,
+    intent: Option<&str>,
+    session_id: Option<&str>,
+) -> Result<uuid::Uuid> {
+    let Some(pool) = pool() else {
+        anyhow::bail!("no db")
+    };
     let rec: (uuid::Uuid,) = sqlx::query_as(
         "INSERT INTO approvals (actor, tool, args, risk, status, intent, session_id) VALUES ($1,$2,$3,$4,'pending',$5,$6) RETURNING id"
     )
@@ -155,7 +176,9 @@ pub async fn create_approval(actor: &str, tool: &str, args: &serde_json::Value, 
 }
 
 pub async fn list_approvals(status: &str) -> Result<Vec<ApprovalRow>> {
-    let Some(pool) = pool() else { return Ok(vec![]) };
+    let Some(pool) = pool() else {
+        return Ok(vec![]);
+    };
     let rows = sqlx::query_as::<_, ApprovalRow>(
         "SELECT id, ts, actor, tool, args, risk, status, intent, session_id FROM approvals WHERE status = $1 ORDER BY ts DESC LIMIT 100"
     ).bind(status).fetch_all(pool).await?;
@@ -163,10 +186,14 @@ pub async fn list_approvals(status: &str) -> Result<Vec<ApprovalRow>> {
 }
 
 pub async fn approve_id(id: uuid::Uuid, approved: bool) -> Result<bool> {
-    let Some(pool) = pool() else { anyhow::bail!("no db") };
+    let Some(pool) = pool() else {
+        anyhow::bail!("no db")
+    };
     let res = sqlx::query("UPDATE approvals SET status = $2 WHERE id = $1")
-        .bind(id).bind(if approved {"approved"} else {"denied"})
-        .execute(pool).await?;
+        .bind(id)
+        .bind(if approved { "approved" } else { "denied" })
+        .execute(pool)
+        .await?;
     Ok(res.rows_affected() > 0)
 }
 
@@ -189,7 +216,12 @@ pub struct SecurityEvent {
     pub acknowledged: Option<bool>,
 }
 
-pub async fn log_security_event(severity: &str, source: &str, summary: &str, raw: serde_json::Value) -> Result<uuid::Uuid> {
+pub async fn log_security_event(
+    severity: &str,
+    source: &str,
+    summary: &str,
+    raw: serde_json::Value,
+) -> Result<uuid::Uuid> {
     if let Some(pool) = pool() {
         let rec: (uuid::Uuid,) = sqlx::query_as(
             "INSERT INTO security_events (severity, source, summary, raw) VALUES ($1,$2,$3,$4) RETURNING id"
@@ -201,7 +233,9 @@ pub async fn log_security_event(severity: &str, source: &str, summary: &str, raw
 }
 
 pub async fn list_security_events(limit: i64) -> Result<Vec<SecurityEvent>> {
-    let Some(pool) = pool() else { return Ok(vec![]) };
+    let Some(pool) = pool() else {
+        return Ok(vec![]);
+    };
     let rows = sqlx::query_as::<_, SecurityEvent>(
         "SELECT id, ts, severity, source, summary, raw, acknowledged FROM security_events ORDER BY ts DESC LIMIT $1"
     ).bind(limit).fetch_all(pool).await?;
@@ -211,7 +245,9 @@ pub async fn list_security_events(limit: i64) -> Result<Vec<SecurityEvent>> {
 pub async fn ack_security_event(id: uuid::Uuid) -> Result<bool> {
     let Some(pool) = pool() else { return Ok(false) };
     let res = sqlx::query("UPDATE security_events SET acknowledged = true WHERE id = $1")
-        .bind(id).execute(pool).await?;
+        .bind(id)
+        .execute(pool)
+        .await?;
     Ok(res.rows_affected() > 0)
 }
 
@@ -220,7 +256,9 @@ pub async fn ack_security_event(id: uuid::Uuid) -> Result<bool> {
 // ============================================================================
 
 // OnceLock already imported at top of file
-use qdrant_client::qdrant::{CreateCollection, VectorParams, Distance, SearchPoints, UpsertPoints, PointStruct};
+use qdrant_client::qdrant::{
+    CreateCollection, Distance, PointStruct, SearchPoints, UpsertPoints, VectorParams,
+};
 use qdrant_client::Qdrant;
 
 static QDRANT: OnceLock<Option<Qdrant>> = OnceLock::new();
@@ -233,19 +271,27 @@ async fn qdrant_client() -> Option<&'static Qdrant> {
         match Qdrant::from_url(&url).build() {
             Ok(client) => {
                 // Ensure collection exists
-                let _ = client.create_collection(CreateCollection {
-                    collection_name: "rednode_docs".into(),
-                    vectors_config: Some(VectorParams {
-                        size: 768,
-                        distance: Distance::Cosine.into(),
+                let _ = client
+                    .create_collection(CreateCollection {
+                        collection_name: "rednode_docs".into(),
+                        vectors_config: Some(
+                            VectorParams {
+                                size: 768,
+                                distance: Distance::Cosine.into(),
+                                ..Default::default()
+                            }
+                            .into(),
+                        ),
                         ..Default::default()
-                    }.into()),
-                    ..Default::default()
-                }).await;
+                    })
+                    .await;
                 let _ = QDRANT.set(Some(client));
-            },
+            }
             Err(e) => {
-                tracing::warn!("Qdrant unavailable: {} – vector search will fallback to Postgres", e);
+                tracing::warn!(
+                    "Qdrant unavailable: {} – vector search will fallback to Postgres",
+                    e
+                );
                 let _ = QDRANT.set(None);
             }
         }
@@ -254,18 +300,28 @@ async fn qdrant_client() -> Option<&'static Qdrant> {
 }
 
 #[derive(Deserialize)]
-struct OllamaEmbedResponse { embedding: Vec<f32> }
+struct OllamaEmbedResponse {
+    embedding: Vec<f32>,
+}
 
 async fn embed_ollama(text: &str) -> Result<Vec<f32>> {
     #[derive(Serialize)]
-    struct Req<'a> { model: &'a str, prompt: &'a str }
+    struct Req<'a> {
+        model: &'a str,
+        prompt: &'a str,
+    }
     let ollama = std::env::var("OLLAMA_URL").unwrap_or(OLLAMA_URL.into());
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()?;
-    let res = client.post(format!("{}/api/embeddings", ollama))
-        .json(&Req { model: EMBED_MODEL, prompt: text })
-        .send().await?;
+    let res = client
+        .post(format!("{}/api/embeddings", ollama))
+        .json(&Req {
+            model: EMBED_MODEL,
+            prompt: text,
+        })
+        .send()
+        .await?;
     if !res.status().is_success() {
         anyhow::bail!("ollama embed failed: {}", res.status());
     }
@@ -295,33 +351,44 @@ pub async fn rag_query(query: &str, limit: u64) -> Result<Vec<RagHit>> {
                 };
                 match qd.search_points(search).await {
                     Ok(resp) => {
-                        let hits: Vec<RagHit> = resp.result.into_iter().map(|p| {
-                            // Qdrant Value -> serde_json
-                            let payload_json = serde_json::to_value(&p.payload).unwrap_or_default();
-                            let content = payload_json.get("content")
-                                .and_then(|v| v.get("string_value"))
-                                .and_then(|v| v.as_str())
-                                .or_else(|| payload_json.get("content").and_then(|v| v.as_str()))
-                                .unwrap_or_default().to_string();
-                            let source = payload_json.get("source")
-                                .and_then(|v| v.get("string_value"))
-                                .and_then(|v| v.as_str())
-                                .or_else(|| payload_json.get("source").and_then(|v| v.as_str()))
-                                .unwrap_or("qdrant").to_string();
-                            RagHit {
-                                source,
-                                content,
-                                score: p.score,
-                                metadata: serde_json::json!({ "id": format!("{:?}", p.id) }),
-                            }
-                        }).collect();
+                        let hits: Vec<RagHit> = resp
+                            .result
+                            .into_iter()
+                            .map(|p| {
+                                // Qdrant Value -> serde_json
+                                let payload_json =
+                                    serde_json::to_value(&p.payload).unwrap_or_default();
+                                let content = payload_json
+                                    .get("content")
+                                    .and_then(|v| v.get("string_value"))
+                                    .and_then(|v| v.as_str())
+                                    .or_else(|| {
+                                        payload_json.get("content").and_then(|v| v.as_str())
+                                    })
+                                    .unwrap_or_default()
+                                    .to_string();
+                                let source = payload_json
+                                    .get("source")
+                                    .and_then(|v| v.get("string_value"))
+                                    .and_then(|v| v.as_str())
+                                    .or_else(|| payload_json.get("source").and_then(|v| v.as_str()))
+                                    .unwrap_or("qdrant")
+                                    .to_string();
+                                RagHit {
+                                    source,
+                                    content,
+                                    score: p.score,
+                                    metadata: serde_json::json!({ "id": format!("{:?}", p.id) }),
+                                }
+                            })
+                            .collect();
                         if !hits.is_empty() {
                             return Ok(hits);
                         }
-                    },
+                    }
                     Err(e) => tracing::warn!("qdrant search failed: {}", e),
                 }
-            },
+            }
             Err(e) => tracing::warn!("ollama embed failed: {} – falling back", e),
         }
     }
@@ -338,9 +405,15 @@ pub async fn rag_query(query: &str, limit: u64) -> Result<Vec<RagHit>> {
         .await
         .unwrap_or_default();
         if !rows.is_empty() {
-            return Ok(rows.into_iter().map(|(source, content)| RagHit {
-                source, content, score: 0.5, metadata: serde_json::json!({})
-            }).collect());
+            return Ok(rows
+                .into_iter()
+                .map(|(source, content)| RagHit {
+                    source,
+                    content,
+                    score: 0.5,
+                    metadata: serde_json::json!({}),
+                })
+                .collect());
         }
     }
 
@@ -376,25 +449,43 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
         );
 
         // Log PII findings as security event
-        let finding_summary: Vec<String> = pii_result.findings.iter()
+        let finding_summary: Vec<String> = pii_result
+            .findings
+            .iter()
             .map(|f| format!("[{}] {}", f.severity, f.pii_type))
             .collect();
         let _ = log_security_event(
-            if pii_result.findings.iter().any(|f| f.severity == "high") { "HIGH" } else { "MEDIUM" },
+            if pii_result.findings.iter().any(|f| f.severity == "high") {
+                "HIGH"
+            } else {
+                "MEDIUM"
+            },
             "pii-scanner",
-            &format!("PII detected in '{}': {}", source, finding_summary.join(", ")),
+            &format!(
+                "PII detected in '{}': {}",
+                source,
+                finding_summary.join(", ")
+            ),
             serde_json::json!({
                 "source": source,
                 "pii_count": pii_result.pii_count,
                 "types": finding_summary,
                 "action": action,
             }),
-        ).await;
+        )
+        .await;
 
         crate::events::emit_security_event(
-            if pii_result.findings.iter().any(|f| f.severity == "high") { "HIGH" } else { "MEDIUM" },
+            if pii_result.findings.iter().any(|f| f.severity == "high") {
+                "HIGH"
+            } else {
+                "MEDIUM"
+            },
             "pii-scanner",
-            &format!("PII detected in '{}': {} item(s) — action: {}", source, pii_result.pii_count, action),
+            &format!(
+                "PII detected in '{}': {} item(s) — action: {}",
+                source, pii_result.pii_count, action
+            ),
         );
 
         match action.as_str() {
@@ -430,34 +521,55 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
     let doc_id = uuid::Uuid::new_v4();
     if let Some(pool) = pool() {
         let _ = sqlx::query(
-            "INSERT INTO documents (id, source, content, embedding) VALUES ($1,$2,$3,$4::vector)"
+            "INSERT INTO documents (id, source, content, embedding) VALUES ($1,$2,$3,$4::vector)",
         )
         .bind(doc_id)
         .bind(source)
         .bind(content)
-        .bind(format!("[{}]", embedding.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",")))
-        .execute(pool).await;
+        .bind(format!(
+            "[{}]",
+            embedding
+                .iter()
+                .map(|x| x.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        ))
+        .execute(pool)
+        .await;
     }
 
     // ── Step 3: Upsert full document to Qdrant ──
     if let Some(qd) = qdrant_client().await {
-        use qdrant_client::qdrant::{PointStruct, UpsertPoints, value::Kind, Value};
+        use qdrant_client::qdrant::{value::Kind, PointStruct, UpsertPoints, Value};
         use std::collections::HashMap;
         let mut payload = HashMap::new();
-        payload.insert("source".to_string(), Value { kind: Some(Kind::StringValue(source.to_string())) });
-        payload.insert("content".to_string(), Value { kind: Some(Kind::StringValue(content.to_string())) });
-        payload.insert("type".to_string(), Value { kind: Some(Kind::StringValue("document".to_string())) });
-        let point = PointStruct::new(
-            doc_id.to_string(),
-            embedding,
-            payload,
+        payload.insert(
+            "source".to_string(),
+            Value {
+                kind: Some(Kind::StringValue(source.to_string())),
+            },
         );
-        let _ = qd.upsert_points(UpsertPoints {
-            collection_name: "rednode_docs".into(),
-            wait: Some(true),
-            points: vec![point],
-            ..Default::default()
-        }).await;
+        payload.insert(
+            "content".to_string(),
+            Value {
+                kind: Some(Kind::StringValue(content.to_string())),
+            },
+        );
+        payload.insert(
+            "type".to_string(),
+            Value {
+                kind: Some(Kind::StringValue("document".to_string())),
+            },
+        );
+        let point = PointStruct::new(doc_id.to_string(), embedding, payload);
+        let _ = qd
+            .upsert_points(UpsertPoints {
+                collection_name: "rednode_docs".into(),
+                wait: Some(true),
+                points: vec![point],
+                ..Default::default()
+            })
+            .await;
     }
 
     // ── Step 4: Extract and embed propositions (fine-grained memory) ──
@@ -481,10 +593,10 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
 /// Extract propositions (atomic facts) from a document and embed each separately.
 /// Runs as a background task to not block the ingest response.
 async fn extract_and_embed_propositions(source: String, content: String, doc_id: String) {
-    let ollama_url = std::env::var("OLLAMA_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:11434".into());
-    let model = std::env::var("REDNODE_MODEL")
-        .unwrap_or_else(|_| "qwen2.5:14b-instruct-q4_K_M".into());
+    let ollama_url =
+        std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://127.0.0.1:11434".into());
+    let model =
+        std::env::var("REDNODE_MODEL").unwrap_or_else(|_| "qwen2.5:14b-instruct-q4_K_M".into());
 
     // Ask LLM to extract propositions
     let prompt = format!(
@@ -533,14 +645,21 @@ async fn extract_and_embed_propositions(source: String, content: String, doc_id:
 
     // Parse propositions from LLM response
     let json_str = {
-        let trimmed = response_text.trim()
-            .trim_start_matches("```json").trim_start_matches("```")
-            .trim_end_matches("```").trim();
+        let trimmed = response_text
+            .trim()
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
         if let Some(start) = trimmed.find('[') {
             if let Some(end) = trimmed.rfind(']') {
                 trimmed[start..=end].to_string()
-            } else { return; }
-        } else { return; }
+            } else {
+                return;
+            }
+        } else {
+            return;
+        }
     };
 
     let propositions: Vec<String> = match serde_json::from_str(&json_str) {
@@ -574,25 +693,43 @@ async fn extract_and_embed_propositions(source: String, content: String, doc_id:
 
         // Store in Qdrant with proposition type marker
         if let Some(qd) = qdrant_client().await {
-            use qdrant_client::qdrant::{PointStruct, UpsertPoints, value::Kind, Value};
+            use qdrant_client::qdrant::{value::Kind, PointStruct, UpsertPoints, Value};
             use std::collections::HashMap;
             let mut payload = HashMap::new();
-            payload.insert("source".to_string(), Value { kind: Some(Kind::StringValue(format!("{}/prop-{}", source, i))) });
-            payload.insert("content".to_string(), Value { kind: Some(Kind::StringValue(prop.clone())) });
-            payload.insert("type".to_string(), Value { kind: Some(Kind::StringValue("proposition".to_string())) });
-            payload.insert("parent_doc".to_string(), Value { kind: Some(Kind::StringValue(doc_id.clone())) });
-
-            let point = PointStruct::new(
-                prop_id.to_string(),
-                prop_embedding,
-                payload,
+            payload.insert(
+                "source".to_string(),
+                Value {
+                    kind: Some(Kind::StringValue(format!("{}/prop-{}", source, i))),
+                },
             );
-            let _ = qd.upsert_points(UpsertPoints {
-                collection_name: "rednode_docs".into(),
-                wait: Some(true),
-                points: vec![point],
-                ..Default::default()
-            }).await;
+            payload.insert(
+                "content".to_string(),
+                Value {
+                    kind: Some(Kind::StringValue(prop.clone())),
+                },
+            );
+            payload.insert(
+                "type".to_string(),
+                Value {
+                    kind: Some(Kind::StringValue("proposition".to_string())),
+                },
+            );
+            payload.insert(
+                "parent_doc".to_string(),
+                Value {
+                    kind: Some(Kind::StringValue(doc_id.clone())),
+                },
+            );
+
+            let point = PointStruct::new(prop_id.to_string(), prop_embedding, payload);
+            let _ = qd
+                .upsert_points(UpsertPoints {
+                    collection_name: "rednode_docs".into(),
+                    wait: Some(true),
+                    points: vec![point],
+                    ..Default::default()
+                })
+                .await;
         }
     }
 }
@@ -614,8 +751,8 @@ async fn extract_and_embed_propositions(source: String, content: String, doc_id:
 #[cfg(feature = "kuzu")]
 mod kg_kuzu {
     use super::*;
-    use std::sync::Mutex;
     use once_cell::sync::OnceCell;
+    use std::sync::Mutex;
     static DB: OnceCell<Mutex<kuzu::Database>> = OnceCell::new();
 
     pub fn init(path: &str) -> Result<()> {
@@ -633,14 +770,19 @@ mod kg_kuzu {
             "CREATE REL TABLE IF NOT EXISTS DEFINES(FROM File TO Function)",
             "CREATE REL TABLE IF NOT EXISTS RELATED_TO(FROM Entity TO Entity, relation STRING)",
         ];
-        for s in schema { let _ = conn.query(s); }
+        for s in schema {
+            let _ = conn.query(s);
+        }
         DB.set(Mutex::new(db)).ok();
         tracing::info!("Kuzu knowledge graph initialized at {}", path);
         Ok(())
     }
 
     pub fn query(cypher: &str) -> Result<Vec<serde_json::Value>> {
-        let db_guard = DB.get().ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?.lock()
+        let db_guard = DB
+            .get()
+            .ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?
+            .lock()
             .map_err(|e| anyhow::anyhow!("kuzu lock poisoned: {}", e))?;
         let conn = kuzu::Connection::new(&*db_guard)?;
         let mut result = conn.query(cypher)?;
@@ -654,7 +796,10 @@ mod kg_kuzu {
     }
 
     pub fn add_entity(name: &str, kind: &str, properties: &str) -> Result<()> {
-        let db_guard = DB.get().ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?.lock()
+        let db_guard = DB
+            .get()
+            .ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?
+            .lock()
             .map_err(|e| anyhow::anyhow!("kuzu lock poisoned: {}", e))?;
         let conn = kuzu::Connection::new(&*db_guard)?;
         let cypher = format!(
@@ -668,7 +813,10 @@ mod kg_kuzu {
     }
 
     pub fn add_relationship(from: &str, to: &str, relation: &str) -> Result<()> {
-        let db_guard = DB.get().ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?.lock()
+        let db_guard = DB
+            .get()
+            .ok_or_else(|| anyhow::anyhow!("kuzu not initialized"))?
+            .lock()
             .map_err(|e| anyhow::anyhow!("kuzu lock poisoned: {}", e))?;
         let conn = kuzu::Connection::new(&*db_guard)?;
         let cypher = format!(
@@ -684,7 +832,9 @@ mod kg_kuzu {
 }
 
 #[cfg(feature = "kuzu")]
-pub use kg_kuzu::{init as kg_init, query as kg_query, add_entity as kg_add_entity, add_relationship as kg_add_rel};
+pub use kg_kuzu::{
+    add_entity as kg_add_entity, add_relationship as kg_add_rel, init as kg_init, query as kg_query,
+};
 
 // ─── Postgres-based knowledge graph fallback ───
 // When Kuzu is not compiled, use Postgres JSON tables for entity storage.
@@ -868,7 +1018,9 @@ pub mod kg_postgres {
 }
 
 #[cfg(not(feature = "kuzu"))]
-pub use kg_postgres::{init as kg_init, query as kg_query, add_entity as kg_add_entity, add_relationship as kg_add_rel};
+pub use kg_postgres::{
+    add_entity as kg_add_entity, add_relationship as kg_add_rel, init as kg_init, query as kg_query,
+};
 
 /// Extract entities from text and add to knowledge graph.
 /// Called during document ingestion to build the graph automatically.
@@ -885,13 +1037,18 @@ pub async fn promote_patterns() {
                SELECT to_entity FROM kg_relationships \
                WHERE relation = 'mentions' \
                GROUP BY to_entity HAVING COUNT(DISTINCT from_entity) >= 3 \
-             ) AND (properties->>'status' IS NULL OR properties->>'status' != 'established')"
-        ).execute(pool).await;
+             ) AND (properties->>'status' IS NULL OR properties->>'status' != 'established')",
+        )
+        .execute(pool)
+        .await;
 
         if let Ok(result) = promoted {
             let count = result.rows_affected();
             if count > 0 {
-                tracing::info!(promoted = count, "pattern promotion: {} entities → established (3+ document mentions)");
+                tracing::info!(
+                    promoted = count,
+                    "pattern promotion: {} entities → established (3+ document mentions)"
+                );
             }
         }
     }
@@ -900,12 +1057,15 @@ pub async fn promote_patterns() {
 /// Pathfinder: find scored paths between two entities in the knowledge graph.
 /// Scores paths by: hop count (shorter = better) + entity status (established = bonus).
 pub async fn kg_pathfind(from: &str, to: &str, max_depth: u32) -> Result<Vec<serde_json::Value>> {
-    let Some(pool) = pool() else { return Ok(vec![]); };
+    let Some(pool) = pool() else {
+        return Ok(vec![]);
+    };
 
     // BFS to find paths from → to via relationships (max depth hops)
     let mut paths: Vec<serde_json::Value> = Vec::new();
     let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut queue: std::collections::VecDeque<(String, Vec<String>, f32)> = std::collections::VecDeque::new();
+    let mut queue: std::collections::VecDeque<(String, Vec<String>, f32)> =
+        std::collections::VecDeque::new();
 
     queue.push_back((from.to_string(), vec![from.to_string()], 0.0));
     visited.insert(from.to_string());
@@ -930,19 +1090,34 @@ pub async fn kg_pathfind(from: &str, to: &str, max_depth: u32) -> Result<Vec<ser
         // Expand neighbors
         let neighbors: Vec<(String, String)> = sqlx::query_as(
             "SELECT to_entity, relation FROM kg_relationships WHERE from_entity = $1 \
-             UNION SELECT from_entity, relation FROM kg_relationships WHERE to_entity = $1"
-        ).bind(&current).fetch_all(pool).await.unwrap_or_default();
+             UNION SELECT from_entity, relation FROM kg_relationships WHERE to_entity = $1",
+        )
+        .bind(&current)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
 
         for (neighbor, _relation) in neighbors {
             if !visited.contains(&neighbor) {
                 visited.insert(neighbor.clone());
 
                 // Check if neighbor is "established" (promoted) — lower cost
-                let props: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
-                    "SELECT properties FROM kg_entities WHERE name = $1"
-                ).bind(&neighbor).fetch_optional(pool).await.unwrap_or(None);
+                let props: Option<(Option<serde_json::Value>,)> =
+                    sqlx::query_as("SELECT properties FROM kg_entities WHERE name = $1")
+                        .bind(&neighbor)
+                        .fetch_optional(pool)
+                        .await
+                        .unwrap_or(None);
 
-                let hop_cost = if props.and_then(|p| p.0).and_then(|v| v.get("status").and_then(|s| s.as_str()).map(|s| s == "established")).unwrap_or(false) {
+                let hop_cost = if props
+                    .and_then(|p| p.0)
+                    .and_then(|v| {
+                        v.get("status")
+                            .and_then(|s| s.as_str())
+                            .map(|s| s == "established")
+                    })
+                    .unwrap_or(false)
+                {
                     0.5 // established entities are cheaper to traverse
                 } else {
                     1.0
@@ -972,11 +1147,40 @@ pub fn extract_and_store_entities(source: &str, content: &str) {
 
     // Extract technology names (common patterns)
     let tech_keywords = [
-        "rust", "typescript", "python", "docker", "kubernetes", "nixos", "linux",
-        "postgresql", "postgres", "qdrant", "redis", "nats", "ollama", "whisper",
-        "piper", "grafana", "prometheus", "loki", "frigate", "pihole", "truenas",
-        "wireguard", "tailscale", "nginx", "react", "nextjs", "flutter", "tauri",
-        "git", "github", "ansible", "terraform", "mqtt", "signal",
+        "rust",
+        "typescript",
+        "python",
+        "docker",
+        "kubernetes",
+        "nixos",
+        "linux",
+        "postgresql",
+        "postgres",
+        "qdrant",
+        "redis",
+        "nats",
+        "ollama",
+        "whisper",
+        "piper",
+        "grafana",
+        "prometheus",
+        "loki",
+        "frigate",
+        "pihole",
+        "truenas",
+        "wireguard",
+        "tailscale",
+        "nginx",
+        "react",
+        "nextjs",
+        "flutter",
+        "tauri",
+        "git",
+        "github",
+        "ansible",
+        "terraform",
+        "mqtt",
+        "signal",
     ];
 
     for keyword in &tech_keywords {
@@ -988,7 +1192,11 @@ pub fn extract_and_store_entities(source: &str, content: &str) {
     }
 
     // Add the source as an entity
-    let _ = kg_add_entity(source, "document", &format!("{{\"length\": {}}}", content.len()));
+    let _ = kg_add_entity(
+        source,
+        "document",
+        &format!("{{\"length\": {}}}", content.len()),
+    );
 }
 
 // Initialize vector + graph stores – call from memory::init()
@@ -997,9 +1205,12 @@ pub async fn init_vector_graph() {
     let _ = qdrant_client().await;
     // Kuzu / Postgres knowledge graph
     let kg_path = std::env::var("KUZU_PATH").unwrap_or("/var/lib/rednode/kuzu".into());
-    let _ = std::fs::create_dir_all(std::path::Path::new(&kg_path).parent().unwrap_or(std::path::Path::new("/tmp")));
+    let _ = std::fs::create_dir_all(
+        std::path::Path::new(&kg_path)
+            .parent()
+            .unwrap_or(std::path::Path::new("/tmp")),
+    );
     if let Err(e) = kg_init(&kg_path) {
         tracing::warn!("Knowledge graph init failed: {}", e);
     }
 }
-

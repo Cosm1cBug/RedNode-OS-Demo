@@ -25,8 +25,8 @@ pub struct Notification {
     pub title: String,
     pub body: String,
     pub urgency: Urgency,
-    pub source: String,       // which agent/pipeline generated this
-    pub category: String,     // security, camera, storage, email, system, etc.
+    pub source: String,   // which agent/pipeline generated this
+    pub category: String, // security, camera, storage, email, system, etc.
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub delivered: bool,
     pub channel: Option<String>, // signal, web, email — None = auto-select
@@ -34,18 +34,18 @@ pub struct Notification {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, PartialOrd)]
 pub enum Urgency {
-    Critical = 4,  // always immediate
-    High = 3,      // immediate during waking hours, queued otherwise
-    Normal = 2,    // batched into digest
-    Low = 1,       // next morning briefing
+    Critical = 4, // always immediate
+    High = 3,     // immediate during waking hours, queued otherwise
+    Normal = 2,   // batched into digest
+    Low = 1,      // next morning briefing
 }
 
 pub struct NotificationQueue {
     pub pending: VecDeque<Notification>,
     pub delivered: Vec<Notification>,
     /// Quiet hours: don't send non-critical notifications during this window
-    pub quiet_start_hour: u32,  // e.g., 22 (10 PM)
-    pub quiet_end_hour: u32,    // e.g., 7 (7 AM)
+    pub quiet_start_hour: u32, // e.g., 22 (10 PM)
+    pub quiet_end_hour: u32, // e.g., 7 (7 AM)
     pub timezone_offset_hours: i32,
 }
 
@@ -130,7 +130,10 @@ impl NotificationQueue {
 pub fn classify_urgency(category: &str, event: &serde_json::Value) -> Urgency {
     match category {
         "security" => {
-            let severity = event.get("severity").and_then(|v| v.as_str()).unwrap_or("medium");
+            let severity = event
+                .get("severity")
+                .and_then(|v| v.as_str())
+                .unwrap_or("medium");
             match severity {
                 "critical" => Urgency::Critical,
                 "high" => Urgency::High,
@@ -146,10 +149,17 @@ pub fn classify_urgency(category: &str, event: &serde_json::Value) -> Urgency {
             }
         }
         "disk" => {
-            let usage_pct = event.get("usage_pct").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            if usage_pct > 95.0 { Urgency::Critical }
-            else if usage_pct > 90.0 { Urgency::High }
-            else { Urgency::Low }
+            let usage_pct = event
+                .get("usage_pct")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
+            if usage_pct > 95.0 {
+                Urgency::Critical
+            } else if usage_pct > 90.0 {
+                Urgency::High
+            } else {
+                Urgency::Low
+            }
         }
         "email" => Urgency::Normal,
         "update" | "pattern" | "learning" => Urgency::Low,
@@ -190,8 +200,11 @@ pub fn get_digest() -> Vec<Notification> {
 /// Simple UUID v4 without external crate
 fn uuid_v4() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let t = SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default();
-    format!("{:x}-{:x}-4{:x}-{:x}",
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    format!(
+        "{:x}-{:x}-4{:x}-{:x}",
         t.as_nanos() & 0xFFFF_FFFF,
         (t.as_nanos() >> 32) & 0xFFFF,
         (t.as_nanos() >> 48) & 0x0FFF,
@@ -232,14 +245,26 @@ mod tests {
     fn test_queue_digest() {
         let mut q = NotificationQueue::new();
         q.push(Notification {
-            id: "1".into(), title: "Test".into(), body: "body".into(),
-            urgency: Urgency::Low, source: "test".into(), category: "test".into(),
-            timestamp: chrono::Utc::now(), delivered: false, channel: None,
+            id: "1".into(),
+            title: "Test".into(),
+            body: "body".into(),
+            urgency: Urgency::Low,
+            source: "test".into(),
+            category: "test".into(),
+            timestamp: chrono::Utc::now(),
+            delivered: false,
+            channel: None,
         });
         q.push(Notification {
-            id: "2".into(), title: "Critical".into(), body: "urgent".into(),
-            urgency: Urgency::Critical, source: "test".into(), category: "security".into(),
-            timestamp: chrono::Utc::now(), delivered: false, channel: None,
+            id: "2".into(),
+            title: "Critical".into(),
+            body: "urgent".into(),
+            urgency: Urgency::Critical,
+            source: "test".into(),
+            category: "security".into(),
+            timestamp: chrono::Utc::now(),
+            delivered: false,
+            channel: None,
         });
 
         let digest = q.drain_digest();

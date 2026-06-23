@@ -9,8 +9,8 @@
 // Simple intents still use the direct LLM planner.
 
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet, BinaryHeap};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 /// A GOAP action — a tool call with preconditions and effects
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,8 +18,8 @@ pub struct GoapAction {
     pub tool: String,
     pub agent: String,
     pub cost: f32,
-    pub preconditions: HashSet<String>,   // state flags that must be true
-    pub effects: HashSet<String>,         // state flags this action makes true
+    pub preconditions: HashSet<String>, // state flags that must be true
+    pub effects: HashSet<String>,       // state flags this action makes true
     pub args: serde_json::Value,
 }
 
@@ -42,7 +42,9 @@ impl Eq for SearchNode {}
 impl Ord for SearchNode {
     fn cmp(&self, other: &Self) -> Ordering {
         // Min-heap: lower cost = higher priority
-        other.total_cost.partial_cmp(&self.total_cost)
+        other
+            .total_cost
+            .partial_cmp(&self.total_cost)
             .unwrap_or(Ordering::Equal)
     }
 }
@@ -130,71 +132,93 @@ pub fn tools_to_goap_actions() -> Vec<GoapAction> {
     vec![
         // Network setup chain
         GoapAction {
-            tool: "net.status".into(), agent: "network-agent".into(), cost: 1.0,
+            tool: "net.status".into(),
+            agent: "network-agent".into(),
+            cost: 1.0,
             preconditions: HashSet::new(),
             effects: ["network_checked".into()].into(),
             args: serde_json::json!({}),
         },
         GoapAction {
-            tool: "pihole.stats".into(), agent: "infra-agent".into(), cost: 1.0,
+            tool: "pihole.stats".into(),
+            agent: "infra-agent".into(),
+            cost: 1.0,
             preconditions: ["network_checked".into()].into(),
             effects: ["dns_checked".into()].into(),
             args: serde_json::json!({}),
         },
         GoapAction {
-            tool: "nas.health".into(), agent: "storage-agent".into(), cost: 1.0,
+            tool: "nas.health".into(),
+            agent: "storage-agent".into(),
+            cost: 1.0,
             preconditions: ["network_checked".into()].into(),
             effects: ["storage_checked".into()].into(),
             args: serde_json::json!({}),
         },
         GoapAction {
-            tool: "cam.status".into(), agent: "surveillance-agent".into(), cost: 1.0,
+            tool: "cam.status".into(),
+            agent: "surveillance-agent".into(),
+            cost: 1.0,
             preconditions: ["network_checked".into()].into(),
             effects: ["cameras_checked".into()].into(),
             args: serde_json::json!({}),
         },
         // Security chain
         GoapAction {
-            tool: "sec.triage".into(), agent: "security-agent".into(), cost: 2.0,
+            tool: "sec.triage".into(),
+            agent: "security-agent".into(),
+            cost: 2.0,
             preconditions: HashSet::new(),
             effects: ["logs_checked".into()].into(),
             args: serde_json::json!({}),
         },
         GoapAction {
-            tool: "sec.cve_check".into(), agent: "security-agent".into(), cost: 3.0,
+            tool: "sec.cve_check".into(),
+            agent: "security-agent".into(),
+            cost: 3.0,
             preconditions: HashSet::new(),
             effects: ["cve_scanned".into()].into(),
             args: serde_json::json!({}),
         },
         GoapAction {
-            tool: "sec.harden_ssh".into(), agent: "security-agent".into(), cost: 5.0,
+            tool: "sec.harden_ssh".into(),
+            agent: "security-agent".into(),
+            cost: 5.0,
             preconditions: ["logs_checked".into(), "cve_scanned".into()].into(),
             effects: ["ssh_hardened".into()].into(),
             args: serde_json::json!({}),
         },
         // System health chain
         GoapAction {
-            tool: "process.list".into(), agent: "system-agent".into(), cost: 1.0,
+            tool: "process.list".into(),
+            agent: "system-agent".into(),
+            cost: 1.0,
             preconditions: HashSet::new(),
             effects: ["processes_checked".into()].into(),
             args: serde_json::json!({}),
         },
         GoapAction {
-            tool: "docker.ps".into(), agent: "system-agent".into(), cost: 1.0,
+            tool: "docker.ps".into(),
+            agent: "system-agent".into(),
+            cost: 1.0,
             preconditions: HashSet::new(),
             effects: ["docker_checked".into()].into(),
             args: serde_json::json!({}),
         },
         // Snapshot after checks
         GoapAction {
-            tool: "nas.snapshot_create".into(), agent: "storage-agent".into(), cost: 3.0,
+            tool: "nas.snapshot_create".into(),
+            agent: "storage-agent".into(),
+            cost: 3.0,
             preconditions: ["storage_checked".into()].into(),
             effects: ["snapshot_created".into()].into(),
             args: serde_json::json!({"dataset": "tank/documents"}),
         },
         // Full security audit
         GoapAction {
-            tool: "sec.threat_intel".into(), agent: "security-agent".into(), cost: 4.0,
+            tool: "sec.threat_intel".into(),
+            agent: "security-agent".into(),
+            cost: 4.0,
             preconditions: ["cve_scanned".into()].into(),
             effects: ["threat_intel_synced".into()].into(),
             args: serde_json::json!({}),
@@ -229,9 +253,15 @@ mod tests {
         assert!(plan.is_some());
         let steps = plan.unwrap();
         // ssh_harden requires logs_checked + cve_scanned → triage and cve_check must come first
-        let ssh_idx = steps.iter().position(|s| s.tool == "sec.harden_ssh").unwrap();
+        let ssh_idx = steps
+            .iter()
+            .position(|s| s.tool == "sec.harden_ssh")
+            .unwrap();
         let triage_idx = steps.iter().position(|s| s.tool == "sec.triage").unwrap();
-        let cve_idx = steps.iter().position(|s| s.tool == "sec.cve_check").unwrap();
+        let cve_idx = steps
+            .iter()
+            .position(|s| s.tool == "sec.cve_check")
+            .unwrap();
         assert!(triage_idx < ssh_idx);
         assert!(cve_idx < ssh_idx);
     }

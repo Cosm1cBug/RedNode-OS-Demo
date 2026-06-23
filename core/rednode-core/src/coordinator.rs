@@ -1,4 +1,7 @@
-use crate::{planner::{plan, PlanStep}, security};
+use crate::{
+    planner::{plan, PlanStep},
+    security,
+};
 use serde_json::json;
 use std::collections::HashMap;
 
@@ -13,12 +16,19 @@ const MAX_EXECUTION_SECS: u64 = 120;
 static CURRENT_DEPTH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 const MAX_RECURSION_DEPTH: u32 = 5;
 
-pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>, Vec<serde_json::Value>) {
+pub async fn coordinate(
+    intent: &str,
+    session: &str,
+) -> (Vec<serde_json::Value>, Vec<serde_json::Value>) {
     // ── Circuit Breaker: prevent infinite recursion ──
     let depth = CURRENT_DEPTH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     if depth >= MAX_RECURSION_DEPTH {
         CURRENT_DEPTH.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-        tracing::warn!(depth, "circuit breaker: max recursion depth {} reached — aborting", MAX_RECURSION_DEPTH);
+        tracing::warn!(
+            depth,
+            "circuit breaker: max recursion depth {} reached — aborting",
+            MAX_RECURSION_DEPTH
+        );
         crate::events::emit(serde_json::json!({
             "type": "circuit_breaker",
             "reason": "max_recursion_depth",
@@ -26,11 +36,17 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
             "intent": intent,
             "ts": chrono::Utc::now().to_rfc3339()
         }));
-        return (vec![], vec![json!({"status": "circuit_breaker", "error": format!("Recursion depth {} exceeds limit {}", depth, MAX_RECURSION_DEPTH)})]);
+        return (
+            vec![],
+            vec![
+                json!({"status": "circuit_breaker", "error": format!("Recursion depth {} exceeds limit {}", depth, MAX_RECURSION_DEPTH)}),
+            ],
+        );
     }
 
     // Ensure we decrement depth when done (even on early return)
-    let _depth_guard = scopeguard::defer! { CURRENT_DEPTH.fetch_sub(1, std::sync::atomic::Ordering::SeqCst); };
+    let _depth_guard =
+        scopeguard::defer! { CURRENT_DEPTH.fetch_sub(1, std::sync::atomic::Ordering::SeqCst); };
 
     let execution_start = std::time::Instant::now();
 
@@ -38,7 +54,12 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
 
     // ── Circuit Breaker: cap plan size ──
     let steps = if steps.len() > MAX_PLAN_STEPS {
-        tracing::warn!(steps = steps.len(), "circuit breaker: plan has {} steps, capping at {}", steps.len(), MAX_PLAN_STEPS);
+        tracing::warn!(
+            steps = steps.len(),
+            "circuit breaker: plan has {} steps, capping at {}",
+            steps.len(),
+            MAX_PLAN_STEPS
+        );
         steps.into_iter().take(MAX_PLAN_STEPS).collect::<Vec<_>>()
     } else {
         steps
@@ -55,7 +76,10 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
             Err(e) => {
                 tracing::warn!(tool=%step.tool, error=%e, "tool denied by security policy");
                 crate::events::emit_tool_result(&step.tool, &step.agent, "denied", None);
-                non_executable.push((i, json!({"tool": step.tool, "status": "denied", "error": e.to_string()})));
+                non_executable.push((
+                    i,
+                    json!({"tool": step.tool, "status": "denied", "error": e.to_string()}),
+                ));
                 continue;
             }
         };
@@ -63,14 +87,24 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
 
         if security::needs_approval(&risk) {
             let approval_id = crate::memory::create_approval(
-                "cns", &step.tool, &step.args, &risk_str, Some(intent), Some(session)
-            ).await.ok();
+                "cns",
+                &step.tool,
+                &step.args,
+                &risk_str,
+                Some(intent),
+                Some(session),
+            )
+            .await
+            .ok();
             crate::events::emit_approval_needed(&step.tool, &risk_str, approval_id);
             tracing::info!(tool=%step.tool, risk=%risk_str, "tool requires approval — queued");
-            non_executable.push((i, json!({
-                "tool": step.tool, "agent": step.agent,
-                "status": "needs_approval", "risk": risk_str, "approval_id": approval_id
-            })));
+            non_executable.push((
+                i,
+                json!({
+                    "tool": step.tool, "agent": step.agent,
+                    "status": "needs_approval", "risk": risk_str, "approval_id": approval_id
+                }),
+            ));
         } else {
             executable.push((i, step, risk_str));
         }
@@ -81,11 +115,17 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
     // Steps targeting the same agent execute sequentially (agent handles one task at a time).
     let mut agent_groups: HashMap<String, Vec<(usize, &PlanStep, String)>> = HashMap::new();
     for (i, step, risk_str) in &executable {
-        agent_groups.entry(step.agent.clone()).or_default().push((*i, step, risk_str.clone()));
+        agent_groups
+            .entry(step.agent.clone())
+            .or_default()
+            .push((*i, step, risk_str.clone()));
     }
 
     // State cache: results from earlier steps available to later ones within same session
-    let state_cache = std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::<String, serde_json::Value>::new()));
+    let state_cache = std::sync::Arc::new(tokio::sync::RwLock::new(HashMap::<
+        String,
+        serde_json::Value,
+    >::new()));
 
     // Execute each agent group concurrently
     let intent_owned = intent.to_string();
@@ -104,8 +144,13 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
 
             for (idx, step, risk_str) in agent_steps {
                 // Circuit breaker: check execution time budget
-                if execution_start_c.elapsed() > std::time::Duration::from_secs(MAX_EXECUTION_SECS_C) {
-                    tracing::warn!("circuit breaker: execution time exceeded {}s — skipping remaining steps", MAX_EXECUTION_SECS_C);
+                if execution_start_c.elapsed()
+                    > std::time::Duration::from_secs(MAX_EXECUTION_SECS_C)
+                {
+                    tracing::warn!(
+                        "circuit breaker: execution time exceeded {}s — skipping remaining steps",
+                        MAX_EXECUTION_SECS_C
+                    );
                     group_results.push((idx, json!({"tool": step.tool, "agent": step.agent, "status": "circuit_breaker", "error": "execution time budget exceeded"})));
                     continue;
                 }
@@ -134,13 +179,20 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
                     "risk": risk_str
                 });
 
-                let agent_result = match crate::bus::request(&agent_subject, task_payload, 8000).await {
+                let agent_result = match crate::bus::request(&agent_subject, task_payload, 8000)
+                    .await
+                {
                     Ok(v) => v,
                     Err(_) => {
                         tracing::warn!(tool=%tool, agent=%agent, "agent timeout — falling back to local executor");
                         match crate::executor::execute(&tool, &args, &agent).await {
                             Ok((out, audit_id)) => {
-                                crate::events::emit_tool_result(&tool, &agent, "executed_local", Some(audit_id));
+                                crate::events::emit_tool_result(
+                                    &tool,
+                                    &agent,
+                                    "executed_local",
+                                    Some(audit_id),
+                                );
                                 json!({"ok": true, "output": out, "audit_id": audit_id, "fallback": true})
                             }
                             Err(e) => {
@@ -151,14 +203,25 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
                     }
                 };
 
-                let status = if agent_result.get("ok").and_then(|v| v.as_bool()).unwrap_or(false) {
+                let status = if agent_result
+                    .get("ok")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+                {
                     "executed"
                 } else {
                     "failed"
                 };
 
-                let audit_id = agent_result.get("audit_id").and_then(|v| v.as_i64())
-                    .or_else(|| agent_result.get("result").and_then(|r| r.get("audit_id")).and_then(|v| v.as_i64()));
+                let audit_id = agent_result
+                    .get("audit_id")
+                    .and_then(|v| v.as_i64())
+                    .or_else(|| {
+                        agent_result
+                            .get("result")
+                            .and_then(|r| r.get("audit_id"))
+                            .and_then(|v| v.as_i64())
+                    });
 
                 crate::events::emit_tool_result(&tool, &agent, status, audit_id);
 
@@ -168,12 +231,15 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
                     cache_write.insert(tool.clone(), agent_result.clone());
                 }
 
-                group_results.push((idx, json!({
-                    "tool": tool,
-                    "agent": agent,
-                    "status": status,
-                    "result": agent_result
-                })));
+                group_results.push((
+                    idx,
+                    json!({
+                        "tool": tool,
+                        "agent": agent,
+                        "status": status,
+                        "result": agent_result
+                    }),
+                ));
             }
 
             group_results
@@ -195,7 +261,8 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
     all_indexed_results.sort_by_key(|(i, _)| *i);
     let results: Vec<serde_json::Value> = all_indexed_results.into_iter().map(|(_, r)| r).collect();
 
-    let plan_json: Vec<serde_json::Value> = steps.into_iter()
+    let plan_json: Vec<serde_json::Value> = steps
+        .into_iter()
         .map(|s| serde_json::to_value(s).unwrap())
         .collect();
 
