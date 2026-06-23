@@ -44,67 +44,40 @@ echo ""
 step "Step 1/9: GPU Detection"
 # ═══════════════════════════════════════════
 
-GPU_NAME="none"
-GPU_VRAM_MB=0
-SELECTED_MODEL=""
+# Use the hardware detection script for comprehensive GPU detection
+HW_JSON=$(bash "$ROOT/scripts/rednode-hardware-detect.sh" --json 2>/dev/null || echo '{}')
 
-if command -v nvidia-smi >/dev/null 2>&1; then
-  GPU_INFO=$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null || echo "")
-  if [ -n "$GPU_INFO" ]; then
-    GPU_NAME=$(echo "$GPU_INFO" | cut -d',' -f1 | xargs)
-    GPU_VRAM_MB=$(echo "$GPU_INFO" | cut -d',' -f2 | xargs)
-    info "GPU detected: ${BOLD}$GPU_NAME${NC} (${GPU_VRAM_MB} MB VRAM)"
-  else
-    warn "nvidia-smi found but no GPU detected"
-  fi
+GPU_VENDOR=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('gpu',{}).get('vendor','none'))" 2>/dev/null || echo "none")
+GPU_NAME=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('gpu',{}).get('name','none'))" 2>/dev/null || echo "none")
+GPU_VRAM_MB=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('gpu',{}).get('vram_mb',0))" 2>/dev/null || echo "0")
+GPU_DRIVER=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('gpu',{}).get('driver',''))" 2>/dev/null || echo "")
+MEM_PROFILE=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('memory_profile','standard'))" 2>/dev/null || echo "standard")
+
+if [ "$GPU_VENDOR" = "nvidia" ]; then
+  info "NVIDIA GPU detected: ${BOLD}$GPU_NAME${NC} (${GPU_VRAM_MB} MB VRAM, driver: $GPU_DRIVER)"
+elif [ "$GPU_VENDOR" = "amd" ]; then
+  info "AMD GPU detected: ${BOLD}$GPU_NAME${NC} (${GPU_VRAM_MB} MB VRAM)"
+  warn "For best AMD performance, ensure ROCm is installed: https://rocm.docs.amd.com"
 else
-  warn "nvidia-smi not found — checking for AMD..."
-  if command -v rocm-smi >/dev/null 2>&1; then
-    GPU_NAME=$(rocm-smi --showproductname 2>/dev/null | grep "GPU" | head -1 | xargs || echo "AMD GPU")
-    GPU_VRAM_MB=$(rocm-smi --showmeminfo vram 2>/dev/null | grep "Total" | awk '{print $NF}' | head -1 || echo "0")
-    GPU_VRAM_MB=$((GPU_VRAM_MB / 1024 / 1024))
-    if [ "$GPU_VRAM_MB" -gt 0 ]; then
-      info "AMD GPU detected: $GPU_NAME (${GPU_VRAM_MB} MB VRAM)"
-    fi
-  fi
-fi
-
-if [ "$GPU_VRAM_MB" -eq 0 ]; then
-  warn "No GPU detected — will use CPU-only mode (slower)"
+  warn "No GPU detected — will use CPU-only mode (slower but functional)"
   GPU_VRAM_MB=0
 fi
+
+info "Memory profile: ${BOLD}$MEM_PROFILE${NC} ($(free -g 2>/dev/null | awk '/Mem:/{print $2}' || echo '?') GB RAM)"
 
 # ═══════════════════════════════════════════
 step "Step 2/9: Model Selection"
 # ═══════════════════════════════════════════
 
-WHISPER_MODEL="base"
+# Auto-select models from hardware detection
+SELECTED_MODEL=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('models',{}).get('llm','qwen2.5:7b-instruct-q4_K_M'))" 2>/dev/null || echo "qwen2.5:7b-instruct-q4_K_M")
+WHISPER_MODEL=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('models',{}).get('whisper','base'))" 2>/dev/null || echo "base")
+OLLAMA_ACCEL=$(echo "$HW_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin).get('models',{}).get('ollama_acceleration',''))" 2>/dev/null || echo "")
 
-if [ "$GPU_VRAM_MB" -ge 24000 ]; then
-  SELECTED_MODEL="qwen2.5:32b-instruct-q4_K_M"
-  WHISPER_MODEL="large-v3"
-  info "32B model selected (${GPU_VRAM_MB}MB VRAM — premium tier)"
-  info "Whisper: large-v3 (best accuracy)"
-elif [ "$GPU_VRAM_MB" -ge 12000 ]; then
-  SELECTED_MODEL="qwen2.5:14b-instruct-q4_K_M"
-  WHISPER_MODEL="small"
-  info "14B model selected (${GPU_VRAM_MB}MB VRAM — recommended tier)"
-  info "Whisper: small (good accuracy, fits with 14B)"
-elif [ "$GPU_VRAM_MB" -ge 6000 ]; then
-  SELECTED_MODEL="qwen2.5:7b-instruct-q4_K_M"
-  WHISPER_MODEL="small"
-  info "7B model selected (${GPU_VRAM_MB}MB VRAM — starter tier)"
-  info "Whisper: small"
-elif [ "$GPU_VRAM_MB" -ge 3000 ]; then
-  SELECTED_MODEL="qwen2.5:3b-instruct-q4_K_M"
-  WHISPER_MODEL="base"
-  info "3B model selected (${GPU_VRAM_MB}MB VRAM — minimal tier)"
-  info "Whisper: base (lightweight)"
-else
-  SELECTED_MODEL="qwen2.5:3b-instruct-q4_K_M"
-  WHISPER_MODEL="base"
-  warn "CPU-only mode: 3B model (will be slow but functional)"
-  info "Whisper: base"
+info "Auto-selected LLM: ${BOLD}$SELECTED_MODEL${NC}"
+info "Auto-selected Whisper: ${BOLD}$WHISPER_MODEL${NC}"
+if [ -n "$OLLAMA_ACCEL" ]; then
+  info "Ollama acceleration: ${BOLD}$OLLAMA_ACCEL${NC}"
 fi
 
 echo ""

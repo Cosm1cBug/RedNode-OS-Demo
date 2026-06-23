@@ -36,22 +36,22 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 └──────────────────────────┬──────────────────────────────────┘
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)   │
+│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)    │
 │  LLM Planner • Security Validator • Approval Gate            │
 │  Sandboxed Executor • Event Bus • Auth • Sentience Engine    │
-└──────────────────────────┬──────────────────────────────────┘
+└──────────────────────────┬───────────────────────────────────┘
                            ▼ NATS JetStream
 ┌──────────────────────────────────────────────────────────────┐
 │  13 AGENTS: System • Security • Coding • Research            │
 │  Automation • Network • Infrastructure (Pi-hole) • Storage   │
-│  (TrueNAS) • Surveillance (Frigate) • Communications        │
+│  (TrueNAS) • Surveillance (Frigate) • Communications         │
 │  (Email/Calendar) • Productivity • Media • Home (HA)         │
-└──────────────────────────┬──────────────────────────────────┘
+└──────────────────────────┬───────────────────────────────────┘
                            ▼
 ┌──────────────────────────────────────────────────────────────┐
 │  MEMORY: PostgreSQL 16 • Qdrant (vectors) • Kuzu (graph)     │
 │  SECURITY: firejail/bubblewrap • seccomp • SHA-256 audit     │
-│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS             │
+│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS              │
 │  OBSERVABILITY: OpenTelemetry → Grafana + Loki + Prometheus  │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -133,6 +133,9 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 - **Multi-turn conversation**: Per-session history (last 10 turns), reference resolution ("do that again", "same thing"), context carried across intents
 - **Predictive intent**: Learns daily usage patterns — "you always check cameras at 10pm" → proactively suggests it
 - **Calendar awareness**: Proactive reminders 30 minutes before calendar events, visible in dashboard + Signal
+- **Auto hardware detection**: Detects GPU (NVIDIA + AMD), VRAM, RAM → auto-selects optimal LLM + Whisper model
+- **Runtime memory optimizer**: Monitors RAM pressure, auto-prunes stale data at elevated/high/critical levels, emits alerts
+- **Dual GPU support**: NVIDIA (CUDA) and AMD (ROCm) auto-configured at install time
 
 ---
 

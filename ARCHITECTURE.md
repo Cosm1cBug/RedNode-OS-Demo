@@ -6,7 +6,7 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society (TS) → Execu
 
 ## Central Nervous System — Rust — `core/rednode-core`
 
-16 modules:
+17 modules:
 
 | Module | Lines | What It Does |
 |---|---|---|
@@ -24,6 +24,7 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society (TS) → Execu
 | `init.rs` | 445 | PID1 mode: mount filesystems, supervise services, signal handling, watchdog |
 | `pii.rs` | 227 | PII detection pipeline: 14 types, auto-redact/block/log before memory ingestion |
 | `goap.rs` | 248 | Goal-Oriented Action Planning: A* search with preconditions, costs, dependency ordering |
+| `memory_optimizer.rs` | 200 | Runtime memory management: pressure detection, auto-pruning, critical alerts |
 | `main.rs` | 49 | Entry point: events → memory → bus → executor → sentience → API |
 | `lib.rs` | 12 | Module declarations |
 

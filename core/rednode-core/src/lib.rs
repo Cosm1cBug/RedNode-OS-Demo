@@ -10,5 +10,6 @@ pub mod memory;
 pub mod planner;
 pub mod security;
 pub mod goap;
+pub mod memory_optimizer;
 pub mod pii;
 pub mod sentience;

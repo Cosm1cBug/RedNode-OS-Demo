@@ -17,9 +17,12 @@
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 
-  # GPU – NVIDIA – for local LLM
+  # GPU – Auto-detect NVIDIA or AMD
+  # Both are configured; NixOS activates whichever hardware is present
   hardware.opengl.enable = true;
-  services.xserver.videoDrivers = [ "nvidia" ];
+
+  # NVIDIA support (activates if NVIDIA GPU detected)
+  services.xserver.videoDrivers = lib.mkDefault [ "nvidia" "amdgpu" "modesetting" ];
   hardware.nvidia = {
     modesetting.enable = true;
     powerManagement.enable = true;
@@ -27,6 +30,13 @@
     nvidiaSettings = false;
     package = config.boot.kernelPackages.nvidiaPackages.stable;
   };
+
+  # AMD ROCm support (activates if AMD GPU detected)
+  # Uncomment if you have an AMD GPU and want ROCm for Ollama:
+  # hardware.amdgpu.opencl.enable = true;
+  # systemd.tmpfiles.rules = [
+  #   "L+    /opt/rocm/hip   -    -    -     -    ${pkgs.rocmPackages.clr}"
+  # ];
 
   # Bluetooth – disabled by default – Security Agent can enable
   hardware.bluetooth.enable = false;

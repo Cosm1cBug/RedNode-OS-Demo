@@ -318,6 +318,14 @@ impl SentienceEngine {
         model.drives.availability = (agent_ratio * 0.4 + infra_score * 0.6).min(1.0);
 
         model.last_introspection = chrono::Utc::now();
+
+        // Memory optimization — run every 60th introspection cycle (once per minute)
+        static MEM_OPT_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        if MEM_OPT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 60 == 0 {
+            drop(model); // release lock before async call
+            let _mem_status = crate::memory_optimizer::optimize().await;
+            return; // skip the rest of this introspection tick
+        }
     }
 
     // ── Goal generator — runs every 30 seconds ──

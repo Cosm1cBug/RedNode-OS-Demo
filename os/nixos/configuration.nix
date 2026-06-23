@@ -176,9 +176,12 @@
   # ──────────────────────────────────────────────
   # Ollama – Local LLM (GPU-accelerated)
   # ──────────────────────────────────────────────
+  # Ollama – Local LLM
+  # acceleration: "cuda" for NVIDIA, "rocm" for AMD, null for CPU-only
+  # The setup-first-boot.sh script auto-detects and configures this
   services.ollama = {
     enable = true;
-    acceleration = "cuda";
+    acceleration = null; # auto-detected at first boot; set to "cuda" or "rocm" after detection
     host = "127.0.0.1";
     port = 11434;
   };
