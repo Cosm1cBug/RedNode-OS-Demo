@@ -855,7 +855,7 @@ do_diagnose() {
 do_install() {
   echo ""
   echo -e "${BOLD}  ╔═══════════════════════════════════════════════════╗${NC}"
-  echo -e "${BOLD}  ║  🧠 RedNode-OS v0.7.1 — Autonomous Installation ║${NC}"
+  echo -e "${BOLD}  ║  🧠 RedNode-OS v0.8.0 — Autonomous Installation   ║${NC}"
   echo -e "${BOLD}  ╚═══════════════════════════════════════════════════╝${NC}"
   echo ""
   

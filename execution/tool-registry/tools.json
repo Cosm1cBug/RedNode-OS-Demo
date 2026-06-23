@@ -718,5 +718,269 @@
     "agent": "security-agent",
     "risk": "medium",
     "description": "Search dark web (.onion) via Tor for threat intelligence and OSINT"
+  },
+  {
+    "name": "research.weather",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Weather forecast (wttr.in, no API key needed)"
+  },
+  {
+    "name": "research.news",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Latest news via SearXNG news category"
+  },
+  {
+    "name": "email.triage",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "LLM-classify incoming emails by urgency/category and produce digest"
+  },
+  {
+    "name": "email.auto_draft",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Auto-draft reply to an email using LLM"
+  },
+  {
+    "name": "rss.fetch",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Fetch and parse RSS feed items"
+  },
+  {
+    "name": "rss.digest",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Generate AI summary digest of recent RSS items"
+  },
+  {
+    "name": "podcast.download",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Download podcast episode from feed URL"
+  },
+  {
+    "name": "podcast.transcribe",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Transcribe podcast audio using Whisper STT"
+  },
+  {
+    "name": "podcast.summarize",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Summarize podcast transcript using LLM"
+  },
+  {
+    "name": "vpn.status",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Show WireGuard VPN status and connected peers"
+  },
+  {
+    "name": "vpn.add_peer",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "Generate WireGuard peer config (key pair + QR code)"
+  },
+  {
+    "name": "vpn.remove_peer",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "Remove a WireGuard VPN peer"
+  },
+  {
+    "name": "net.wol",
+    "agent": "network-agent",
+    "risk": "medium",
+    "description": "Send Wake-on-LAN magic packet to wake a device"
+  },
+  {
+    "name": "net.bandwidth",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Show bandwidth usage per device/VLAN from pfSense NetFlow"
+  },
+  {
+    "name": "ups.status",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Show UPS battery level, load, runtime, input voltage"
+  },
+  {
+    "name": "ups.history",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Show UPS event history (power failures, battery tests)"
+  },
+  {
+    "name": "ups.test",
+    "agent": "system-agent",
+    "risk": "medium",
+    "description": "Trigger UPS battery self-test"
+  },
+  {
+    "name": "sec.ids_alerts",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Show recent Suricata/Snort IDS alerts"
+  },
+  {
+    "name": "sec.ids_stats",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Show IDS alert statistics and top signatures"
+  },
+  {
+    "name": "sec.ssl_check",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Check SSL certificate expiry for a domain/service"
+  },
+  {
+    "name": "sec.vuln_scan",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Scan network devices for known vulnerabilities (Nmap + NVD)"
+  },
+  {
+    "name": "presence.evaluate",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Evaluate occupancy from camera + network + device data"
+  },
+  {
+    "name": "presence.status",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Show current presence/occupancy status"
+  },
+  {
+    "name": "presence.history",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Show presence history timeline"
+  },
+  {
+    "name": "photo.ingest",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Ingest photos from directory, organize by date, auto-tag"
+  },
+  {
+    "name": "photo.search",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Search photo library by date, tag, or description"
+  },
+  {
+    "name": "photo.tag",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Auto-tag photos using CLIP visual classification"
+  },
+  {
+    "name": "photo.stats",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Show photo library statistics"
+  },
+  {
+    "name": "predict.maintenance",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Analyze SMART/thermal/RAM data and predict hardware failures"
+  },
+  {
+    "name": "predict.report",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Generate predictive maintenance report"
+  },
+  {
+    "name": "notify.send",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Send smart notification (auto-classified urgency, quiet hours)"
+  },
+  {
+    "name": "notify.digest",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Get pending notification digest"
+  },
+  {
+    "name": "notify.config",
+    "agent": "system-agent",
+    "risk": "medium",
+    "description": "Configure notification quiet hours and channel"
+  },
+  {
+    "name": "signal.send",
+    "agent": "signal-bot",
+    "risk": "medium",
+    "description": "Send message to owner via Signal (E2EE)"
+  },
+  {
+    "name": "learn.discover",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Discover available tools, APIs, and system capabilities"
+  },
+  {
+    "name": "learn.ingest_docs",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Read and ingest documentation for a tool/service"
+  },
+  {
+    "name": "learn.extract_patterns",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Mine audit log for repeated intent patterns"
+  },
+  {
+    "name": "learn.suggest_workflow",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Suggest automated workflows from observed patterns"
+  },
+  {
+    "name": "learn.self_assess",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Assess knowledge coverage and identify gaps"
+  },
+  {
+    "name": "learn.synthesize",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Synthesize connections across knowledge domains"
+  },
+  {
+    "name": "learn.status",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Show learning agent status and capability count"
+  },
+  {
+    "name": "pipeline.list",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "List all configured pipelines and their status"
+  },
+  {
+    "name": "pipeline.run",
+    "agent": "system-agent",
+    "risk": "medium",
+    "description": "Manually trigger a named pipeline"
+  },
+  {
+    "name": "pipeline.enable",
+    "agent": "system-agent",
+    "risk": "medium",
+    "description": "Enable/disable a pipeline"
   }
 ]

@@ -42,7 +42,7 @@ let
   # Custom Plymouth theme for RedNode branding
   rednode-plymouth-theme = pkgs.stdenv.mkDerivation {
     pname = "rednode-plymouth-theme";
-    version = "0.7.1";
+    version = "0.8.0";
     src = pkgs.writeTextDir "rednode-spinner/rednode-spinner.plymouth" ''
       [Plymouth Theme]
       Name=RedNode-OS

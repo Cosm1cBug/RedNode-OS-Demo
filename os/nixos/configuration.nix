@@ -10,6 +10,7 @@
     ./disk-encryption.nix
     ./rednode-deploy.nix      # Autonomous deployment + self-healing
     # ./kiosk.nix             # Uncomment for branded GUI kiosk (adds ~200-350 MB RAM)
+    # ./extras.nix            # Uncomment for WireGuard VPN, UPS monitoring, Suricata IDS
   ];
 
   # ──────────────────────────────────────────────
