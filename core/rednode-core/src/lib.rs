@@ -9,4 +9,6 @@ pub mod intent_router;
 pub mod memory;
 pub mod planner;
 pub mod security;
+pub mod goap;
+pub mod pii;
 pub mod sentience;

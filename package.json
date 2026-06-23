@@ -1,21 +1,19 @@
 {
-  "name": "@rednode/web",
-  "version": "0.4.1",
+  "name": "rednode-os",
+  "version": "0.5.0",
   "private": true,
+  "description": "RedNode-OS \u2013 The Personal Autonomous Operating System",
+  "packageManager": "pnpm@9.1.0",
+  "workspaces": [
+    "agents/*",
+    "interfaces/web",
+    "interfaces/cli"
+  ],
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start"
-  },
-  "dependencies": {
-    "next": "15.3.3",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.5.2",
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0"
+    "agents": "pnpm -r --filter \"@rednode/*-agent\" --parallel dev",
+    "agents:core": "pnpm -r --filter '@rednode/system-agent' --filter '@rednode/security-agent' --filter '@rednode/coding-agent' --filter '@rednode/research-agent' --filter '@rednode/automation-agent' --filter '@rednode/network-agent' --parallel dev",
+    "agents:infra": "pnpm -r --filter '@rednode/infra-agent' --filter '@rednode/storage-agent' --filter '@rednode/surveillance-agent' --parallel dev",
+    "web": "pnpm --filter @rednode/web dev",
+    "cli": "pnpm --filter @rednode/cli dev"
   }
 }

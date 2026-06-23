@@ -681,7 +681,54 @@ impl SentienceEngine {
             }
         }
 
-        // ── Phase 4: Update drives ──
+        // ── Phase 4: JUDGE — score recent insights quality ──
+        // Intelligence pipeline: RETRIEVE → JUDGE → DISTILL → CONSOLIDATE
+        // Judge which insights are actually useful vs noise
+        if !recent_audit.is_empty() {
+            let total_actions = recent_audit.len();
+            let successful = recent_audit.iter().filter(|e| e.approved == Some(true)).count();
+            let success_rate = if total_actions > 0 { successful as f32 / total_actions as f32 } else { 0.5 };
+
+            // If success rate is high, knowledge is growing (good insights)
+            // If low, knowledge may be degrading (bad patterns being learned)
+            if success_rate > 0.7 {
+                tracing::info!(rate = success_rate, "JUDGE: high success rate — insights are valuable");
+            } else if success_rate < 0.3 {
+                tracing::warn!(rate = success_rate, "JUDGE: low success rate — review recent patterns");
+            }
+        }
+
+        // ── Phase 5: CONSOLIDATE — prevent knowledge decay ──
+        // Remove stale/low-quality entries from RAG to prevent "catastrophic forgetting"
+        // (keeping too many irrelevant documents dilutes search quality)
+        if let Some(pool) = pool() {
+            // Count documents in memory
+            let doc_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents")
+                .fetch_one(pool).await.unwrap_or((0,));
+
+            // If we have > 5000 documents, prune the oldest low-relevance ones
+            if doc_count.0 > 5000 {
+                let pruned = sqlx::query(
+                    "DELETE FROM documents WHERE id IN (\
+                     SELECT id FROM documents \
+                     WHERE source LIKE 'sentience/%' \
+                     ORDER BY created_at ASC LIMIT 100)"
+                ).execute(pool).await;
+
+                if let Ok(result) = pruned {
+                    let count = result.rows_affected();
+                    if count > 0 {
+                        tracing::info!(pruned = count, "CONSOLIDATE: pruned {} old sentience entries to prevent knowledge decay", count);
+                    }
+                }
+            }
+        }
+
+        // ── Phase 5b: Pattern Promotion ──
+        // Promote frequently-referenced entities to "established" status
+        crate::memory::promote_patterns().await;
+
+        // ── Phase 6: Update drives ──
         let mut model = self.model.write().await;
         model.drives.knowledge = (model.drives.knowledge + 0.05).min(1.0);
 

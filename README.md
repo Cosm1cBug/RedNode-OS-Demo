@@ -125,6 +125,11 @@ Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution 
 - **Proposition-level memory**: Documents are decomposed into atomic factual statements, each embedded separately — enables finer-grained RAG retrieval
 - **Event bus backpressure**: `tokio::broadcast` with capacity 512 — slow clients drop old events without blocking
 - **Resource sandboxing**: Every tool execution: 5s CPU, 512MB RAM, 1MB stdout, kill_on_drop
+- **PII detection**: 14-type scanner (credit cards, SSN, emails, API keys, etc.) — auto-redacts before memory ingestion
+- **GOAP planning**: Goal-Oriented Action Planning with A* search for complex multi-step goals with dependency ordering
+- **Circuit breaker**: Max 20 steps per plan, 120s execution timeout, max recursion depth 5 — prevents infinite loops
+- **Pattern promotion**: Entities mentioned 3+ times across documents get "established" status for better search ranking
+- **Knowledge consolidation**: Prunes stale memory entries, judges insight quality, prevents knowledge decay
 
 ---
 

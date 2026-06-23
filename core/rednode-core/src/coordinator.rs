@@ -5,8 +5,44 @@ use std::collections::HashMap;
 /// Execute a plan: validate → approve/dispatch → audit.
 /// Independent steps (different agents, no data dependency) run in parallel.
 /// Steps needing approval are queued without blocking others.
+/// Maximum plan steps per intent (prevents infinite planning loops)
+const MAX_PLAN_STEPS: usize = 20;
+/// Maximum total execution time per intent (seconds)
+const MAX_EXECUTION_SECS: u64 = 120;
+/// Maximum recursive depth (sentience goals calling coordinator again)
+static CURRENT_DEPTH: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+const MAX_RECURSION_DEPTH: u32 = 5;
+
 pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>, Vec<serde_json::Value>) {
+    // ── Circuit Breaker: prevent infinite recursion ──
+    let depth = CURRENT_DEPTH.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    if depth >= MAX_RECURSION_DEPTH {
+        CURRENT_DEPTH.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        tracing::warn!(depth, "circuit breaker: max recursion depth {} reached — aborting", MAX_RECURSION_DEPTH);
+        crate::events::emit(serde_json::json!({
+            "type": "circuit_breaker",
+            "reason": "max_recursion_depth",
+            "depth": depth,
+            "intent": intent,
+            "ts": chrono::Utc::now().to_rfc3339()
+        }));
+        return (vec![], vec![json!({"status": "circuit_breaker", "error": format!("Recursion depth {} exceeds limit {}", depth, MAX_RECURSION_DEPTH)})]);
+    }
+
+    // Ensure we decrement depth when done (even on early return)
+    let _depth_guard = scopeguard::defer! { CURRENT_DEPTH.fetch_sub(1, std::sync::atomic::Ordering::SeqCst); };
+
+    let execution_start = std::time::Instant::now();
+
     let steps = plan(intent).await;
+
+    // ── Circuit Breaker: cap plan size ──
+    let steps = if steps.len() > MAX_PLAN_STEPS {
+        tracing::warn!(steps = steps.len(), "circuit breaker: plan has {} steps, capping at {}", steps.len(), MAX_PLAN_STEPS);
+        steps.into_iter().take(MAX_PLAN_STEPS).collect::<Vec<_>>()
+    } else {
+        steps
+    };
 
     // ── Phase 1: Security validation + approval gate (sequential, fast) ──
     // Separate steps into: executable (Low/Medium) vs needs_approval (High/Critical) vs denied
@@ -60,11 +96,19 @@ pub async fn coordinate(intent: &str, session: &str) -> (Vec<serde_json::Value>,
         let intent_c = intent_owned.clone();
         let session_c = session_owned.clone();
         let cache = state_cache.clone();
+        let execution_start_c = execution_start;
+        let MAX_EXECUTION_SECS_C = MAX_EXECUTION_SECS;
 
         let handle = tokio::spawn(async move {
             let mut group_results: Vec<(usize, serde_json::Value)> = Vec::new();
 
             for (idx, step, risk_str) in agent_steps {
+                // Circuit breaker: check execution time budget
+                if execution_start_c.elapsed() > std::time::Duration::from_secs(MAX_EXECUTION_SECS_C) {
+                    tracing::warn!("circuit breaker: execution time exceeded {}s — skipping remaining steps", MAX_EXECUTION_SECS_C);
+                    group_results.push((idx, json!({"tool": step.tool, "agent": step.agent, "status": "circuit_breaker", "error": "execution time budget exceeded"})));
+                    continue;
+                }
                 let tool = step.tool.clone();
                 let agent = step.agent.clone();
                 let args = step.args.clone();

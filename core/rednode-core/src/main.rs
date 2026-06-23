@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer().json())
         .init();
 
-    tracing::info!("🧠 RedNode-OS v0.4.1 – CNS starting – intelligence is the operating layer");
+    tracing::info!("🧠 RedNode-OS v0.5.0 – CNS starting – intelligence is the operating layer");
 
     // ── 1. Event Bus – must be first, everything publishes to it ──
     events::init();

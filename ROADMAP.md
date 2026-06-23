@@ -2,7 +2,7 @@
 
 > *The computer does not contain intelligence. The computer becomes the intelligence.*
 >
-> **Current State**: v0.4.0 — 16 agents, 120 tools, Rust CNS, Sentience Engine (self-improvement + introspection), LLM planner, RAG memory, knowledge graph, 13-tab dashboard, Flutter mobile, Tauri desktop, 19-command CLI, voice (Whisper+Piper), Signal bot, threat intel, NVD sync, deep research, verification gate, PID1 init  
+> **Current State**: v0.5.0 — 16 agents, 120 tools, Rust CNS, Sentience Engine (self-improvement + introspection), LLM planner, RAG memory, knowledge graph, 13-tab dashboard, Flutter mobile, Tauri desktop, 19-command CLI, voice (Whisper+Piper), Signal bot, threat intel, NVD sync, deep research, verification gate, PID1 init, PII detection, GOAP planning, circuit breaker  
 > **Target**: Production deployment, commercial product
 
 ---

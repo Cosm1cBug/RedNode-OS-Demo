@@ -362,6 +362,61 @@ pub async fn rag_query(query: &str, limit: u64) -> Result<Vec<RagHit>> {
 }
 
 pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
+    // ── Step 0: PII Detection ──
+    // Scan for sensitive data before storing anything
+    let pii_result = crate::pii::scan(content);
+    let store_content = if pii_result.has_pii {
+        let action = crate::pii::get_pii_action();
+        tracing::warn!(
+            source = %source,
+            pii_count = pii_result.pii_count,
+            action = %action,
+            "PII detected in document: {} item(s)",
+            pii_result.pii_count
+        );
+
+        // Log PII findings as security event
+        let finding_summary: Vec<String> = pii_result.findings.iter()
+            .map(|f| format!("[{}] {}", f.severity, f.pii_type))
+            .collect();
+        let _ = log_security_event(
+            if pii_result.findings.iter().any(|f| f.severity == "high") { "HIGH" } else { "MEDIUM" },
+            "pii-scanner",
+            &format!("PII detected in '{}': {}", source, finding_summary.join(", ")),
+            serde_json::json!({
+                "source": source,
+                "pii_count": pii_result.pii_count,
+                "types": finding_summary,
+                "action": action,
+            }),
+        ).await;
+
+        crate::events::emit_security_event(
+            if pii_result.findings.iter().any(|f| f.severity == "high") { "HIGH" } else { "MEDIUM" },
+            "pii-scanner",
+            &format!("PII detected in '{}': {} item(s) — action: {}", source, pii_result.pii_count, action),
+        );
+
+        match action.as_str() {
+            "block" => {
+                tracing::warn!(source = %source, "PII action=block — document NOT ingested");
+                anyhow::bail!("Document blocked: contains {} PII item(s). Set REDNODE_PII_ACTION=redact to auto-redact.", pii_result.pii_count);
+            }
+            "redact" => {
+                tracing::info!(source = %source, "PII action=redact — storing redacted version");
+                pii_result.redacted.clone()
+            }
+            _ => {
+                // "log" — store original but log the finding
+                tracing::info!(source = %source, "PII action=log — storing original with warning");
+                content.to_string()
+            }
+        }
+    } else {
+        content.to_string()
+    };
+    let content = &store_content;
+
     // ── Step 1: Embed full document ──
     let embedding = match embed_ollama(content).await {
         Ok(v) => v,
@@ -817,6 +872,99 @@ pub use kg_postgres::{init as kg_init, query as kg_query, add_entity as kg_add_e
 
 /// Extract entities from text and add to knowledge graph.
 /// Called during document ingestion to build the graph automatically.
+/// Promote entities that appear frequently.
+/// Entities mentioned 3+ times across different documents get "established" status.
+/// Called during consolidation cycles.
+pub async fn promote_patterns() {
+    if let Some(pool) = pool() {
+        // Find entities referenced by 3+ different documents
+        let promoted = sqlx::query(
+            "UPDATE kg_entities SET \
+             properties = jsonb_set(COALESCE(properties, '{}'), '{status}', '\"established\"') \
+             WHERE name IN ( \
+               SELECT to_entity FROM kg_relationships \
+               WHERE relation = 'mentions' \
+               GROUP BY to_entity HAVING COUNT(DISTINCT from_entity) >= 3 \
+             ) AND (properties->>'status' IS NULL OR properties->>'status' != 'established')"
+        ).execute(pool).await;
+
+        if let Ok(result) = promoted {
+            let count = result.rows_affected();
+            if count > 0 {
+                tracing::info!(promoted = count, "pattern promotion: {} entities → established (3+ document mentions)");
+            }
+        }
+    }
+}
+
+/// Pathfinder: find scored paths between two entities in the knowledge graph.
+/// Scores paths by: hop count (shorter = better) + entity status (established = bonus).
+pub async fn kg_pathfind(from: &str, to: &str, max_depth: u32) -> Result<Vec<serde_json::Value>> {
+    let Some(pool) = pool() else { return Ok(vec![]); };
+
+    // BFS to find paths from → to via relationships (max depth hops)
+    let mut paths: Vec<serde_json::Value> = Vec::new();
+    let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut queue: std::collections::VecDeque<(String, Vec<String>, f32)> = std::collections::VecDeque::new();
+
+    queue.push_back((from.to_string(), vec![from.to_string()], 0.0));
+    visited.insert(from.to_string());
+
+    while let Some((current, path, cost)) = queue.pop_front() {
+        if path.len() > (max_depth as usize + 1) {
+            continue;
+        }
+
+        // Check if we reached the target
+        if current.to_lowercase() == to.to_lowercase() && path.len() > 1 {
+            let score = 1.0 / (cost + path.len() as f32); // shorter + lower cost = higher score
+            paths.push(serde_json::json!({
+                "path": path,
+                "hops": path.len() - 1,
+                "cost": cost,
+                "score": score,
+            }));
+            continue;
+        }
+
+        // Expand neighbors
+        let neighbors: Vec<(String, String)> = sqlx::query_as(
+            "SELECT to_entity, relation FROM kg_relationships WHERE from_entity = $1 \
+             UNION SELECT from_entity, relation FROM kg_relationships WHERE to_entity = $1"
+        ).bind(&current).fetch_all(pool).await.unwrap_or_default();
+
+        for (neighbor, _relation) in neighbors {
+            if !visited.contains(&neighbor) {
+                visited.insert(neighbor.clone());
+
+                // Check if neighbor is "established" (promoted) — lower cost
+                let props: Option<(Option<serde_json::Value>,)> = sqlx::query_as(
+                    "SELECT properties FROM kg_entities WHERE name = $1"
+                ).bind(&neighbor).fetch_optional(pool).await.unwrap_or(None);
+
+                let hop_cost = if props.and_then(|p| p.0).and_then(|v| v.get("status").and_then(|s| s.as_str()).map(|s| s == "established")).unwrap_or(false) {
+                    0.5 // established entities are cheaper to traverse
+                } else {
+                    1.0
+                };
+
+                let mut new_path = path.clone();
+                new_path.push(neighbor.clone());
+                queue.push_back((neighbor, new_path, cost + hop_cost));
+            }
+        }
+    }
+
+    // Sort by score (highest first)
+    paths.sort_by(|a, b| {
+        let sa = a["score"].as_f64().unwrap_or(0.0);
+        let sb = b["score"].as_f64().unwrap_or(0.0);
+        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    Ok(paths.into_iter().take(5).collect()) // top 5 paths
+}
+
 pub fn extract_and_store_entities(source: &str, content: &str) {
     // Simple entity extraction — keywords → entities
     // For production: use NER model via Ollama
