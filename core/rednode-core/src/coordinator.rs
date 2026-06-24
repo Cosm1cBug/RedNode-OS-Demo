@@ -45,8 +45,9 @@ pub async fn coordinate(
     }
 
     // Ensure we decrement depth when done (even on early return)
-    let _depth_guard =
-        scopeguard::defer! { CURRENT_DEPTH.fetch_sub(1, std::sync::atomic::Ordering::SeqCst); };
+    let _depth_guard = scopeguard::guard((), |_| {
+        CURRENT_DEPTH.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    });
 
     let execution_start = std::time::Instant::now();
 
@@ -67,7 +68,7 @@ pub async fn coordinate(
 
     // ── Phase 1: Security validation + approval gate (sequential, fast) ──
     // Separate steps into: executable (Low/Medium) vs needs_approval (High/Critical) vs denied
-    let mut executable: Vec<(usize, &PlanStep, String)> = Vec::new(); // (index, step, risk_str)
+    let mut executable: Vec<(usize, PlanStep, String)> = Vec::new(); // (index, step, risk_str)
     let mut non_executable: Vec<(usize, serde_json::Value)> = Vec::new(); // (index, result)
 
     for (i, step) in steps.iter().enumerate() {
@@ -106,19 +107,19 @@ pub async fn coordinate(
                 }),
             ));
         } else {
-            executable.push((i, step, risk_str));
+            executable.push((i, step.clone(), risk_str));
         }
     }
 
     // ── Phase 2: Parallel execution of independent steps ──
     // Group steps by agent — steps targeting different agents are independent.
     // Steps targeting the same agent execute sequentially (agent handles one task at a time).
-    let mut agent_groups: HashMap<String, Vec<(usize, &PlanStep, String)>> = HashMap::new();
-    for (i, step, risk_str) in &executable {
+    let mut agent_groups: HashMap<String, Vec<(usize, PlanStep, String)>> = HashMap::new();
+    for (i, step, risk_str) in executable.into_iter() {
         agent_groups
             .entry(step.agent.clone())
             .or_default()
-            .push((*i, step, risk_str.clone()));
+            .push((i, step, risk_str));
     }
 
     // State cache: results from earlier steps available to later ones within same session

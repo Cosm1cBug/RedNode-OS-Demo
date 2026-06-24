@@ -293,7 +293,7 @@ class BrowserAgent extends RedNodeAgent {
                 data.length > 0
                   ? data
                       .map(
-                        (d) =>
+                        (d: { tag: string; index: number; text: string }) =>
                           `[${d.tag}#${d.index}] ${d.text.substring(0, 500)}`,
                       )
                       .join("\n\n")

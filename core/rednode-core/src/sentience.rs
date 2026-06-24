@@ -10,6 +10,7 @@
 // - Self-healing – detect → isolate → patch → verify
 
 use chrono::Timelike;
+use crate::memory::pool;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -942,12 +943,11 @@ fn sample_resources() -> ResourceState {
         sys.refresh_cpu_usage();
         sys.refresh_memory();
         (
-            sys.global_cpu_usage(),
+            sys.global_cpu_info().cpu_usage(),
             sys.used_memory() / 1024 / 1024,
             sys.total_memory() / 1024 / 1024,
         )
     };
-
     // Real disk usage via statvfs on /
     let (disk_used_gb, disk_total_gb) = get_disk_usage("/");
 

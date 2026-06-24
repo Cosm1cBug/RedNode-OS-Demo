@@ -1,8 +1,7 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 
 #[derive(Debug, Deserialize)]
@@ -214,13 +213,19 @@ fn tool_to_command(tool: &str, args: &serde_json::Value) -> Result<(String, Vec<
         "code.test" => ("cargo".into(), vec!["test".into(), "--quiet".into()]),
         // Research tools – no direct OS command – handled in agent
         "research.query" | "kb.query" => {
-            return Ok(format!(
-                "Research query: {} – use RAG pipeline",
-                args.get("query").and_then(|v| v.as_str()).unwrap_or("")
-            ))
+            return Ok((
+                "echo".into(),
+                vec![format!(
+                    "Research query: {} – use RAG pipeline",
+                    args.get("query").and_then(|v| v.as_str()).unwrap_or("")
+                )],
+            ));
         }
         "code.analyze" => {
-            return Ok("Code analysis: 0 errors, 2 warnings – clippy clean (simulated)".into())
+            return Ok((
+                "echo".into(),
+                vec!["Code analysis: 0 errors, 2 warnings – clippy clean (simulated)".into()],
+            ));
         }
         _ => bail!(
             "tool denied by policy or not implemented in executor: {}",

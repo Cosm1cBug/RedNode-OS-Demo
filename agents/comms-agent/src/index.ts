@@ -72,18 +72,19 @@ async function fetchEmails(
     const lock = await client.getMailboxLock(folder);
 
     try {
-      // Fetch latest messages
-      const messages = client.fetch(
-        `${Math.max(1, client.mailbox.exists - limit + 1)}:*`,
-        {
-          envelope: true,
-          bodyStructure: true,
-          source: { maxBytes: 5000 }, // first 5KB of body
-        },
-      );
+      const mailboxExists =
+        typeof client.mailbox === "boolean"
+          ? 0
+          : Math.max(1, client.mailbox.exists - limit + 1);
+
+      const messages = client.fetch(`${mailboxExists}:*`, {
+        envelope: true,
+        bodyStructure: true,
+        source: { maxLength: 5000 }, // first 5KB of body
+      });
 
       for await (const msg of messages) {
-        const env = msg.envelope;
+        const env = msg.envelope ?? {};
         emails.push({
           uid: msg.uid,
           date: env.date?.toISOString(),

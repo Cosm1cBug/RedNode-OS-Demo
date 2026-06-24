@@ -1,4 +1,5 @@
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::sync::OnceLock;
 static POOL: OnceLock<Option<PgPool>> = OnceLock::new();
@@ -1047,7 +1048,8 @@ pub async fn promote_patterns() {
             if count > 0 {
                 tracing::info!(
                     promoted = count,
-                    "pattern promotion: {} entities → established (3+ document mentions)"
+                    "pattern promotion: {} entities → established (3+ document mentions)",
+                    count
                 );
             }
         }

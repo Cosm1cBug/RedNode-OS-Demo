@@ -11,11 +11,12 @@
     "imapflow": "^1.0.160",
     "mailparser": "^3.7.1",
     "nodemailer": "^6.9.13",
-    "tsdav": "^2.11.0"
+    "tsdav": "^2.2.2"
   },
   "devDependencies": {
     "tsx": "^4.15.0",
     "typescript": "^5.5.0",
-    "@types/nodemailer": "^6.4.15"
+    "@types/nodemailer": "^6.4.15",
+    "@types/node": "^22.0.0"
   }
 }

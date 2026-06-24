@@ -43,7 +43,7 @@ struct PiiPattern {
 
 // ─── 14 PII Patterns ───
 
-static PATTERNS: &[PiiPattern] = &[
+static PATTERNS: Lazy<Vec<PiiPattern>> = Lazy::new(|| vec![
     // HIGH severity — financial / identity
     PiiPattern {
         name: "credit_card",
@@ -149,14 +149,14 @@ static PATTERNS: &[PiiPattern] = &[
         }),
         redact_label: "[JWT_REDACTED]",
     },
-];
+]);
 
 /// Scan text for PII and return findings + redacted version.
 pub fn scan(text: &str) -> PiiScanResult {
     let mut findings = Vec::new();
     let mut redacted = text.to_string();
 
-    for pattern in PATTERNS {
+    for pattern in PATTERNS.iter() {
         let regex = &*pattern.regex;
         for mat in regex.find_iter(text) {
             findings.push(PiiFinding {

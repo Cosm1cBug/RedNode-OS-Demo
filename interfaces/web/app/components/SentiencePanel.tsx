@@ -80,7 +80,7 @@ export default function SentiencePanel() {
             })}
           </div>
           <div style={{marginTop:10, fontSize:12, opacity:.7}}>
-            Drives < 0.8 generate autonomous goals – Goal-driven execution – not just reactive
+            Drives {'<'} 0.8 generate autonomous goals – Goal-driven execution – not just reactive
           </div>
         </div>
 
