@@ -4,6 +4,7 @@ pub mod auth;
 pub mod bus;
 pub mod coordinator;
 pub mod events;
+pub mod evolution;
 pub mod executor;
 pub mod intent_router;
 pub mod memory;

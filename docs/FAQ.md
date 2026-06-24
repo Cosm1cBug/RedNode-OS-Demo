@@ -59,7 +59,7 @@
 
 RedNode-OS is a **personal autonomous operating system**. It transforms a single computer into a self-aware, self-healing intelligent system that manages your entire digital infrastructure — network, storage, security, cameras, smart home, code, research — through natural language intents.
 
-It is **not** a chatbot. It is **not** a wrapper around an LLM. It is a society of 16 specialized AI agents coordinated by a Rust-based Central Nervous System, running on a purpose-built NixOS installation.
+It is **not** a chatbot. It is **not** a wrapper around an LLM. It is a society of 18 specialized AI agents coordinated by a Rust-based Central Nervous System, running on a purpose-built NixOS installation.
 
 **Key design principle:** Your data never leaves your machine. Zero cloud. Zero telemetry. Zero tracking. The computer doesn't *contain* intelligence — the computer *becomes* the intelligence.
 
@@ -99,7 +99,7 @@ It is **not** a chatbot. It is **not** a wrapper around an LLM. It is a society 
 **Short answer:** RedNode's memory is structured, relational, and needs SQL for complex queries across propositions, audit logs, session history, and knowledge graphs. PostgreSQL is the only database that does all of this well, locally, with zero cloud dependency.
 
 **Why not SQLite?**
-- SQLite is single-writer. RedNode has 16 agents + the CNS writing concurrently.
+- SQLite is single-writer. RedNode has 18 agents + the CNS writing concurrently.
 - SQLite has no `pgvector` — RedNode needs vector similarity search for memory embeddings.
 - SQLite is great for embedded apps, but RedNode is a full system with complex joins across propositions, entities, relationships, audit entries, and session memory.
 
@@ -839,8 +839,8 @@ nix build .#iso-kiosk
 
 **It's deployment-ready, not "production" in the enterprise sense.** It's a personal system for one user/family:
 
-✅ All 16 agents have real logic (not stubs)
-✅ 122 tools, all risk-tagged and sandboxed
+✅ All 18 agents have real logic (not stubs)
+✅ 359 tools, all risk-tagged and sandboxed
 ✅ 35+ tests (integration + unit)
 ✅ Self-healing installer
 ✅ Security audited (0 SQL injection, 0 hardcoded secrets, 2 safe `unsafe` blocks)
@@ -860,7 +860,7 @@ nix build .#iso-kiosk
 |---|---|---|
 | **Scope** | Entire infrastructure (network, security, storage, cameras, home, code, research) | Smart home only |
 | **Interface** | Natural language intents | GUI automations + YAML |
-| **AI** | Local LLM, 16 specialized agents | Cloud-dependent voice assistants |
+| **AI** | Local LLM, 18 specialized agents | Cloud-dependent voice assistants |
 | **Security** | CVE scanning, threat intel, firewall management, audit chain | Basic auth only |
 | **Network** | VLAN management, pfSense integration, Pi-hole | Not in scope |
 | **Privacy** | Zero cloud, zero telemetry | Cloud integrations common |

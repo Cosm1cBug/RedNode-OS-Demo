@@ -982,5 +982,1175 @@
     "agent": "system-agent",
     "risk": "medium",
     "description": "Enable/disable a pipeline"
+  },
+  {
+    "name": "sys.cpu_profile",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Per-core CPU usage, frequency, throttle state"
+  },
+  {
+    "name": "sys.mem_detailed",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Per-process memory breakdown, swap, hugepages"
+  },
+  {
+    "name": "sys.disk_io",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Per-disk IOPS, throughput, latency, queue depth"
+  },
+  {
+    "name": "sys.network_io",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Per-interface bandwidth, packet drops, errors"
+  },
+  {
+    "name": "sys.journal",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Query systemd journal by unit/priority/time"
+  },
+  {
+    "name": "sys.cron_list",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "List all scheduled cron/systemd timers"
+  },
+  {
+    "name": "sys.cron_create",
+    "agent": "system-agent",
+    "risk": "medium",
+    "description": "Create a new systemd timer"
+  },
+  {
+    "name": "sys.package_list",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "List installed Nix packages with versions"
+  },
+  {
+    "name": "sys.package_update",
+    "agent": "system-agent",
+    "risk": "high",
+    "description": "Trigger nixos-rebuild switch"
+  },
+  {
+    "name": "sys.boot_list",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "List NixOS generations, select boot target"
+  },
+  {
+    "name": "sys.rollback",
+    "agent": "system-agent",
+    "risk": "high",
+    "description": "Roll back to previous NixOS generation"
+  },
+  {
+    "name": "sys.temperature",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "CPU/GPU/disk/ambient temperature sensors"
+  },
+  {
+    "name": "sys.fan_speed",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "Fan RPM from lm_sensors"
+  },
+  {
+    "name": "sys.usb_devices",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "List connected USB devices"
+  },
+  {
+    "name": "sys.uptime",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "System uptime, boot time, load averages"
+  },
+  {
+    "name": "sys.kernel_log",
+    "agent": "system-agent",
+    "risk": "low",
+    "description": "dmesg / kernel ring buffer last N entries"
+  },
+  {
+    "name": "sec.audit_log",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Query audit chain by time/action/agent"
+  },
+  {
+    "name": "sec.audit_verify",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Verify SHA-256 hash chain integrity"
+  },
+  {
+    "name": "sec.fail2ban_status",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Show fail2ban jail status and banned IPs"
+  },
+  {
+    "name": "sec.fail2ban_ban",
+    "agent": "security-agent",
+    "risk": "high",
+    "description": "Manually ban an IP across all jails"
+  },
+  {
+    "name": "sec.fail2ban_unban",
+    "agent": "security-agent",
+    "risk": "high",
+    "description": "Unban an IP"
+  },
+  {
+    "name": "sec.firewall_test",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Test firewall rules by probing a port"
+  },
+  {
+    "name": "sec.entropy",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Check system entropy pool"
+  },
+  {
+    "name": "sec.rootkit_scan",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Run chkrootkit/rkhunter scan"
+  },
+  {
+    "name": "sec.password_audit",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Check for weak/default passwords"
+  },
+  {
+    "name": "sec.port_scan",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "Nmap scan of a target IP/subnet"
+  },
+  {
+    "name": "sec.dns_leak_check",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Verify DNS queries go through Pi-hole"
+  },
+  {
+    "name": "sec.cert_monitor",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Monitor SSL cert expiry for domains"
+  },
+  {
+    "name": "sec.log_anomaly",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Pattern anomaly detection in system logs"
+  },
+  {
+    "name": "sec.honeypot_status",
+    "agent": "security-agent",
+    "risk": "low",
+    "description": "Check honeypot service on guest VLAN"
+  },
+  {
+    "name": "sec.compliance_check",
+    "agent": "security-agent",
+    "risk": "medium",
+    "description": "CIS benchmark compliance scan"
+  },
+  {
+    "name": "net.ping",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Ping a host, return latency/packet loss"
+  },
+  {
+    "name": "net.traceroute",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Traceroute to a target"
+  },
+  {
+    "name": "net.dns_lookup",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "DNS A/AAAA/MX/TXT lookup"
+  },
+  {
+    "name": "net.whois",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "WHOIS lookup for a domain"
+  },
+  {
+    "name": "net.speed_test",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Local bandwidth test via iperf3"
+  },
+  {
+    "name": "net.arp_table",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Show ARP table IP-MAC mappings"
+  },
+  {
+    "name": "net.vlan_list",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "List all VLANs with device counts"
+  },
+  {
+    "name": "net.vlan_move",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "Move a device to a different VLAN"
+  },
+  {
+    "name": "net.dhcp_leases",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Show active DHCP leases per VLAN"
+  },
+  {
+    "name": "net.port_forward",
+    "agent": "network-agent",
+    "risk": "high",
+    "description": "Create/remove pfSense port forward rule"
+  },
+  {
+    "name": "net.route_table",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Show routing table"
+  },
+  {
+    "name": "net.interface_stats",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Per-interface error/drop/collision counters"
+  },
+  {
+    "name": "net.wifi_scan",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Scan nearby WiFi networks"
+  },
+  {
+    "name": "net.mtr",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Combined ping and traceroute"
+  },
+  {
+    "name": "net.connection_table",
+    "agent": "network-agent",
+    "risk": "low",
+    "description": "Show active TCP/UDP connections per device"
+  },
+  {
+    "name": "pihole.gravity_update",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Update Pi-hole gravity block lists"
+  },
+  {
+    "name": "pihole.regex_add",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Add regex filter to Pi-hole"
+  },
+  {
+    "name": "pihole.regex_remove",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Remove regex filter"
+  },
+  {
+    "name": "pihole.whitelist_add",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Whitelist a domain"
+  },
+  {
+    "name": "pihole.whitelist_remove",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Remove from whitelist"
+  },
+  {
+    "name": "pihole.client_report",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "DNS report for a specific client IP"
+  },
+  {
+    "name": "pihole.dns_history",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "DNS query history graph data"
+  },
+  {
+    "name": "pihole.cname_add",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Add local DNS CNAME record"
+  },
+  {
+    "name": "pihole.group_manage",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Manage Pi-hole groups"
+  },
+  {
+    "name": "docker.images",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "List Docker images with sizes"
+  },
+  {
+    "name": "docker.logs",
+    "agent": "infra-agent",
+    "risk": "low",
+    "description": "Tail logs from a container"
+  },
+  {
+    "name": "docker.restart",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Restart a Docker container"
+  },
+  {
+    "name": "docker.prune",
+    "agent": "infra-agent",
+    "risk": "medium",
+    "description": "Clean unused Docker images/volumes"
+  },
+  {
+    "name": "nas.scrub",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Start/check ZFS/btrfs scrub status"
+  },
+  {
+    "name": "nas.quota",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Show/set dataset quotas"
+  },
+  {
+    "name": "nas.compression_stats",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Show compression ratio per dataset"
+  },
+  {
+    "name": "nas.rsync_job",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Create/run rsync replication job"
+  },
+  {
+    "name": "nas.cloud_sync",
+    "agent": "storage-agent",
+    "risk": "high",
+    "description": "Sync dataset to B2/S3 encrypted"
+  },
+  {
+    "name": "nas.permission_fix",
+    "agent": "storage-agent",
+    "risk": "medium",
+    "description": "Reset file permissions on a share"
+  },
+  {
+    "name": "nas.file_search",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Search files by name/size/date"
+  },
+  {
+    "name": "nas.dedup_report",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Show deduplication savings"
+  },
+  {
+    "name": "nas.io_stats",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Real-time I/O stats per pool/disk"
+  },
+  {
+    "name": "nas.temperature_history",
+    "agent": "storage-agent",
+    "risk": "low",
+    "description": "Disk temperature history over time"
+  },
+  {
+    "name": "cam.live_url",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Get RTSP/HTTP live stream URL"
+  },
+  {
+    "name": "cam.recording_list",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "List recordings by date/camera"
+  },
+  {
+    "name": "cam.recording_export",
+    "agent": "surveillance-agent",
+    "risk": "medium",
+    "description": "Export a recording clip to file"
+  },
+  {
+    "name": "cam.motion_zones",
+    "agent": "surveillance-agent",
+    "risk": "medium",
+    "description": "Configure motion detection zones"
+  },
+  {
+    "name": "cam.object_filter",
+    "agent": "surveillance-agent",
+    "risk": "medium",
+    "description": "Configure which objects to detect"
+  },
+  {
+    "name": "cam.timelapse",
+    "agent": "surveillance-agent",
+    "risk": "medium",
+    "description": "Generate timelapse from recordings"
+  },
+  {
+    "name": "cam.face_register",
+    "agent": "surveillance-agent",
+    "risk": "medium",
+    "description": "Register a known face locally"
+  },
+  {
+    "name": "cam.face_identify",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Identify a person in an event"
+  },
+  {
+    "name": "cam.vehicle_detect",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Detect vehicle license plates ALPR"
+  },
+  {
+    "name": "cam.audio_detect",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Detect audio events"
+  },
+  {
+    "name": "cam.ptz_control",
+    "agent": "surveillance-agent",
+    "risk": "medium",
+    "description": "Pan/tilt/zoom for PTZ cameras"
+  },
+  {
+    "name": "cam.health_check",
+    "agent": "surveillance-agent",
+    "risk": "low",
+    "description": "Check all camera feeds for disconnections"
+  },
+  {
+    "name": "email.fetch",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Fetch recent emails via IMAP"
+  },
+  {
+    "name": "email.summarize",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Summarize email thread with LLM"
+  },
+  {
+    "name": "email.draft",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Draft a reply using LLM"
+  },
+  {
+    "name": "email.send",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Send email via SMTP"
+  },
+  {
+    "name": "email.rules",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Manage email filter rules"
+  },
+  {
+    "name": "email.search",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Search email by sender/subject/date"
+  },
+  {
+    "name": "email.archive",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Archive/move email to folder"
+  },
+  {
+    "name": "email.unsubscribe",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Detect and unsubscribe from newsletters"
+  },
+  {
+    "name": "calendar.view",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "View calendar events"
+  },
+  {
+    "name": "calendar.create",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Create calendar event"
+  },
+  {
+    "name": "calendar.conflicts",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Check for scheduling conflicts"
+  },
+  {
+    "name": "calendar.reschedule",
+    "agent": "comms-agent",
+    "risk": "medium",
+    "description": "Reschedule an event"
+  },
+  {
+    "name": "calendar.availability",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Show free/busy slots"
+  },
+  {
+    "name": "contacts.search",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Search contacts"
+  },
+  {
+    "name": "contacts.add",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Add a new contact"
+  },
+  {
+    "name": "contacts.birthday_remind",
+    "agent": "comms-agent",
+    "risk": "low",
+    "description": "Upcoming birthday reminders"
+  },
+  {
+    "name": "home.device_info",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "Detailed info for a specific device"
+  },
+  {
+    "name": "home.history",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "State history for an entity over time"
+  },
+  {
+    "name": "home.energy",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "Energy consumption dashboard data"
+  },
+  {
+    "name": "home.battery_status",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "List battery-powered devices and levels"
+  },
+  {
+    "name": "home.door_lock",
+    "agent": "home-agent",
+    "risk": "high",
+    "description": "Lock/unlock smart locks"
+  },
+  {
+    "name": "home.garage",
+    "agent": "home-agent",
+    "risk": "high",
+    "description": "Open/close garage door"
+  },
+  {
+    "name": "home.vacuum",
+    "agent": "home-agent",
+    "risk": "medium",
+    "description": "Start/stop/dock robot vacuum"
+  },
+  {
+    "name": "home.irrigation",
+    "agent": "home-agent",
+    "risk": "medium",
+    "description": "Start/stop/schedule irrigation"
+  },
+  {
+    "name": "home.alarm",
+    "agent": "home-agent",
+    "risk": "high",
+    "description": "Arm/disarm/status of alarm system"
+  },
+  {
+    "name": "home.media_player",
+    "agent": "home-agent",
+    "risk": "medium",
+    "description": "Control smart speakers/TVs"
+  },
+  {
+    "name": "home.notification",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "Send notification to HA companion app"
+  },
+  {
+    "name": "home.logbook",
+    "agent": "home-agent",
+    "risk": "low",
+    "description": "Show HA event logbook"
+  },
+  {
+    "name": "code.search",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Search codebase by regex/symbol"
+  },
+  {
+    "name": "code.format",
+    "agent": "coding-agent",
+    "risk": "medium",
+    "description": "Auto-format a file"
+  },
+  {
+    "name": "code.lint",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Lint a file and report issues"
+  },
+  {
+    "name": "code.diff",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Show diff between files/branches"
+  },
+  {
+    "name": "code.todo",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Find all TODO/FIXME in a project"
+  },
+  {
+    "name": "code.dependency_check",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Check for outdated/vulnerable deps"
+  },
+  {
+    "name": "code.coverage",
+    "agent": "coding-agent",
+    "risk": "medium",
+    "description": "Run tests and show code coverage"
+  },
+  {
+    "name": "code.complexity",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Analyze cyclomatic complexity"
+  },
+  {
+    "name": "git.log",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Show git log recent commits"
+  },
+  {
+    "name": "git.diff",
+    "agent": "coding-agent",
+    "risk": "low",
+    "description": "Show git diff staged/unstaged"
+  },
+  {
+    "name": "git.branch",
+    "agent": "coding-agent",
+    "risk": "medium",
+    "description": "List/create/switch branches"
+  },
+  {
+    "name": "git.commit",
+    "agent": "coding-agent",
+    "risk": "medium",
+    "description": "Stage and commit with message"
+  },
+  {
+    "name": "git.push",
+    "agent": "coding-agent",
+    "risk": "high",
+    "description": "Push to remote"
+  },
+  {
+    "name": "git.pr_create",
+    "agent": "coding-agent",
+    "risk": "high",
+    "description": "Create pull request via GitHub API"
+  },
+  {
+    "name": "research.arxiv",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Search arXiv papers by topic"
+  },
+  {
+    "name": "research.wikipedia",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Query Wikipedia for a topic"
+  },
+  {
+    "name": "research.translate",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Translate text between languages"
+  },
+  {
+    "name": "research.summarize_url",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Summarize any URL content"
+  },
+  {
+    "name": "research.compare",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Compare two topics side by side"
+  },
+  {
+    "name": "research.timeline",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Build a timeline of events"
+  },
+  {
+    "name": "research.fact_check",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Cross-reference a claim against sources"
+  },
+  {
+    "name": "kb.export",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Export knowledge base to markdown"
+  },
+  {
+    "name": "kb.stats",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Knowledge base statistics"
+  },
+  {
+    "name": "kb.graph_visualize",
+    "agent": "research-agent",
+    "risk": "low",
+    "description": "Export knowledge graph as DOT/SVG"
+  },
+  {
+    "name": "workflow.list",
+    "agent": "automation-agent",
+    "risk": "low",
+    "description": "List all defined workflows"
+  },
+  {
+    "name": "workflow.delete",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Delete a workflow"
+  },
+  {
+    "name": "workflow.edit",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Modify workflow steps"
+  },
+  {
+    "name": "workflow.history",
+    "agent": "automation-agent",
+    "risk": "low",
+    "description": "Show workflow execution history"
+  },
+  {
+    "name": "schedule.list",
+    "agent": "automation-agent",
+    "risk": "low",
+    "description": "List all scheduled jobs"
+  },
+  {
+    "name": "schedule.remove",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Remove a scheduled job"
+  },
+  {
+    "name": "schedule.pause",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Pause/resume a schedule"
+  },
+  {
+    "name": "trigger.webhook",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Create a webhook trigger URL"
+  },
+  {
+    "name": "trigger.file_watch",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Trigger workflow on file change"
+  },
+  {
+    "name": "trigger.mqtt",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Trigger workflow on MQTT message"
+  },
+  {
+    "name": "trigger.conditional",
+    "agent": "automation-agent",
+    "risk": "medium",
+    "description": "Trigger only if condition is met"
+  },
+  {
+    "name": "browser.pdf",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Save webpage as PDF"
+  },
+  {
+    "name": "browser.monitor",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Watch page for changes, alert on diff"
+  },
+  {
+    "name": "browser.cookie_clean",
+    "agent": "browser-agent",
+    "risk": "medium",
+    "description": "Clear cookies/cache for privacy"
+  },
+  {
+    "name": "browser.price_track",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Track price on e-commerce pages"
+  },
+  {
+    "name": "browser.archive",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Save page to local archive"
+  },
+  {
+    "name": "browser.readability",
+    "agent": "browser-agent",
+    "risk": "low",
+    "description": "Extract article text strip ads"
+  },
+  {
+    "name": "notes.tag",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Add/remove tags on a note"
+  },
+  {
+    "name": "notes.export",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Export notes to markdown/PDF"
+  },
+  {
+    "name": "notes.link",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Link two notes together"
+  },
+  {
+    "name": "tasks.priority",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Set task priority"
+  },
+  {
+    "name": "tasks.due",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Set/change task due date"
+  },
+  {
+    "name": "tasks.recurring",
+    "agent": "productivity-agent",
+    "risk": "medium",
+    "description": "Create recurring task"
+  },
+  {
+    "name": "tasks.project",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Group tasks into projects"
+  },
+  {
+    "name": "habits.track",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Log a habit completion"
+  },
+  {
+    "name": "habits.streak",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Show habit streaks"
+  },
+  {
+    "name": "pomodoro.start",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Start a pomodoro timer 25 min"
+  },
+  {
+    "name": "pomodoro.status",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Show current pomodoro status"
+  },
+  {
+    "name": "journal.entry",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Create a daily journal entry"
+  },
+  {
+    "name": "journal.search",
+    "agent": "productivity-agent",
+    "risk": "low",
+    "description": "Search past journal entries"
+  },
+  {
+    "name": "photo.faces",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Detect/cluster faces in photo library"
+  },
+  {
+    "name": "photo.duplicate",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Find duplicate photos"
+  },
+  {
+    "name": "photo.resize",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Batch resize photos"
+  },
+  {
+    "name": "photo.export",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Export album as zip"
+  },
+  {
+    "name": "music.scan",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Scan and index music library"
+  },
+  {
+    "name": "music.playlist",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Create/manage playlists"
+  },
+  {
+    "name": "music.lyrics",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Fetch lyrics for a song"
+  },
+  {
+    "name": "video.info",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Get video metadata"
+  },
+  {
+    "name": "video.thumbnail",
+    "agent": "media-agent",
+    "risk": "low",
+    "description": "Generate thumbnail from video"
+  },
+  {
+    "name": "video.convert",
+    "agent": "media-agent",
+    "risk": "medium",
+    "description": "Convert video format via ffmpeg"
+  },
+  {
+    "name": "social.thread",
+    "agent": "social-agent",
+    "risk": "medium",
+    "description": "Create a multi-post thread"
+  },
+  {
+    "name": "social.hashtags",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "Suggest hashtags for content"
+  },
+  {
+    "name": "social.best_time",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "Analyze best posting times"
+  },
+  {
+    "name": "social.followers",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "Follower count/growth analytics"
+  },
+  {
+    "name": "social.mentions",
+    "agent": "social-agent",
+    "risk": "low",
+    "description": "Show mentions/replies across platforms"
+  },
+  {
+    "name": "social.block",
+    "agent": "social-agent",
+    "risk": "medium",
+    "description": "Block a user on a platform"
+  },
+  {
+    "name": "social.crosspost",
+    "agent": "social-agent",
+    "risk": "medium",
+    "description": "Post same content to multiple platforms"
+  },
+  {
+    "name": "learn.benchmark",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Benchmark LLM on RedNode tasks"
+  },
+  {
+    "name": "learn.train_data",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Export training data for fine-tuning"
+  },
+  {
+    "name": "learn.test_tool",
+    "agent": "learning-agent",
+    "risk": "medium",
+    "description": "Test newly discovered tool in sandbox"
+  },
+  {
+    "name": "learn.watch_logs",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Watch system logs for new error patterns"
+  },
+  {
+    "name": "learn.suggest_tool",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Suggest new tool based on failed intents"
+  },
+  {
+    "name": "learn.knowledge_map",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "Visualize what the agent knows"
+  },
+  {
+    "name": "signal.send_image",
+    "agent": "signal-bot",
+    "risk": "medium",
+    "description": "Send image via Signal"
+  },
+  {
+    "name": "signal.send_file",
+    "agent": "signal-bot",
+    "risk": "medium",
+    "description": "Send file via Signal"
+  },
+  {
+    "name": "signal.group_list",
+    "agent": "signal-bot",
+    "risk": "low",
+    "description": "List Signal groups"
+  },
+  {
+    "name": "signal.group_send",
+    "agent": "signal-bot",
+    "risk": "medium",
+    "description": "Send to a Signal group"
+  },
+  {
+    "name": "signal.contacts",
+    "agent": "signal-bot",
+    "risk": "low",
+    "description": "List Signal contacts"
+  },
+  {
+    "name": "learn.evolve",
+    "agent": "learning-agent",
+    "risk": "medium",
+    "description": "Discover a new capability and auto-create a tool (registers in tools.json + generates handler)"
+  },
+  {
+    "name": "learn.auto_evolve",
+    "agent": "learning-agent",
+    "risk": "medium",
+    "description": "Autonomous evolution cycle \u2014 scan system for unregistered tools, learn about them, create handlers"
+  },
+  {
+    "name": "learn.list_evolved",
+    "agent": "learning-agent",
+    "risk": "low",
+    "description": "List all auto-generated/evolved tools"
+  },
+  {
+    "name": "learn.teach",
+    "agent": "learning-agent",
+    "risk": "medium",
+    "description": "Teach RedNode a new command \u2014 provide name, command/URL, and description"
   }
 ]

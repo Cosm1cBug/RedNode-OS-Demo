@@ -1,5 +1,12 @@
 {
   "name": "@rednode/shared",
-  "version": "0.2.0",
-  "type": "module"
+  "version": "0.9.0",
+  "type": "module",
+  "dependencies": {
+    "nats": "^2.22.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.2",
+    "@types/node": "^22.0.0"
+  }
 }

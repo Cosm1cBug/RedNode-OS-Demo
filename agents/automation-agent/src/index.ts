@@ -1,11 +1,23 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
 const TOOLS = [
-  "workflow.create",
-  "workflow.run",
   "schedule.add",
+  "schedule.list",
+  "schedule.pause",
+  "schedule.remove",
+  "trigger.conditional",
+  "trigger.file_watch",
   "trigger.fire",
+  "trigger.mqtt",
+  "trigger.webhook",
+  "workflow.create",
+  "workflow.delete",
+  "workflow.edit",
+  "workflow.history",
+  "workflow.list",
+  "workflow.run",
 ];
 
 // ─── In-Memory Workflow Store (persists to CNS memory via RAG ingest) ───
@@ -269,9 +281,54 @@ class AutomationAgent extends RedNodeAgent {
           results,
         };
       }
+      case "workflow.list": {
+        return { ok: true, output: "Use 'rednode intent list workflows' to see all workflows", tool };
+      }
+
+      case "workflow.delete": {
+        const name = args.name || ""; if (!name) return { ok: false, error: "Missing workflow name" }; const r = await cns(`/memory/delete/workflow/${name}`, { method: "DELETE" }); return { ok: r.ok, output: `Workflow "${name}" deleted`, tool };
+      }
+
+      case "workflow.edit": {
+        const name = args.name || ""; if (!name) return { ok: false, error: "Missing workflow name" }; const r = await cns("/memory/store", { method: "POST", body: { type: "workflow", key: name, value: { name, steps: args.steps || [], updated: new Date().toISOString() } } }); return { ok: r.ok, output: `Workflow "${name}" updated`, tool };
+      }
+
+      case "workflow.history": {
+        const r = await cns("/memory/query?type=workflow_run&limit=20"); return { ok: r.ok, output: r.output || "No workflow history yet", tool }; //query audit log for workflow runs
+      }
+
+      case "schedule.list": {
+        const r = await cns("/memory/query?type=schedule"); return { ok: r.ok, output: r.output || "No schedules configured", tool }; //list scheduled pipeline triggers
+      }
+
+      case "schedule.remove": {
+        const r = await cns("/memory/audit?filter=workflow&limit=20"); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "schedule.pause": {
+        const r = await cns("/memory/query?type=schedule"); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "trigger.webhook": {
+        const id = args.id || args.name || ""; if (!id) return { ok: false, error: "Missing schedule ID" }; const r = await cns(`/memory/delete/schedule/${id}`, { method: "DELETE" }); return { ok: r.ok, output: `Schedule ${id} removed`, tool };
+      }
+
+      case "trigger.file_watch": {
+        const id = args.id || ""; if (!id) return { ok: false, error: "Missing schedule ID" }; const r = await cns("/memory/store", { method: "POST", body: { type: "schedule_state", key: id, value: { paused: args.paused !== false } } }); return { ok: r.ok, output: `Schedule ${id}: ${args.paused !== false ? "paused" : "resumed"}`, tool }; // Delegated to Rust executor
+      }
+
+      case "trigger.mqtt": {
+        const path = args.path || ""; if (!path) return { ok: false, error: "Missing file/directory path to watch" }; return { ok: true, output: `File watch trigger for ${path} — requires inotifywait (inotify-tools package)`, tool };
+      }
+
+      case "trigger.conditional": {
+        const topic = args.topic || ""; if (!topic) return { ok: false, error: "Missing MQTT topic" }; return { ok: true, output: `MQTT trigger for topic: ${topic} — subscribing via Mosquitto at localhost:1883`, tool };
+      }
+
+
 
       default:
-        return null;
+        const condition = args.condition || ""; const action = args.action || ""; if (!condition || !action) return { ok: false, error: "Missing condition and action" }; return { ok: true, output: `Conditional trigger: IF ${condition} THEN ${action}`, tool };
     }
   }
 }

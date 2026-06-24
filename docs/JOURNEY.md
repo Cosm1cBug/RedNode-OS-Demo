@@ -1,4 +1,4 @@
-> **Note**: This document captures the project state at the time it was written. See README.md for current counts (16 agents, 114 tools, 14,493 LOC).
+> **Note**: This document captures the project state at the time it was written. See README.md for current counts (18 agents, 114 tools, 14,493 LOC).
 
 # RedNode-OS — The Journey: Where We Started → Where We Are
 

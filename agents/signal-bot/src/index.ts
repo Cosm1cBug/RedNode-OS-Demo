@@ -241,3 +241,92 @@ main().catch((e) => {
   console.error("[signal-bot] Fatal:", e);
   process.exit(1);
 });
+
+// ─── NATS Tool Handlers (called by CNS/coordinator) ───
+// These allow other agents and pipelines to send messages via Signal
+
+import { connect, StringCodec, JSONCodec } from "nats";
+
+async function startNatsHandler() {
+  try {
+    const nc = await connect({ servers: process.env.NATS_URL || "nats://localhost:4222" });
+    const jc = JSONCodec();
+
+    const sub = nc.subscribe("rednode.tool.signal-bot.>");
+    for await (const msg of sub) {
+      try {
+        const data = jc.decode(msg.data) as any;
+        const tool = data.tool || "";
+        const args = data.args || {};
+        let result: any = { ok: false, error: "Unknown tool" };
+
+        switch (tool) {
+          case "signal.send": {
+            const recipient = args.to || OWNER_NUMBER;
+            const message = args.message || args.body || "";
+            if (!message) { result = { ok: false, error: "Missing 'message'" }; break; }
+            await sendSignalMessage(recipient, message);
+            result = { ok: true, output: `Sent to ${recipient}` };
+            break;
+          }
+          case "signal.send_image": {
+            const recipient = args.to || OWNER_NUMBER;
+            const image = args.image || args.file || "";
+            const caption = args.caption || "";
+            if (!image) { result = { ok: false, error: "Missing 'image' path" }; break; }
+            try {
+              await execAsync(`${SIGNAL_CLI} -u ${BOT_NUMBER} send -m ${JSON.stringify(caption)} -a ${image} ${recipient}`);
+              result = { ok: true, output: `Image sent to ${recipient}` };
+            } catch (e: any) { result = { ok: false, error: e.message }; }
+            break;
+          }
+          case "signal.send_file": {
+            const recipient = args.to || OWNER_NUMBER;
+            const file = args.file || args.path || "";
+            if (!file) { result = { ok: false, error: "Missing 'file' path" }; break; }
+            try {
+              await execAsync(`${SIGNAL_CLI} -u ${BOT_NUMBER} send -m "File" -a ${file} ${recipient}`);
+              result = { ok: true, output: `File sent to ${recipient}` };
+            } catch (e: any) { result = { ok: false, error: e.message }; }
+            break;
+          }
+          case "signal.group_list": {
+            try {
+              const { stdout } = await execAsync(`${SIGNAL_CLI} -u ${BOT_NUMBER} listGroups -d 2>/dev/null`);
+              result = { ok: true, output: stdout.trim() || "No groups" };
+            } catch (e: any) { result = { ok: true, output: "signal-cli not configured for groups" }; }
+            break;
+          }
+          case "signal.group_send": {
+            const group = args.group || args.group_id || "";
+            const message = args.message || "";
+            if (!group || !message) { result = { ok: false, error: "Missing 'group' and 'message'" }; break; }
+            try {
+              await execAsync(`${SIGNAL_CLI} -u ${BOT_NUMBER} send -g ${group} -m ${JSON.stringify(message)}`);
+              result = { ok: true, output: `Sent to group ${group}` };
+            } catch (e: any) { result = { ok: false, error: e.message }; }
+            break;
+          }
+          case "signal.contacts": {
+            try {
+              const { stdout } = await execAsync(`${SIGNAL_CLI} -u ${BOT_NUMBER} listContacts 2>/dev/null`);
+              result = { ok: true, output: stdout.trim() || "No contacts" };
+            } catch (e: any) { result = { ok: true, output: "signal-cli not configured" }; }
+            break;
+          }
+        }
+
+        if (msg.reply) {
+          msg.respond(jc.encode(result));
+        }
+      } catch (e) {
+        console.error("[signal-bot] NATS handler error:", e);
+      }
+    }
+  } catch (e) {
+    console.error("[signal-bot] NATS connection failed (Signal bot runs standalone):", e);
+  }
+}
+
+// Start NATS handler in background (non-blocking)
+startNatsHandler();

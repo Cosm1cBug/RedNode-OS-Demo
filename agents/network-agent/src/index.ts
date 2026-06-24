@@ -1,14 +1,38 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
 const PIHOLE_URL = process.env.PIHOLE_URL || "http://10.0.50.2";
 const TOOLS = [
-  "net.status",
-  "firewall.rules",
-  "vpn.connect",
   "dns.check",
-  "traffic.analyze",
-  "net.scan",
+  "firewall.rules",
+  "fw.block_ip",
+  "fw.isolate_device",
+  "fw.unblock_ip",
+  "net.arp_table",
+  "net.bandwidth",
+  "net.connection_table",
   "net.devices",
+  "net.dhcp_leases",
+  "net.dns_lookup",
+  "net.interface_stats",
+  "net.mtr",
+  "net.ping",
+  "net.port_forward",
+  "net.route_table",
+  "net.scan",
+  "net.speed_test",
+  "net.status",
+  "net.traceroute",
+  "net.vlan_list",
+  "net.vlan_move",
+  "net.whois",
+  "net.wifi_scan",
+  "net.wol",
+  "traffic.analyze",
+  "vpn.add_peer",
+  "vpn.connect",
+  "vpn.remove_peer",
+  "vpn.status",
 ];
 
 class NetworkAgent extends RedNodeAgent {
@@ -273,6 +297,165 @@ class NetworkAgent extends RedNodeAgent {
       case "vpn.connect":
         // High risk — pass through to Rust executor for approval gate
         return null;
+      case "fw.block_ip": {
+        const r = await sh("wg-quick up wg0 2>&1 || echo \"WireGuard not configured\""); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "fw.unblock_ip": {
+        return null; // Rust executor: high-risk, requires approval
+      }
+
+      case "fw.isolate_device": {
+        return null; // Rust executor: high-risk, requires approval
+      }
+
+      case "vpn.status": {
+        const r = await sh("wg show 2>/dev/null || echo \"WireGuard not configured\""); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "vpn.add_peer": {
+        const r = await sh("wg show 2>/dev/null || echo \"WireGuard not configured\""); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "vpn.remove_peer": {
+        const r = await sh("wg show 2>/dev/null || echo \"WireGuard not configured\""); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "net.wol": {
+        const mac = args.mac || args.target || "";
+                if (!mac) return { ok: false, error: "Missing 'mac' address for Wake-on-LAN" };
+                const mac = args.mac || ""; if (!mac) return { ok: false, error: "Missing MAC address" }; const r = await sh(`etherwake ${mac} 2>&1 || wakeonlan ${mac} 2>&1 || echo "WoL tools not installed"`); return { ok: r.ok, output: r.output, tool }; etherwake / wol
+      }
+
+      case "net.bandwidth": {
+        const iface = args.interface || "enp0s31f6"; const r = await sh(`vnstat -i ${iface} --oneline 2>/dev/null || cat /proc/net/dev | grep ${iface}`); return { ok: r.ok, output: r.output, tool }; vnstat / nethogs summary
+      }
+
+      case "net.ping": {
+        const host = args.host || args.target || "";
+                if (!host) return { ok: false, error: "Missing 'host' to ping" };
+                try {
+                  const { execSync } = await import("child_process");
+                  const count = args.count || 4;
+                  const out = execSync(`ping -c ${count} -W 3 ${host} 2>&1`, { encoding: "utf-8", timeout: 15000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: true, output: `Ping to ${host} failed: ${e.message}`, tool }; }
+      }
+
+      case "net.traceroute": {
+        const host = args.host || args.target || "";
+                if (!host) return { ok: false, error: "Missing 'host' to traceroute" };
+                try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync(`traceroute -m 20 -w 2 ${host} 2>&1 || tracepath ${host} 2>&1`, { encoding: "utf-8", timeout: 30000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.dns_lookup": {
+        const domain = args.domain || args.host || "";
+                if (!domain) return { ok: false, error: "Missing 'domain'" };
+                try {
+                  const { execSync } = await import("child_process");
+                  const rtype = args.type || "A";
+                  const out = execSync(`dig ${domain} ${rtype} +short 2>/dev/null || nslookup ${domain} 2>&1`, { encoding: "utf-8", timeout: 10000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.whois": {
+        const domain = args.domain || args.target || "";
+                if (!domain) return { ok: false, error: "Missing 'domain'" };
+                try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync(`whois ${domain} 2>&1 | head -60`, { encoding: "utf-8", timeout: 15000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.speed_test": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("iperf3 -c localhost -t 5 2>&1 || echo 'iperf3 not available — install and point to a target server'", { encoding: "utf-8", timeout: 30000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.arp_table": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("ip neigh show 2>/dev/null || arp -a 2>/dev/null", { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.vlan_list": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("ip -d link show type vlan 2>/dev/null || cat /proc/net/vlan/config 2>/dev/null || echo 'No VLANs configured locally — check pfSense'", { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.vlan_move": {
+        return null; // Rust executor: high-risk, requires approval
+      }
+
+      case "net.dhcp_leases": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("cat /var/lib/dhcp/dhclient.leases 2>/dev/null || echo 'DHCP leases managed by pfSense — query via pfSense API'", { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.port_forward": {
+        return null; // Rust executor: high-risk, requires approval
+      }
+
+      case "net.route_table": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("ip route show 2>/dev/null || route -n 2>/dev/null", { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.interface_stats": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("ip -s link show 2>/dev/null || netstat -i 2>/dev/null", { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.wifi_scan": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("iw dev wlan0 scan 2>/dev/null | grep -E 'SSID|signal|freq' || echo 'No wireless interface or scan not supported'", { encoding: "utf-8", timeout: 15000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.mtr": {
+        const host = args.host || args.target || "";
+                if (!host) return { ok: false, error: "Missing 'host'" };
+                try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync(`mtr -r -c 5 ${host} 2>&1 || traceroute ${host} 2>&1`, { encoding: "utf-8", timeout: 30000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "net.connection_table": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("ss -tunap 2>/dev/null | head -50 || netstat -tunap 2>/dev/null | head -50", { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+
 
       default:
         return null;

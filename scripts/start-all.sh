@@ -110,6 +110,7 @@ do_start() {
   start_service "storage-agent" "pnpm --filter @rednode/storage-agent dev" "$ROOT"
   start_service "surveillance-agent" "pnpm --filter @rednode/surveillance-agent dev" "$ROOT"
   start_service "comms-agent" "pnpm --filter @rednode/comms-agent dev" "$ROOT"
+  start_service "learning-agent" "pnpm --filter @rednode/learning-agent dev" "$ROOT"
 
   # 5. Web dashboard
   start_service "web" "pnpm --filter @rednode/web dev" "$ROOT"
@@ -136,7 +137,7 @@ do_stop() {
   info "🧠 RedNode-OS — Stopping All Services"
   echo ""
 
-  for svc in tts stt web comms-agent surveillance-agent storage-agent infra-agent \
+  for svc in tts stt web learning-agent comms-agent surveillance-agent storage-agent infra-agent \
              network-agent automation-agent research-agent coding-agent security-agent system-agent cns; do
     stop_service "$svc"
   done
@@ -164,7 +165,7 @@ do_status() {
   echo "  RedNode:"
   check_service "cns"
   for agent in system-agent security-agent coding-agent research-agent automation-agent \
-               network-agent infra-agent storage-agent surveillance-agent comms-agent; do
+               network-agent infra-agent storage-agent surveillance-agent comms-agent learning-agent; do
     check_service "$agent"
   done
   check_service "web"

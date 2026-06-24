@@ -8,13 +8,13 @@
 
 | Category | Score | Status |
 |---|---|---|
-| **Core Architecture** | 10/10 | Rust CNS, NATS bus, 16 agents, LLM planner, GOAP fallback |
+| **Core Architecture** | 10/10 | Rust CNS, NATS bus, 18 agents, LLM planner, GOAP fallback |
 | **Security** | 9/10 | PII detection, sandboxing, audit chain, risk tags, CVE scanning |
 | **Memory** | 9/10 | PostgreSQL + Qdrant + knowledge graph, propositions, consolidation |
 | **Intelligence** | 9/10 | Sentience Engine, predictive intent, pattern promotion, multi-turn |
 | **Infrastructure** | 9/10 | NixOS config, Docker, self-healing, hardware detection |
 | **Interfaces** | 9/10 | Web, CLI, Voice, Signal, Mobile, Desktop, API, WebSocket, Kiosk |
-| **Agents** | 8/10 | 16 agents, 122 tools — all have logic, need real-hardware testing |
+| **Agents** | 8/10 | 18 agents, 359 tools — all have logic, need real-hardware testing |
 | **Deployment** | 9/10 | Self-healing installer, baked ISO, branded kiosk, Plymouth splash |
 | **Docs** | 9/10 | 25 markdown files, 46-question FAQ, step-by-step guides |
 | **Real-world testing** | 0/10 | Not yet deployed on actual hardware |
@@ -47,7 +47,7 @@
 | `main.rs` | 49 | Entry point, runtime selection |
 | `lib.rs` | 15 | Module exports |
 
-### Agents (TypeScript — 18 directories, 122 tools)
+### Agents (TypeScript — 18 directories, 359 tools)
 
 | Agent | Tools | What It Does |
 |---|---|---|

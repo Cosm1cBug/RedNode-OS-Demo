@@ -1,18 +1,32 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
 const PIHOLE_URL = process.env.PIHOLE_URL || "http://10.0.50.2";
 const PIHOLE_PASSWORD = process.env.PIHOLE_PASSWORD || "";
 
 const TOOLS = [
+  "docker.images",
+  "docker.logs",
+  "docker.prune",
+  "docker.restart",
+  "pihole.add_block",
+  "pihole.anomaly",
+  "pihole.client_report",
+  "pihole.cname_add",
+  "pihole.disable",
+  "pihole.dns_history",
+  "pihole.enable",
+  "pihole.gravity_update",
+  "pihole.group_manage",
+  "pihole.query_log",
+  "pihole.regex_add",
+  "pihole.regex_remove",
+  "pihole.remove_block",
   "pihole.stats",
   "pihole.top_blocked",
   "pihole.top_clients",
-  "pihole.query_log",
-  "pihole.disable",
-  "pihole.enable",
-  "pihole.add_block",
-  "pihole.remove_block",
-  "pihole.anomaly",
+  "pihole.whitelist_add",
+  "pihole.whitelist_remove",
 ];
 
 // ─── Pi-hole v6 API Session Management ───
@@ -205,6 +219,82 @@ class InfraAgent extends RedNodeAgent {
             anomalies: [],
           };
         }
+      case "pihole.gravity_update": {
+        const r = await pihole("updateGravity"); return { ok: r.ok, output: "Gravity update triggered", tool };
+      }
+
+      case "pihole.regex_add": {
+        const regex = args.regex || args.pattern || ""; if (!regex) return { ok: false, error: "Missing regex pattern" }; const r = await pihole(`list=regex_black&add=${encodeURIComponent(regex)}`); return { ok: r.ok, output: `Regex added: ${regex}`, tool };
+      }
+
+      case "pihole.regex_remove": {
+        const regex = args.regex || args.pattern || ""; if (!regex) return { ok: false, error: "Missing regex" }; const r = await pihole(`list=regex_black&sub=${encodeURIComponent(regex)}`); return { ok: r.ok, output: `Regex removed: ${regex}`, tool };
+      }
+
+      case "pihole.whitelist_add": {
+        const domain = args.domain || ""; if (!domain) return { ok: false, error: "Missing domain" }; const r = await pihole(`list=white&add=${domain}`); return { ok: r.ok, output: `Whitelisted: ${domain}`, tool };
+      }
+
+      case "pihole.whitelist_remove": {
+        const domain = args.domain || ""; if (!domain) return { ok: false, error: "Missing domain" }; const r = await pihole(`list=white&sub=${domain}`); return { ok: r.ok, output: `Removed from whitelist: ${domain}`, tool };
+      }
+
+      case "pihole.client_report": {
+        const client = args.client || args.ip || "";
+                if (!client) return { ok: false, error: "Missing 'client' IP" };
+                const url = process.env.PIHOLE_URL || "http://10.0.50.2";
+                try {
+                  const res = await fetch(\`\${url}/admin/api.php?getQuerySources&client=\${client}\`);
+                  const data = await res.json();
+                  return { ok: true, output: JSON.stringify(data, null, 2), tool };
+                } catch (e: any) { return { ok: false, error: \`Pi-hole API error: \${e.message}\` }; }
+      }
+
+      case "pihole.dns_history": {
+        const url = process.env.PIHOLE_URL || "http://10.0.50.2";
+                try {
+                  const res = await fetch(\`\${url}/admin/api.php?overTimeData10mins\`);
+                  const data = await res.json();
+                  return { ok: true, output: JSON.stringify(data, null, 2), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "pihole.cname_add": {
+        const domain = args.domain || ""; const target = args.target || ""; if (!domain || !target) return { ok: false, error: "Missing domain and target" }; const r = await pihole(`customcname&action=add&domain=${domain}&target=${target}`); return { ok: r.ok, output: `CNAME: ${domain} → ${target}`, tool };
+      }
+
+      case "pihole.group_manage": {
+        const r = await pihole("groups"); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "docker.images": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("docker images --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}'", { encoding: "utf-8", timeout: 10000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "docker.logs": {
+        const container = args.container || args.name || "";
+                if (!container) return { ok: false, error: "Missing 'container' name" };
+                try {
+                  const { execSync } = await import("child_process");
+                  const n = args.lines || 50;
+                  const out = execSync(\`docker logs --tail \${n} \${container} 2>&1\`, { encoding: "utf-8", timeout: 10000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "docker.restart": {
+        const container = args.container || args.name || ""; if (!container) return { ok: false, error: "Missing container name" }; const r = await sh(`docker restart ${container} 2>&1`); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "docker.prune": {
+        const r = await sh("docker system prune -f 2>&1"); return { ok: r.ok, output: r.output, tool };
+      }
+
+
 
         default:
           return null; // fall through to Rust executor

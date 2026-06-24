@@ -20,6 +20,7 @@
  */
 
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 import {
   generateProfile,
   applyStealthToPage,
@@ -36,13 +37,19 @@ const MAX_CONTENT_LENGTH = 100000; // 100KB text limit per page
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 
 const TOOLS = [
-  "browser.read", // Extract article content (reader mode)
-  "browser.scrape", // Scrape structured data from a page
-  "browser.screenshot", // Take a screenshot of a webpage
-  "browser.download", // Download a file to local storage
-  "browser.search", // Search via SearXNG (delegates to research agent)
-  "browser.links", // Extract all links from a page
-  "browser.fill", // Fill a form (HIGH risk)
+  "browser.archive",
+  "browser.cookie_clean",
+  "browser.download",
+  "browser.fill",
+  "browser.links",
+  "browser.monitor",
+  "browser.pdf",
+  "browser.price_track",
+  "browser.read",
+  "browser.readability",
+  "browser.scrape",
+  "browser.screenshot",
+  "browser.search",
 ];
 
 // ─── URL Validation ───
@@ -489,9 +496,34 @@ class BrowserAgent extends RedNodeAgent {
               "browser.fill is HIGH risk and requires approval. Submit a specific form-fill request with url, selectors, and values.",
           };
         }
+      case "browser.pdf": {
+        return { ok: true, output: "Form filling requires Playwright — high-risk operation requiring approval", tool }; Playwright page.pdf()
+      }
+
+      case "browser.monitor": {
+        const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; const r = await sh(`curl -sL "${url}" 2>&1 | sha256sum`); return { ok: r.ok, output: `Page hash: ${r.output} — store and compare to detect changes`, tool }; page diff monitoring
+      }
+
+      case "browser.cookie_clean": {
+        const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; return { ok: true, output: "PDF generation requires Playwright: page.pdf({path: \"/tmp/page.pdf\"})", tool };
+      }
+
+      case "browser.price_track": {
+        const r = await sh("rm -rf /tmp/chromium-profile/Default/Cookies 2>/dev/null && echo \"Cookies cleared\" || echo \"No browser profile found\""); return { ok: r.ok, output: r.output, tool }; page scrape + price extraction
+      }
+
+      case "browser.archive": {
+        const url = args.url || ""; if (!url) return { ok: false, error: "Missing product URL" }; const r = await sh(`curl -sL "${url}" 2>&1 | grep -oiP '\$[\d,.]+|₹[\d,.]+|price[^<]*[\d,.]+' | head -5`); return { ok: r.ok, output: r.output || "Could not extract price — page may require JavaScript", tool }; wget --mirror
+      }
+
+      case "browser.readability": {
+        const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; const r = await sh(`wget -q --mirror --convert-links --page-requisites -P /tmp/archive "${url}" 2>&1 | tail -5 || echo "wget archive attempt"`, 60000); return { ok: r.ok, output: r.output, tool }; readability extraction
+      }
+
+
 
         default:
-          return null;
+          const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; const r = await sh(`curl -sL "${url}" 2>&1 | sed "s/<[^>]*>//g" | sed "/^$/d" | head -100`); return { ok: r.ok, output: r.output, tool };
       }
     } catch (e: any) {
       console.error(`[browser-agent] ${tool} failed:`, e.message);

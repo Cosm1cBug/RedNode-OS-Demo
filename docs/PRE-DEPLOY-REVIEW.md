@@ -1,4 +1,4 @@
-> **Note**: This document was the pre-deployment review at time of writing. See README.md for final current counts (16 agents, 114 tools).
+> **Note**: This document was the pre-deployment review at time of writing. See README.md for final current counts (18 agents, 114 tools).
 
 # RedNode-OS — Final Pre-Deployment Review
 
@@ -387,7 +387,7 @@ Every 6 hours: Security Agent CVE checker runs
 ```
 RedNode-OS-Demo/                              TOTAL: 171 files, ~12,000+ LOC
 │
-├── core/rednode-core/                        Rust CNS — 3,485 lines
+├── core/rednode-core/                        Rust CNS — 6,599 lines
 │   ├── Cargo.toml                            Dependencies (19 crates)
 │   ├── Cargo.lock                            Pinned versions
 │   ├── Dockerfile                            Container build

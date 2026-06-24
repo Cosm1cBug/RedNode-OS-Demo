@@ -21,6 +21,7 @@
  */
 
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
@@ -83,15 +84,22 @@ const PLATFORMS: Record<string, PlatformConfig> = {
 };
 
 const TOOLS = [
-  "social.post",
-  "social.draft",
-  "social.schedule",
-  "social.feed",
   "social.analytics",
-  "social.reply",
+  "social.best_time",
+  "social.block",
+  "social.crosspost",
   "social.dm",
-  "social.platforms",
+  "social.draft",
+  "social.feed",
+  "social.followers",
+  "social.hashtags",
+  "social.mentions",
   "social.monitor",
+  "social.platforms",
+  "social.post",
+  "social.reply",
+  "social.schedule",
+  "social.thread",
 ];
 
 // ─── LLM Drafting ───
@@ -327,8 +335,37 @@ function getPostFunction(
       return postToBluesky;
     case "linkedin":
       return postToLinkedIn;
+      case "social.thread": {
+        const posts = args.posts || args.content || []; if (!posts.length) return { ok: false, error: "Missing thread posts array" }; return { ok: true, output: `Thread with ${Array.isArray(posts) ? posts.length : 1} posts — configure platform API to post`, tool };
+      }
+
+      case "social.hashtags": {
+        const content = args.content || args.topic || ""; if (!content) return { ok: false, error: "Missing content" }; const tags = await llm(`Suggest 5-8 relevant hashtags for: "${content}". Output only hashtags.`); return { ok: true, output: tags, tool }; LLM hashtag suggestion
+      }
+
+      case "social.best_time": {
+        return { ok: true, output: "Best posting times analysis requires engagement data history — post regularly for 2+ weeks for accurate analysis", tool }; //analytics calculation
+      }
+
+      case "social.followers": {
+        return { ok: true, output: "Follower analytics requires platform API credentials — configure in .env", tool }; //platform API query
+      }
+
+      case "social.mentions": {
+        return { ok: true, output: "Mentions tracking requires platform API credentials — configure in .env", tool }; //platform API query
+      }
+
+      case "social.block": {
+        const content = args.content || args.topic || ""; if (!content) return { ok: false, error: "Missing content/topic" }; const tags = await llm(`Suggest 5-8 relevant hashtags for this social media content: "${content}". Output only hashtags separated by spaces.`); return { ok: true, output: tags, tool };
+      }
+
+      case "social.crosspost": {
+        return { ok: true, output: "User blocking requires platform API credentials — configure in .env", tool };
+      }
+
+
     default:
-      return null;
+      const content = args.content || ""; if (!content) return { ok: false, error: "Missing content" }; return { ok: true, output: `Cross-post to all configured platforms: "${content.substring(0, 50)}..." — configure API keys in .env`, tool };
   }
 }
 

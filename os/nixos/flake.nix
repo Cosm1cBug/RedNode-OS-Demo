@@ -20,7 +20,7 @@
     # RedNode Core – Rust – CNS + Sentience Engine + Tool Executor
     rednode-core = pkgs.rustPlatform.buildRustPackage {
       pname = "rednode-core";
-      version = "0.8.0";
+      version = "0.9.0";
       src = ../../core/rednode-core;
       cargoLock = {
         lockFile = ../../core/rednode-core/Cargo.lock;
@@ -40,7 +40,7 @@
     # This means the source code is ALREADY ON DISK after install — no git clone needed
     rednode-source = pkgs.stdenv.mkDerivation {
       pname = "rednode-source";
-      version = "0.8.0";
+      version = "0.9.0";
       src = pkgs.lib.cleanSource ../..;  # entire repo root
       phases = [ "unpackPhase" "installPhase" ];
       installPhase = ''
@@ -102,7 +102,7 @@
 
         # ISO-specific settings
         isoImage.squashfsCompression = "zstd -Xcompression-level 19";
-        isoImage.isoName = "rednode-os-0.8.0-x86_64.iso";
+        isoImage.isoName = "rednode-os-0.9.0-x86_64.iso";
         isoImage.volumeID = "REDNODE-OS";
       }
     ];
@@ -154,7 +154,7 @@
       format = "iso";
       modules = rednodeISOModules ++ [
         ./kiosk.nix
-        { isoImage.isoName = "rednode-os-0.8.0-kiosk-x86_64.iso"; }
+        { isoImage.isoName = "rednode-os-0.9.0-kiosk-x86_64.iso"; }
       ];
     };
 

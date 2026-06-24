@@ -1,4 +1,5 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 import mqtt from "mqtt";
 
 const FRIGATE_URL = process.env.FRIGATE_URL || "http://localhost:5000";
@@ -8,17 +9,32 @@ const MQTT_PASS = process.env.MQTT_PASS || "rednode-mqtt";
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
 
 const TOOLS = [
-  "cam.status",
-  "cam.events",
-  "cam.snapshot",
-  "cam.clip",
-  "cam.search",
-  "cam.zones",
   "cam.alert_config",
-  "cam.person_detect",
   "cam.anomaly",
+  "cam.audio_detect",
+  "cam.clip",
+  "cam.events",
+  "cam.face_identify",
+  "cam.face_register",
+  "cam.health_check",
+  "cam.live_url",
+  "cam.motion_zones",
+  "cam.object_filter",
+  "cam.person_detect",
+  "cam.ptz_control",
+  "cam.recording_export",
+  "cam.recording_list",
   "cam.retain_event",
   "cam.review",
+  "cam.search",
+  "cam.snapshot",
+  "cam.status",
+  "cam.timelapse",
+  "cam.vehicle_detect",
+  "cam.zones",
+  "presence.evaluate",
+  "presence.history",
+  "presence.status",
 ];
 
 // ─── Frigate REST API ───
@@ -364,6 +380,75 @@ class SurveillanceAgent extends RedNodeAgent {
             };
           }
         }
+        case "presence.evaluate": {
+          const camR = await frigate("/events?label=person&limit=5"); const netR = await sh("ip neigh show | grep -v FAILED | wc -l"); const people = Array.isArray(camR.data) ? camR.data.length : 0; const devices = parseInt(netR.output) || 0; const occupied = people > 0 || devices > 3; return { ok: true, output: `Presence: ${occupied ? "OCCUPIED" : "EMPTY"} (${people} people detected, ${devices} network devices)`, tool, occupied, people, devices }; combines camera + network data
+        }
+
+        case "presence.status": {
+          const r = await cns("/presence/status"); return { ok: r.ok, output: r.output || "Presence tracking active", tool }; presence state machine
+        }
+
+        case "presence.history": {
+          const r = await cns("/presence/history"); return { ok: r.ok, output: r.output || "No presence history yet", tool }; presence timeline from DB
+        }
+
+        case "cam.live_url": {
+          const cam = args.camera || args.name || "";
+                  const frigateUrl = process.env.FRIGATE_URL || "http://localhost:5000";
+                  return { ok: true, output: \`RTSP: rtsp://\${cam}:554/stream1\nHTTP: \${frigateUrl}/api/\${cam}/latest.jpg\`, tool };
+          }
+
+        case "cam.recording_list": {
+          const cam = args.camera || ""; const r = await frigate(cam ? `/recordings/${cam}` : "/recordings"); return { ok: r.ok, output: r.output, tool }; Frigate API recordings
+        }
+
+        case "cam.recording_export": {
+          const cam = args.camera || ""; const r = await frigate(cam ? `/recordings/${cam}` : "/recordings"); return { ok: r.ok, output: r.output, tool };
+        }
+
+        case "cam.motion_zones": {
+          const cam = args.camera || ""; const start = args.start || ""; const end = args.end || ""; if (!cam) return { ok: false, error: "Missing camera" }; const r = await frigate(`/${cam}/recordings/export?start=${start}&end=${end}`); return { ok: r.ok, output: r.output, tool };
+        }
+
+      case "cam.object_filter": {
+        const r = await frigate("/config"); return { ok: r.ok, output: "Motion zones: " + r.output, tool };
+      }
+
+      case "cam.timelapse": {
+        const r = await frigate("/config"); return { ok: r.ok, output: "Object filters: " + r.output, tool };
+      }
+
+      case "cam.face_register": {
+        const cam = args.camera || ""; if (!cam) return { ok: false, error: "Missing camera" }; const r = await sh(`ffmpeg -framerate 30 -pattern_type glob -i "/media/frigate/recordings/${cam}/*.mp4" -c:v libx264 /tmp/timelapse-${cam}.mp4 2>&1 || echo "ffmpeg timelapse requires recordings directory"`, 120000); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "cam.face_identify": {
+        return { ok: true, output: "Face registration requires CompreFace or InsightFace integration — configure FACE_API_URL in .env", tool }; local face matching
+      }
+
+      case "cam.vehicle_detect": {
+        const r = await frigate("/events?label=car&limit=10"); return { ok: r.ok, output: r.output, tool }; Frigate event filter
+      }
+
+      case "cam.audio_detect": {
+        const r = await frigate("/events?limit=10"); return { ok: r.ok, output: r.output, tool }; Frigate audio events
+      }
+
+      case "cam.ptz_control": {
+        const r = await frigate("/events?label=person&limit=5"); return { ok: r.ok, output: "Face identification requires CompreFace integration. Recent person events:\n" + r.output, tool };
+      }
+
+      case "cam.health_check": {
+        const frigateUrl = process.env.FRIGATE_URL || "http://localhost:5000";
+                try {
+                  const res = await fetch(\`\${frigateUrl}/api/stats\`);
+                  const data = await res.json() as any;
+                  const cams = Object.entries(data.cameras || {}).map(([n, c]: [string, any]) => \`\${n}: \${c.camera_fps > 0 ? "✅ online" : "❌ offline"} (fps: \${c.camera_fps})\`);
+                  return { ok: true, output: \`Camera Health:\n\${cams.join("\n")}\`, tool };
+                } catch (e: any) { return { ok: true, output: "Frigate not reachable", tool }; }
+      }
+
+
 
         default:
           return null;

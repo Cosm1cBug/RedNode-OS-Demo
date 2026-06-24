@@ -1,4 +1,5 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const MODEL =
@@ -9,13 +10,27 @@ const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
 const AUTO_VERIFY = process.env.CODE_AUTO_VERIFY !== "false"; // default: ON
 
 const TOOLS = [
-  "code.generate",
-  "code.test",
   "code.analyze",
+  "code.complexity",
+  "code.coverage",
+  "code.dependency_check",
+  "code.diff",
+  "code.format",
+  "code.generate",
+  "code.lint",
   "code.refactor",
+  "code.review",
+  "code.search",
+  "code.test",
+  "code.todo",
+  "code.verify",
+  "git.branch",
+  "git.commit",
+  "git.diff",
+  "git.log",
+  "git.pr_create",
+  "git.push",
   "git.status",
-  "code.verify", // Verification gate — build+typecheck+lint+test+security
-  "code.review", // LLM-powered security code review
 ];
 
 // ─── Verification Gate ───
@@ -333,6 +348,84 @@ Return ONLY the refactored code with brief comments explaining changes.`,
           return { ok: false, error: e.message };
         }
       }
+      case "code.search": {
+        const query = args.query || args.pattern || "";
+                const dir = args.dir || args.path || ".";
+                if (!query) return { ok: false, error: "Missing 'query' pattern" };
+                try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync(\`grep -rn "\${query}" \${dir} --include="*.ts" --include="*.rs" --include="*.py" --include="*.nix" 2>/dev/null | head -30\`, { encoding: "utf-8", timeout: 10000 });
+                  return { ok: true, output: out.trim() || "No matches found", tool };
+                } catch (e: any) { return { ok: true, output: "No matches found", tool }; }
+      }
+
+      case "code.format": {
+        const file = args.file || ""; if (!file) return { ok: false, error: "Missing file path" }; const r = await sh(`prettier --write "${file}" 2>&1 || rustfmt "${file}" 2>&1 || black "${file}" 2>&1 || echo "No formatter found"`); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "code.lint": {
+        const file = args.file || args.dir || "."; const r = await sh(`eslint "${file}" 2>&1 || cargo clippy 2>&1 || ruff check "${file}" 2>&1 || echo "No linter found"`, 30000); return { ok: r.ok, output: r.output, tool }; runs linter for detected language
+      }
+
+      case "code.diff": {
+        const r = await sh("git diff --stat 2>&1 || diff -u " + (args.file1 || "") + " " + (args.file2 || "") + " 2>&1"); return { ok: r.ok, output: r.output, tool }; diff command
+      }
+
+      case "code.todo": {
+        const dir = args.dir || args.path || ".";
+                try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync(\`grep -rn "TODO\|FIXME\|HACK\|XXX" \${dir} --include="*.ts" --include="*.rs" --include="*.py" 2>/dev/null | head -30\`, { encoding: "utf-8", timeout: 10000 });
+                  return { ok: true, output: out.trim() || "No TODOs found", tool };
+                } catch (e: any) { return { ok: true, output: "No TODOs found", tool }; }
+      }
+
+      case "code.dependency_check": {
+        const dir = args.dir || "."; const r = await sh(`cd ${dir} && (npm audit --json 2>&1 | head -50 || cargo audit 2>&1 | head -30 || echo "No auditor found")`, 30000); return { ok: r.ok, output: r.output, tool }; npm audit / cargo audit
+      }
+
+      case "code.coverage": {
+        const dir = args.dir || "."; const r = await sh(`cd ${dir} && (npm audit --json 2>&1 | head -50 || cargo audit 2>&1 | head -30 || echo "No dependency auditor found")`, 30000); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "code.complexity": {
+        const dir = args.dir || "."; const r = await sh(`cd ${dir} && (npx jest --coverage 2>&1 || cargo tarpaulin 2>&1 || echo "No coverage tool found") | tail -20`, 60000); return { ok: r.ok, output: r.output, tool }; complexity analysis tool
+      }
+
+      case "git.log": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const n = args.count || 10;
+                  const out = execSync(\`git log --oneline -\${n} 2>&1\`, { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim(), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "git.diff": {
+        try {
+                  const { execSync } = await import("child_process");
+                  const out = execSync("git diff --stat 2>&1", { encoding: "utf-8", timeout: 5000 });
+                  return { ok: true, output: out.trim() || "No changes", tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "git.branch": {
+        const action = args.action || "list"; const name = args.name || ""; if (action === "list") { const r = await sh("git branch -a 2>&1"); return { ok: r.ok, output: r.output, tool }; } if (action === "create" && name) { const r = await sh(`git checkout -b ${name} 2>&1`); return { ok: r.ok, output: r.output, tool }; } if (action === "switch" && name) { const r = await sh(`git checkout ${name} 2>&1`); return { ok: r.ok, output: r.output, tool }; } return { ok: false, error: "Use action: list|create|switch with name" };
+      }
+
+      case "git.commit": {
+        const msg = args.message || args.msg || ""; if (!msg) return { ok: false, error: "Missing commit message" }; const r = await sh(`git add -A && git commit -m "${msg.replace(/"/g, '\\"')}" 2>&1`); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "git.push": {
+        const remote = args.remote || "origin"; const branch = args.branch || "main"; const r = await sh(`git push ${remote} ${branch} 2>&1`, 30000); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "git.pr_create": {
+        return { ok: true, output: "GitHub PR creation requires GITHUB_TOKEN in .env — use: gh pr create --title \"...\" --body \"...\"", tool };
+      }
+
+
 
       default:
         return null;

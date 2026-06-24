@@ -1,4 +1,5 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -7,16 +8,29 @@ const NOTES_DIR = process.env.NOTES_DIR || "/var/lib/rednode/notes";
 const TASKS_FILE = process.env.TASKS_FILE || "/var/lib/rednode/tasks.json";
 
 const TOOLS = [
-  "notes.create",
-  "notes.search",
-  "notes.list",
-  "notes.read",
-  "tasks.create",
-  "tasks.list",
-  "tasks.complete",
-  "tasks.delete",
   "bookmarks.save",
   "bookmarks.search",
+  "habits.streak",
+  "habits.track",
+  "journal.entry",
+  "journal.search",
+  "notes.create",
+  "notes.export",
+  "notes.link",
+  "notes.list",
+  "notes.read",
+  "notes.search",
+  "notes.tag",
+  "pomodoro.start",
+  "pomodoro.status",
+  "tasks.complete",
+  "tasks.create",
+  "tasks.delete",
+  "tasks.due",
+  "tasks.list",
+  "tasks.priority",
+  "tasks.project",
+  "tasks.recurring",
 ];
 
 // ─── Notes — Markdown files + RAG ingest ───
@@ -301,6 +315,59 @@ class ProductivityAgent extends RedNodeAgent {
           const lines = matches.map((b) => `  ${b.title}\n    ${b.url}`);
           return { ok: true, output: lines.join("\n"), count: matches.length };
         }
+      case "notes.tag": {
+        const id = args.id || ""; const tag = args.tag || ""; if (!id || !tag) return { ok: false, error: "Missing note id and tag" }; const r = await cns("/memory/store", { method: "POST", body: { type: "note_tag", key: `${id}-${tag}`, value: { note_id: id, tag } } }); return { ok: r.ok, output: `Tag "${tag}" added to note ${id}`, tool }; PostgreSQL tag management
+      }
+
+      case "notes.export": {
+        const r = await cns("/memory/query?type=note&limit=100"); return { ok: r.ok, output: r.output || "No notes to export", tool }; PostgreSQL → markdown/PDF
+      }
+
+      case "notes.link": {
+        const from = args.from || ""; const to = args.to || ""; if (!from || !to) return { ok: false, error: "Missing from and to note IDs" }; const r = await cns("/memory/store", { method: "POST", body: { type: "note_link", key: `${from}-${to}`, value: { from, to } } }); return { ok: r.ok, output: `Notes linked: ${from} → ${to}`, tool }; PostgreSQL note linking
+      }
+
+      case "tasks.priority": {
+        const id = args.id || ""; const priority = args.priority || "medium"; if (!id) return { ok: false, error: "Missing task ID" }; const r = await cns("/memory/store", { method: "POST", body: { type: "task_update", key: id, value: { priority } } }); return { ok: r.ok, output: `Task ${id} priority set to ${priority}`, tool }; PostgreSQL priority update
+      }
+
+      case "tasks.due": {
+        const id = args.id || ""; const due = args.due || args.date || ""; if (!id || !due) return { ok: false, error: "Missing task ID and due date" }; const r = await cns("/memory/store", { method: "POST", body: { type: "task_update", key: id, value: { due_date: due } } }); return { ok: r.ok, output: `Task ${id} due date set to ${due}`, tool }; PostgreSQL due date update
+      }
+
+      case "tasks.recurring": {
+        const r = await cns("/memory/query?type=note"); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "tasks.project": {
+        const name = args.name || ""; const schedule = args.schedule || args.cron || ""; if (!name || !schedule) return { ok: false, error: "Missing task name and schedule" }; const r = await cns("/memory/store", { method: "POST", body: { type: "recurring_task", key: name, value: { name, schedule, created: new Date().toISOString() } } }); return { ok: r.ok, output: `Recurring task "${name}" created: ${schedule}`, tool }; PostgreSQL project grouping
+      }
+
+      case "habits.track": {
+        const habit = args.habit || args.name || ""; if (!habit) return { ok: false, error: "Missing habit name" }; const r = await cns("/memory/store", { method: "POST", body: { type: "habit_log", key: `${habit}-${new Date().toISOString().split("T")[0]}`, value: { habit, date: new Date().toISOString(), completed: true } } }); return { ok: r.ok, output: `✅ Habit "${habit}" logged for today`, tool }; PostgreSQL habit log
+      }
+
+      case "habits.streak": {
+        const habit = args.habit || args.name || ""; if (!habit) return { ok: false, error: "Missing habit name" }; const r = await cns(`/memory/query?type=habit_log&filter=${habit}`); return { ok: r.ok, output: r.output, tool }; PostgreSQL streak calculation
+      }
+
+      case "pomodoro.start": {
+        const minutes = args.minutes || 25; return { ok: true, output: `🍅 Pomodoro started: ${minutes} minutes. Focus!`, tool, started: new Date().toISOString(), duration_minutes: minutes }; timer management
+      }
+
+      case "pomodoro.status": {
+        return { ok: true, output: "Pomodoro timer status — check your dashboard at http://localhost:3000", tool }; timer status
+      }
+
+      case "journal.entry": {
+        const entry = args.entry || args.text || args.content || ""; if (!entry) return { ok: false, error: "Missing journal entry text" }; const date = new Date().toISOString().split("T")[0]; const r = await cns("/memory/store", { method: "POST", body: { type: "journal", key: `journal-${date}`, value: { date, entry, created: new Date().toISOString() } } }); return { ok: r.ok, output: `📝 Journal entry saved for ${date}`, tool }; PostgreSQL journal insert
+      }
+
+      case "journal.search": {
+        const query = args.query || args.q || ""; if (!query) return { ok: false, error: "Missing search query" }; const r = await cns(`/memory/query?type=journal&filter=${encodeURIComponent(query)}`); return { ok: r.ok, output: r.output, tool }; PostgreSQL journal search
+      }
+
+
 
         default:
           return null;

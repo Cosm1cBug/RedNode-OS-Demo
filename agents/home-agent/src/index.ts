@@ -1,16 +1,29 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
 const HA_URL = process.env.HOME_ASSISTANT_URL || "http://localhost:8123";
 const HA_TOKEN = process.env.HOME_ASSISTANT_TOKEN || "";
 
 const TOOLS = [
-  "home.lights",
-  "home.switch",
-  "home.status",
-  "home.climate",
-  "home.scenes",
-  "home.entities",
+  "home.alarm",
   "home.automation",
+  "home.battery_status",
+  "home.climate",
+  "home.device_info",
+  "home.door_lock",
+  "home.energy",
+  "home.entities",
+  "home.garage",
+  "home.history",
+  "home.irrigation",
+  "home.lights",
+  "home.logbook",
+  "home.media_player",
+  "home.notification",
+  "home.scenes",
+  "home.status",
+  "home.switch",
+  "home.vacuum",
 ];
 
 async function haGet(path: string): Promise<any> {
@@ -235,6 +248,71 @@ class HomeAgent extends RedNodeAgent {
             output: `Automations (${autos.length}):\n${lines.join("\n")}`,
           };
         }
+      case "home.device_info": {
+        const entity = args.entity || args.device || "";
+                if (!entity) return { ok: false, error: "Missing 'entity' ID" };
+                const haUrl = process.env.HOMEASSISTANT_URL || "http://localhost:8123";
+                const haToken = process.env.HOMEASSISTANT_TOKEN || "";
+                try {
+                  const res = await fetch(\`\${haUrl}/api/states/\${entity}\`, { headers: { Authorization: \`Bearer \${haToken}\` } });
+                  const data = await res.json();
+                  return { ok: true, output: JSON.stringify(data, null, 2), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "home.history": {
+        const entity = args.entity || ""; const r = await ha(`/history/period?filter_entity_id=${entity}&minimal_response`); return { ok: r.ok, output: r.output, tool }; HA API history
+      }
+
+      case "home.energy": {
+        const r = await ha("/states"); const energy = Array.isArray(r.data) ? r.data.filter((s: any) => s.attributes?.device_class === "energy" || s.entity_id.includes("energy")) : []; return { ok: true, output: energy.map((e: any) => `${e.attributes?.friendly_name || e.entity_id}: ${e.state} ${e.attributes?.unit_of_measurement || ""}`).join("\n") || "No energy entities found", tool }; HA API energy dashboard
+      }
+
+      case "home.battery_status": {
+        const haUrl = process.env.HOMEASSISTANT_URL || "http://localhost:8123";
+                const haToken = process.env.HOMEASSISTANT_TOKEN || "";
+                try {
+                  const res = await fetch(\`\${haUrl}/api/states\`, { headers: { Authorization: \`Bearer \${haToken}\` } });
+                  const states = await res.json() as any[];
+                  const batteries = states.filter((s: any) => s.attributes?.device_class === "battery" || s.entity_id.includes("battery"));
+                  const lines = batteries.map((b: any) => \`\${b.attributes?.friendly_name || b.entity_id}: \${b.state}%\`);
+                  return { ok: true, output: lines.length ? lines.join("\n") : "No battery devices found", tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "home.door_lock": {
+        const entity = args.entity || ""; const action = args.action || "lock"; if (!entity) return { ok: false, error: "Missing lock entity" }; const r = await ha(`/services/lock/${action}`, "POST", { entity_id: entity }); return { ok: r.ok, output: `Lock ${entity}: ${action}`, tool };
+      }
+
+      case "home.garage": {
+        const entity = args.entity || ""; const action = args.action || "toggle"; if (!entity) return { ok: false, error: "Missing cover entity" }; const svc = action === "open" ? "open_cover" : action === "close" ? "close_cover" : "toggle"; const r = await ha(`/services/cover/${svc}`, "POST", { entity_id: entity }); return { ok: r.ok, output: `Garage ${entity}: ${action}`, tool };
+      }
+
+      case "home.vacuum": {
+        const entity = args.entity || ""; const action = args.action || "start"; if (!entity) return { ok: false, error: "Missing vacuum entity" }; const r = await ha(`/services/vacuum/${action}`, "POST", { entity_id: entity }); return { ok: r.ok, output: `Vacuum ${entity}: ${action}`, tool };
+      }
+
+      case "home.irrigation": {
+        const entity = args.entity || ""; const action = args.action || "turn_on"; if (!entity) return { ok: false, error: "Missing switch entity for irrigation" }; const r = await ha(`/services/switch/${action}`, "POST", { entity_id: entity }); return { ok: r.ok, output: `Irrigation ${entity}: ${action}`, tool };
+      }
+
+      case "home.alarm": {
+        const entity = args.entity || ""; const action = args.action || "arm_home"; if (!entity) return { ok: false, error: "Missing alarm entity" }; const code = args.code || ""; const body: any = { entity_id: entity }; if (code) body.code = code; const r = await ha(`/services/alarm_control_panel/${action}`, "POST", body); return { ok: r.ok, output: `Alarm ${entity}: ${action}`, tool };
+      }
+
+      case "home.media_player": {
+        const entity = args.entity || ""; const action = args.action || "media_play_pause"; if (!entity) return { ok: false, error: "Missing media_player entity" }; const r = await ha(`/services/media_player/${action}`, "POST", { entity_id: entity }); return { ok: r.ok, output: `Media player ${entity}: ${action}`, tool };
+      }
+
+      case "home.notification": {
+        const message = args.message || ""; const title = args.title || "RedNode"; if (!message) return { ok: false, error: "Missing message" }; const r = await ha("/services/notify/notify", "POST", { message, title }); return { ok: r.ok, output: `Notification sent: ${title}`, tool }; HA notify service call
+      }
+
+      case "home.logbook": {
+        const r = await ha("/logbook?period=1"); return { ok: r.ok, output: r.output, tool }; HA logbook API
+      }
+
+
 
         default:
           return null;

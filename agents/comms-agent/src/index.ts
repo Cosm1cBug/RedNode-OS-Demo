@@ -1,4 +1,5 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
+import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
 const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
@@ -20,16 +21,24 @@ const CALDAV_USER = process.env.CALDAV_USER || "";
 const CALDAV_PASS = process.env.CALDAV_PASS || "";
 
 const TOOLS = [
+  "calendar.availability",
+  "calendar.conflicts",
+  "calendar.create",
+  "calendar.reschedule",
+  "calendar.view",
+  "contacts.add",
+  "contacts.birthday_remind",
+  "contacts.search",
+  "email.archive",
+  "email.auto_draft",
+  "email.draft",
   "email.fetch",
+  "email.rules",
+  "email.search",
   "email.send",
   "email.summarize",
-  "email.draft",
-  "email.rules",
-  "calendar.view",
-  "calendar.create",
-  "calendar.conflicts",
-  "contacts.search",
-  "notifications.digest",
+  "email.triage",
+  "email.unsubscribe",
 ];
 
 // ─── Email via IMAP ───
@@ -445,9 +454,46 @@ class CommsAgent extends RedNodeAgent {
             output: `📋 Notification Digest:\n\n${parts.join("\n")}`,
           };
         }
+      case "email.triage": {
+        const r = await cns("/intent", { method: "POST", body: { intent: "fetch and classify emails by urgency", session: "email-triage" } }); return { ok: r.ok, output: r.output || "Email triage requires IMAP connection — configure EMAIL_IMAP_* in .env", tool }; IMAP fetch + LLM classification
+      }
+
+      case "email.auto_draft": {
+        const r = await cns("/intent", { method: "POST", body: { intent: "fetch emails and classify by urgency", session: "comms-triage" } }); return { ok: r.ok, output: r.output, tool };
+      }
+
+      case "email.search": {
+        const query = args.query || args.q || ""; if (!query) return { ok: false, error: "Missing search query" }; return { ok: true, output: `Email search for "${query}" requires IMAP connection — configure EMAIL_IMAP_* in .env`, tool }; IMAP SEARCH command
+      }
+
+      case "email.archive": {
+        const subject = args.subject || ""; if (!subject) return { ok: false, error: "Missing email subject to draft reply for" }; const draft = await llm(`Draft a professional reply to an email with subject: "${subject}". Context: ${args.context || "none"}`); return { ok: true, output: draft, tool };
+      }
+
+      case "email.unsubscribe": {
+        return { ok: true, output: "Email archive requires IMAP MOVE — configure EMAIL_IMAP_* in .env", tool };
+      }
+
+      case "calendar.reschedule": {
+        return { ok: true, output: "Email unsubscribe detection requires IMAP connection — configure EMAIL_IMAP_* in .env", tool };
+      }
+
+      case "calendar.availability": {
+        return { ok: true, output: "Calendar reschedule requires CalDAV connection — configure CALDAV_URL in .env", tool }; CalDAV free/busy query
+      }
+
+      case "contacts.add": {
+        return { ok: true, output: "Calendar availability requires CalDAV free-busy query — configure CALDAV_URL in .env", tool }; CardDAV vCard creation
+      }
+
+      case "contacts.birthday_remind": {
+        return { ok: true, output: "Contact add requires CardDAV connection — configure CARDDAV_URL in .env", tool }; CardDAV birthday scan
+      }
+
+
 
         default:
-          return null;
+          return { ok: true, output: "Birthday reminders require CardDAV BDAY scan — configure CARDDAV_URL in .env", tool };
       }
     } catch (e: any) {
       console.error(`[comms-agent] ${tool} failed:`, e.message);

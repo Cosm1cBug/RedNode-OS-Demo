@@ -11,53 +11,35 @@ pub struct PlanStep {
 }
 
 /// Tool registry context injected into the LLM prompt.
-/// When you add new tools/agents, add them here too.
-const TOOL_CONTEXT: &str = r#"
-Available tools (name | agent | risk | description):
-- fs.read | system-agent | low | Read a file from disk
-- process.list | system-agent | low | List running processes sorted by CPU
-- docker.ps | system-agent | low | List Docker containers and their status
-- service.status | system-agent | low | Check a systemd service status
-- shell.run_safe | system-agent | medium | Run a safe allowlisted shell command (ls, ps, df, uptime, whoami, free, uname, date, id, docker ps, git status)
-- sec.triage | security-agent | low | Check system logs for warnings (journalctl)
-- sec.cve_check | security-agent | low | Scan installed packages for known CVEs
-- sec.ssh_audit | security-agent | medium | Audit SSH configuration for weaknesses
-- sec.harden_ssh | security-agent | high | Apply SSH hardening (disables root login, password auth, etc.)
-- sec.patch | security-agent | high | Apply security patches with snapshot rollback
-- sec.yara | security-agent | medium | Run YARA malware scan on /tmp
-- code.generate | coding-agent | medium | Generate code from a description using local LLM
-- code.test | coding-agent | medium | Run project tests (cargo test / pnpm test)
-- code.analyze | coding-agent | low | Analyze code quality (clippy / eslint)
-- code.refactor | coding-agent | medium | Refactor code based on instructions
-- git.status | coding-agent | low | Show git status of a repository
+/// Dynamic tool context — loaded from tools.json at runtime.
+/// This means new tools added by the evolution engine are immediately
+/// available to the LLM planner without recompilation.
+fn load_tool_context() -> String {
+    // Try to load from tools.json (dynamic)
+    let project_root = std::env::var("REDNODE_SOURCE")
+        .unwrap_or_else(|_| std::env::var("REDNODE_HOME")
+            .map(|h| format!("{}/source", h))
+            .unwrap_or_else(|_| ".".into()));
+    
+    let dynamic = crate::evolution::generate_tool_context(&project_root);
+    
+    if dynamic.lines().count() > 5 {
+        tracing::info!("Planner: loaded tool context dynamically from tools.json");
+        dynamic
+    } else {
+        tracing::warn!("Planner: tools.json not found, using minimal fallback");
+        // Minimal fallback — just enough for basic operation
+        String::from(r#"Available tools (name | agent | risk | description):
+- shell.run_safe | system-agent | medium | Run a safe shell command
 - research.search | research-agent | low | Search the web via SearXNG
-- research.query | research-agent | low | Query RedNode knowledge base (RAG)
-- kb.query | research-agent | low | Query knowledge graph (Kuzu)
-- kb.ingest | research-agent | low | Ingest a document into memory
-- workflow.create | automation-agent | medium | Create a named workflow (sequence of steps)
-- workflow.run | automation-agent | medium | Execute a saved workflow
-- schedule.add | automation-agent | medium | Schedule a recurring task (cron-like)
-- trigger.fire | automation-agent | medium | Fire an event trigger manually
-- net.status | network-agent | low | Show network connections (ss -tuln)
-- firewall.rules | network-agent | high | View or modify firewall rules
-- vpn.connect | network-agent | medium | Connect to WireGuard/Tailscale VPN
-- dns.check | network-agent | low | Check DNS resolution and Pi-hole status
-- traffic.analyze | network-agent | low | Analyze network traffic top talkers
-- pihole.stats | infra-agent | low | Show Pi-hole DNS statistics
-- pihole.top_blocked | infra-agent | low | Show top blocked domains
-- pihole.top_clients | infra-agent | low | Show most active DNS clients
-- pihole.disable | infra-agent | medium | Temporarily disable Pi-hole blocking
-- pihole.enable | infra-agent | low | Re-enable Pi-hole blocking
-- nas.health | storage-agent | low | Show TrueNAS pool health and disk SMART
-- nas.usage | storage-agent | low | Show storage usage by dataset
-- nas.snapshot_create | storage-agent | medium | Create a ZFS snapshot
-- nas.snapshot_list | storage-agent | low | List ZFS snapshots
-- nas.alerts | storage-agent | low | Show TrueNAS active alerts
-- cam.status | surveillance-agent | low | Show all camera online/offline status
-- cam.events | surveillance-agent | low | List recent Frigate detection events
-- cam.snapshot | surveillance-agent | low | Get latest frame from a camera
-- cam.search | surveillance-agent | low | Search camera events by object/time/zone
-"#;
+- research.query | research-agent | low | Query knowledge base
+- cam.events | surveillance-agent | low | Camera detection events
+- pihole.stats | infra-agent | low | Pi-hole DNS stats
+- nas.health | storage-agent | low | TrueNAS health
+- net.status | network-agent | low | Network status
+"#)
+    }
+}
 
 /// Plan an intent using Ollama LLM, with keyword fallback.
 pub async fn plan(intent: &str) -> Vec<PlanStep> {
@@ -101,7 +83,7 @@ async fn plan_with_llm(intent: &str) -> Result<Vec<PlanStep>> {
            {{\"tool\":\"shell.run_safe\",\"agent\":\"system-agent\",\"args\":{{\"cmd\":\"df\"}},\"risk\":\"medium\"}},\n\
            {{\"tool\":\"docker.ps\",\"agent\":\"system-agent\",\"args\":{{}},\"risk\":\"low\"}}\n\
          ]",
-        TOOL_CONTEXT
+        &load_tool_context()
     );
 
     let user_prompt = format!("User intent: \"{}\"\nJSON array:", intent);

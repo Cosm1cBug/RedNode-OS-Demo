@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.8.0",
+        "version": "0.9.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.8.0",
+                "version": "0.9.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -338,6 +338,73 @@ async fn kg_add_entity_handler(Json(body): Json<KgEntityBody>) -> Json<serde_jso
     Json(serde_json::json!({"ok": true, "entity": body.name, "kind": body.kind, "relationships": body.relationships.len()}))
 }
 
+// ─── Tool Evolution ───
+
+#[derive(Deserialize)]
+struct EvolveToolReq {
+    name: String,
+    agent: String,
+    description: String,
+    handler_type: String,      // "shell", "api", "llm", "cns"
+    #[serde(default)]
+    handler_command: String,   // the command/URL/prompt
+}
+
+async fn evolve_tool_handler(Json(req): Json<EvolveToolReq>) -> Json<serde_json::Value> {
+    let project_root = std::env::var("REDNODE_SOURCE")
+        .unwrap_or_else(|_| std::env::var("REDNODE_HOME")
+            .map(|h| format!("{}/source", h))
+            .unwrap_or_else(|_| ".".into()));
+    
+    match crate::evolution::evolve_tool(
+        &project_root,
+        &req.name,
+        &req.agent,
+        &req.description,
+        &req.handler_type,
+        &req.handler_command,
+    ).await {
+        Ok(tool) => Json(serde_json::json!({
+            "ok": true,
+            "message": format!("🧬 Tool '{}' evolved successfully", tool.name),
+            "tool": {
+                "name": tool.name,
+                "agent": tool.agent,
+                "risk": tool.risk,
+                "description": tool.description,
+                "handler_type": tool.handler_type,
+            }
+        })),
+        Err(e) => Json(serde_json::json!({
+            "ok": false,
+            "error": format!("{}", e),
+        })),
+    }
+}
+
+async fn list_evolved_tools() -> Json<serde_json::Value> {
+    let project_root = std::env::var("REDNODE_SOURCE")
+        .unwrap_or_else(|_| ".".into());
+    
+    match crate::evolution::load_tools_registry(&project_root) {
+        Ok(tools) => {
+            let evolved: Vec<_> = tools.iter()
+                .filter(|t| t.auto_generated == Some(true))
+                .collect();
+            Json(serde_json::json!({
+                "ok": true,
+                "total_tools": tools.len(),
+                "auto_generated": evolved.len(),
+                "evolved_tools": evolved,
+            }))
+        }
+        Err(e) => Json(serde_json::json!({
+            "ok": false,
+            "error": format!("{}", e),
+        })),
+    }
+}
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -366,6 +433,9 @@ pub fn router() -> Router {
         // Knowledge Graph
         .route("/kg/query", get(kg_query_handler))
         .route("/kg/entity", post(kg_add_entity_handler))
+        // Tool Evolution — self-evolving tool creation
+        .route("/evolve/tool", post(evolve_tool_handler))
+        .route("/evolve/tools", get(list_evolved_tools))
         // Auth middleware — checks Bearer token on all routes except /health and /events
         // Set REDNODE_API_TOKEN env var to enable. If unset, auth is disabled (dev mode).
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))

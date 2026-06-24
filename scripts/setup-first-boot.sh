@@ -36,7 +36,7 @@ step()  { echo -e "\n${BLUE}${BOLD}═══ $1 ═══${NC}\n"; }
 
 echo ""
 echo -e "${BOLD}  ╔═══════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}  ║  🧠 RedNode-OS v0.8.0 — First Boot Setup  ║${NC}"
+echo -e "${BOLD}  ║  🧠 RedNode-OS v0.9.0 — First Boot Setup  ║${NC}"
 echo -e "${BOLD}  ╚═══════════════════════════════════════════╝${NC}"
 echo ""
 

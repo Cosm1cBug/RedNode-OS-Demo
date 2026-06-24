@@ -6,15 +6,33 @@ const MODEL = process.env.REDNODE_MODEL || "qwen2.5:14b-instruct-q4_K_M";
 const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8888";
 
 const TOOLS = [
-  "research.search",
-  "research.query",
-  "research.deep",
-  "research.weather",
-  "research.news",
-  "kb.query",
-  "kb.ingest",
-  "docs.ocr",
   "docs.ingest_pdf",
+  "docs.ocr",
+  "kb.export",
+  "kb.graph_visualize",
+  "kb.ingest",
+  "kb.query",
+  "kb.stats",
+  "kg.add",
+  "kg.entities",
+  "kg.relationships",
+  "podcast.download",
+  "podcast.summarize",
+  "podcast.transcribe",
+  "research.arxiv",
+  "research.compare",
+  "research.deep",
+  "research.fact_check",
+  "research.news",
+  "research.query",
+  "research.search",
+  "research.summarize_url",
+  "research.timeline",
+  "research.translate",
+  "research.weather",
+  "research.wikipedia",
+  "rss.digest",
+  "rss.fetch",
 ];
 
 // ─── Deep Research ───
@@ -510,6 +528,91 @@ class ResearchAgent extends RedNodeAgent {
           };
         }
       }
+      case "kg.entities": {
+        const r = await cns("/memory/query?type=entity&limit=30"); return { ok: r.ok, output: r.output, tool }; Kuzu graph query
+      }
+
+      case "kg.relationships": {
+        const r = await cns("/memory/query?type=relationship&limit=30"); return { ok: r.ok, output: r.output, tool }; Kuzu graph query
+      }
+
+      case "kg.add": {
+        const entity = args.entity || args.name || ""; const type = args.type || "unknown"; if (!entity) return { ok: false, error: "Missing entity name" }; const r = await cns("/memory/store", { method: "POST", body: { type: "entity", key: entity, value: { name: entity, type, properties: args.properties || {} } } }); return { ok: r.ok, output: `Entity added: ${entity} (${type})`, tool }; Kuzu graph insert
+      }
+
+      case "rss.fetch": {
+        const feedUrl = args.url || args.feed || ""; if (!feedUrl) return { ok: false, error: "Missing RSS feed URL" }; const r = await sh(`curl -sL "${feedUrl}" 2>&1 | head -500`); return { ok: r.ok, output: r.output, tool }; HTTP fetch + XML parse
+      }
+
+      case "rss.digest": {
+        const feeds = (process.env.RSS_FEEDS || "").split("|").filter(Boolean); if (!feeds.length) return { ok: true, output: "No RSS feeds configured — set RSS_FEEDS in .env", tool }; const items: string[] = []; for (const feed of feeds.slice(0, 3)) { const r = await sh(`curl -sL "${feed}" 2>&1 | grep -oP "<title>[^<]+" | head -5 | sed "s/<title>//"`, 10000); if (r.ok && r.output) items.push(r.output); } const summary = await llm(`Summarize these news headlines concisely:\n${items.join("\n")}`); return { ok: true, output: summary, tool }; fetch + LLM summarize
+      }
+
+      case "podcast.download": {
+        const url = args.url || ""; if (!url) return { ok: false, error: "Missing podcast episode URL" }; const dest = process.env.PODCAST_DOWNLOAD_DIR || "/var/lib/rednode/podcasts"; const r = await sh(`mkdir -p ${dest} && curl -sLo "${dest}/episode-${Date.now()}.mp3" "${url}" 2>&1 && echo "Downloaded to ${dest}"`, 120000); return { ok: r.ok, output: r.output, tool }; wget podcast episode
+      }
+
+      case "podcast.transcribe": {
+        const file = args.file || ""; if (!file) return { ok: false, error: "Missing audio file path" }; const r = await sh(`whisper "${file}" --model small --output_format txt 2>&1 || echo "Whisper not installed — pip install openai-whisper"`, 300000); return { ok: r.ok, output: r.output, tool }; Whisper transcription
+      }
+
+      case "podcast.summarize": {
+        const text = args.text || args.transcript || ""; if (!text) return { ok: false, error: "Missing transcript text" }; const summary = await llm(`Summarize this podcast transcript in 3-5 bullet points:\n${text.substring(0, 3000)}`); return { ok: true, output: summary, tool }; LLM summarization
+      }
+
+      case "research.arxiv": {
+        const query = args.query || args.topic || "";
+                if (!query) return { ok: false, error: "Missing 'query' topic" };
+                try {
+                  const res = await fetch(\`http://export.arxiv.org/api/query?search_query=all:\${encodeURIComponent(query)}&max_results=5\`);
+                  const xml = await res.text();
+                  return { ok: true, output: xml.substring(0, 3000), tool };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "research.wikipedia": {
+        const query = args.query || args.topic || "";
+                if (!query) return { ok: false, error: "Missing 'query' topic" };
+                try {
+                  const res = await fetch(\`https://en.wikipedia.org/api/rest_v1/page/summary/\${encodeURIComponent(query)}\`);
+                  const data = await res.json() as any;
+                  return { ok: true, output: data.extract || "No article found", tool, title: data.title };
+                } catch (e: any) { return { ok: false, error: e.message }; }
+      }
+
+      case "research.translate": {
+        const text = args.text || ""; const target = args.target || args.language || "English"; if (!text) return { ok: false, error: "Missing text to translate" }; const translated = await llm(`Translate the following to ${target}. Output only the translation:\n${text}`); return { ok: true, output: translated, tool }; LLM translation
+      }
+
+      case "research.summarize_url": {
+        const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; const r = await sh(`curl -sL "${url}" 2>&1 | sed "s/<[^>]*>//g" | sed "/^$/d" | head -200`); if (!r.ok) return r; const summary = await llm(`Summarize this webpage content:\n${r.output.substring(0, 3000)}`); return { ok: true, output: summary, tool }; fetch URL + LLM summarize
+      }
+
+      case "research.compare": {
+        const a = args.a || args.topic1 || ""; const b = args.b || args.topic2 || ""; if (!a || !b) return { ok: false, error: "Missing two topics to compare" }; const comparison = await llm(`Compare "${a}" vs "${b}" in a structured table format. Cover key differences, pros/cons.`); return { ok: true, output: comparison, tool }; LLM comparison
+      }
+
+      case "research.timeline": {
+        const topic = args.topic || args.query || ""; if (!topic) return { ok: false, error: "Missing topic" }; const timeline = await llm(`Create a chronological timeline of key events for: "${topic}". Use format: YYYY - Event description.`); return { ok: true, output: timeline, tool }; LLM timeline generation
+      }
+
+      case "research.fact_check": {
+        const claim = args.claim || args.statement || ""; if (!claim) return { ok: false, error: "Missing claim to fact-check" }; const analysis = await llm(`Fact-check this claim: "${claim}". Provide: verdict (true/false/partially true), evidence, confidence level.`); return { ok: true, output: analysis, tool }; multi-source search + LLM verify
+      }
+
+      case "kb.export": {
+        const r = await cns("/memory/query?limit=100"); return { ok: r.ok, output: r.output, tool }; PostgreSQL dump to markdown
+      }
+
+      case "kb.stats": {
+        const r = await cns("/memory/stats"); return { ok: r.ok, output: r.output || "Knowledge base stats unavailable", tool }; PostgreSQL + Qdrant stats
+      }
+
+      case "kb.graph_visualize": {
+        const r = await cns("/memory/query?type=entity&limit=50"); return { ok: r.ok, output: "Knowledge graph nodes:\n" + r.output, tool }; Kuzu → DOT format
+      }
+
+
 
       default:
         return null;

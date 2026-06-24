@@ -69,7 +69,7 @@ BIOS → GRUB/systemd-boot → Linux kernel → systemd
                                                   ├─ Phase 4: Detect GPU → pull best Ollama model
                                                   ├─ Phase 5: cargo build --release (CNS)
                                                   ├─ Phase 6: pnpm install + create .env
-                                                  └─ Phase 7: Start CNS + 16 agents + dashboard
+                                                  └─ Phase 7: Start CNS + 18 agents + dashboard
                                                       │
                                                       └─ Creates /var/lib/rednode/.deploy-complete
                                                          (so it won't re-run on next boot)

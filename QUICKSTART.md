@@ -58,7 +58,7 @@ ollama pull nomic-embed-text
 cd core/rednode-core && cargo run --release &
 cd ../..
 
-# 4. Agents (16 agents)
+# 4. Agents (18 agents)
 pnpm install
 pnpm agents &
 
@@ -110,7 +110,7 @@ curl "http://localhost:8787/memory/query?q=docker" | jq .results
 | POST | /intent | Submit natural language intent |
 | GET | /events | WebSocket real-time event stream |
 | GET | /sentience | Self-model, drives, goals |
-| GET | /agents/status | 16 agents with heartbeat tracking |
+| GET | /agents/status | 18 agents with heartbeat tracking |
 | GET | /audit | Hash-chained audit log |
 | GET | /approvals | Pending approval queue |
 | POST | /approvals/:id/approve | Approve/deny an action |
