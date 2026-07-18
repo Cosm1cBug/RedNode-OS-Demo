@@ -53,7 +53,8 @@ class SecurityAgent extends RedNodeAgent {
 
       case "sec.ioc_check": {
         const value = args.value || args.ip || args.domain || "";
-        if (!value) return { ok: false, error: "Missing 'value' (IP or domain to check)" };
+        if (!value)
+          return { ok: false, error: "Missing 'value' (IP or domain to check)" };
         const { checkIOC } = await import("./threat-intel.js");
         const match = checkIOC(value);
         return {
@@ -67,7 +68,8 @@ class SecurityAgent extends RedNodeAgent {
 
       case "sec.darkweb_search": {
         const query = args.query || args.q || args.search || "";
-        if (!query) return { ok: false, error: "Missing 'query' — what to search for on the dark web" };
+        if (!query)
+          return { ok: false, error: "Missing 'query' — what to search for on the dark web" };
         const { darkwebSearch } = await import("./darkweb.js");
         const result = await darkwebSearch(query);
         const resultLines = result.results.map(

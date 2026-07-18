@@ -72,19 +72,18 @@ async function fetchEmails(
     const lock = await client.getMailboxLock(folder);
 
     try {
-      const mailboxExists =
-        typeof client.mailbox === "boolean"
-          ? 0
-          : Math.max(1, client.mailbox.exists - limit + 1);
-
-      const messages = client.fetch(`${mailboxExists}:*`, {
-        envelope: true,
-        bodyStructure: true,
-        source: { maxLength: 5000 }, // first 5KB of body
-      });
+      // Fetch latest messages
+      const messages = client.fetch(
+        `${Math.max(1, client.mailbox.exists - limit + 1)}:*`,
+        {
+          envelope: true,
+          bodyStructure: true,
+          source: { maxBytes: 5000 }, // first 5KB of body
+        },
+      );
 
       for await (const msg of messages) {
-        const env = msg.envelope ?? {};
+        const env = msg.envelope;
         emails.push({
           uid: msg.uid,
           date: env.date?.toISOString(),
@@ -456,7 +455,7 @@ class CommsAgent extends RedNodeAgent {
           };
         }
       case "email.triage": {
-        const r = await cns("/intent", { method: "POST", body: { intent: "fetch and classify emails by urgency", session: "email-triage" } }); return { ok: r.ok, output: r.output || "Email triage requires IMAP connection — configure EMAIL_IMAP_* in .env", tool }; IMAP fetch + LLM classification
+        const r = await cns("/intent", { method: "POST", body: { intent: "fetch and classify emails by urgency", session: "email-triage" } }); return { ok: r.ok, output: r.output || "Email triage requires IMAP connection — configure EMAIL_IMAP_* in .env", tool }; // IMAP fetch + LLM classification
       }
 
       case "email.auto_draft": {
@@ -464,7 +463,7 @@ class CommsAgent extends RedNodeAgent {
       }
 
       case "email.search": {
-        const query = args.query || args.q || ""; if (!query) return { ok: false, error: "Missing search query" }; return { ok: true, output: `Email search for "${query}" requires IMAP connection — configure EMAIL_IMAP_* in .env`, tool }; IMAP SEARCH command
+        const query = args.query || args.q || ""; if (!query) return { ok: false, error: "Missing search query" }; // return { ok: true, output: `Email search for "${query}" requires IMAP connection — configure EMAIL_IMAP_* in .env`, tool };  // IMAP SEARCH command
       }
 
       case "email.archive": {
@@ -480,21 +479,21 @@ class CommsAgent extends RedNodeAgent {
       }
 
       case "calendar.availability": {
-        return { ok: true, output: "Calendar reschedule requires CalDAV connection — configure CALDAV_URL in .env", tool }; CalDAV free/busy query
+        return { ok: true, output: "Calendar reschedule requires CalDAV connection — configure CALDAV_URL in .env", tool }; // CalDAV free/busy query
       }
 
       case "contacts.add": {
-        return { ok: true, output: "Calendar availability requires CalDAV free-busy query — configure CALDAV_URL in .env", tool }; CardDAV vCard creation
+        return { ok: true, output: "Calendar availability requires CalDAV free-busy query — configure CALDAV_URL in .env", tool }; // CardDAV vCard creation
       }
 
       case "contacts.birthday_remind": {
-        return { ok: true, output: "Contact add requires CardDAV connection — configure CARDDAV_URL in .env", tool }; CardDAV birthday scan
+        return { ok: true, output: "Contact add requires CardDAV connection — configure CARDDAV_URL in .env", tool }; // CardDAV birthday scan
       }
 
 
 
         default:
-          return { ok: true, output: "Birthday reminders require CardDAV BDAY scan — configure CARDDAV_URL in .env", tool };
+          return null;
       }
     } catch (e: any) {
       console.error(`[comms-agent] ${tool} failed:`, e.message);

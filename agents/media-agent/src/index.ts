@@ -145,7 +145,7 @@ class MediaAgent extends RedNodeAgent {
           };
         }
       case "photo.ingest": {
-        return { ok: true, output: "Media playback requires Jellyfin session — use the web interface or mobile app", tool }; file scan + metadata extraction
+        return { ok: true, output: "Media playback requires Jellyfin session — use the web interface or mobile app", tool }; // file scan + metadata extraction
       }
 
       case "photo.search": {
@@ -153,39 +153,39 @@ class MediaAgent extends RedNodeAgent {
       }
 
       case "photo.tag": {
-        const query = args.query || ""; if (!query) return { ok: false, error: "Missing search query" }; const r = await cns(`/memory/query?type=photo&filter=${encodeURIComponent(query)}`); return { ok: r.ok, output: r.output, tool }; CLIP tagging (if available)
+        const query = args.query || ""; if (!query) return { ok: false, error: "Missing search query" }; const r = await cns(`/memory/query?type=photo&filter=${encodeURIComponent(query)}`); return { ok: r.ok, output: r.output, tool };
       }
 
       case "photo.stats": {
-        return { ok: true, output: "Photo auto-tagging requires CLIP model — configure in .env (PHOTO_AUTO_TAG=true)", tool }; PostgreSQL photo stats
+        return { ok: true, output: "Photo auto-tagging requires CLIP model — configure in .env (PHOTO_AUTO_TAG=true)", tool }; // PostgreSQL photo stats
       }
 
       case "photo.faces": {
-        const dir = process.env.PHOTO_LIBRARY_DIR || "/var/lib/rednode/photo-library"; const r = await sh(`du -sh ${dir} 2>/dev/null && find ${dir} -type f 2>/dev/null | wc -l`); return { ok: r.ok, output: `Photo library: ${r.output}`, tool }; face detection pipeline
+        const dir = process.env.PHOTO_LIBRARY_DIR || "/var/lib/rednode/photo-library"; const r = await sh(`du -sh ${dir} 2>/dev/null && find ${dir} -type f 2>/dev/null | wc -l`); return { ok: r.ok, output: `Photo library: ${r.output}`, tool };  // face detection pipeline
       }
 
       case "photo.duplicate": {
-        return { ok: true, output: "Face detection requires InsightFace or dlib — configure FACE_DETECTION_MODEL in .env", tool }; perceptual hash comparison
+        return { ok: true, output: "Face detection requires InsightFace or dlib — configure FACE_DETECTION_MODEL in .env", tool }; // perceptual hash comparison
       }
 
       case "photo.resize": {
-        const dir = args.dir || process.env.PHOTO_LIBRARY_DIR || "/var/lib/rednode/photo-library"; const r = await sh(`find ${dir} -type f -name "*.jpg" -exec md5sum {} \; 2>/dev/null | sort | uniq -w32 -d | head -20`, 30000); return { ok: r.ok, output: r.output || "No duplicates found (or directory empty)", tool }; ImageMagick batch resize
+        const dir = args.dir || process.env.PHOTO_LIBRARY_DIR || "/var/lib/rednode/photo-library"; const r = await sh(`find ${dir} -type f -name "*.jpg" -exec md5sum {} \; 2>/dev/null | sort | uniq -w32 -d | head -20`, 30000); return { ok: r.ok, output: r.output || "No duplicates found (or directory empty)", tool }; // ImageMagick batch resize
       }
 
       case "photo.export": {
-        const dir = args.dir || ""; const size = args.size || "1920x1080"; if (!dir) return { ok: false, error: "Missing directory" }; const r = await sh(`find ${dir} -name "*.jpg" -exec convert {} -resize ${size} {} \; 2>&1 | tail -5 || echo "ImageMagick not installed"`, 60000); return { ok: r.ok, output: r.output, tool }; zip album export
+        const dir = args.dir || ""; const size = args.size || "1920x1080"; if (!dir) return { ok: false, error: "Missing directory" }; const r = await sh(`find ${dir} -name "*.jpg" -exec convert {} -resize ${size} {} \; 2>&1 | tail -5 || echo "ImageMagick not installed"`, 60000); return { ok: r.ok, output: r.output, tool };  // zip album export
       }
 
       case "music.scan": {
-        const album = args.album || args.dir || ""; if (!album) return { ok: false, error: "Missing album/directory" }; const r = await sh(`zip -r /tmp/album-export.zip "${album}" 2>&1 | tail -3`, 60000); return { ok: r.ok, output: r.output, tool }; file scan + metadata extraction
+        const album = args.album || args.dir || ""; if (!album) return { ok: false, error: "Missing album/directory" }; const r = await sh(`zip -r /tmp/album-export.zip "${album}" 2>&1 | tail -3`, 60000); return { ok: r.ok, output: r.output, tool };
       }
 
       case "music.playlist": {
-        const dir = args.dir || "/var/lib/rednode/music"; const r = await sh(`find ${dir} -type f \( -name "*.mp3" -o -name "*.flac" -o -name "*.ogg" -o -name "*.m4a" \) 2>/dev/null | wc -l`); return { ok: r.ok, output: `Found ${r.output.trim()} music files in ${dir}`, tool }; playlist management
+        const dir = args.dir || "/var/lib/rednode/music"; const r = await sh(`find ${dir} -type f \( -name "*.mp3" -o -name "*.flac" -o -name "*.ogg" -o -name "*.m4a" \) 2>/dev/null | wc -l`); return { ok: r.ok, output: `Found ${r.output.trim()} music files in ${dir}`, tool };  // playlist management
       }
 
       case "music.lyrics": {
-        return { ok: true, output: "Playlist management through Jellyfin or Navidrome API — configure in .env", tool }; lyrics API lookup
+        return { ok: true, output: "Playlist management through Jellyfin or Navidrome API — configure in .env", tool }; // lyrics API lookup
       }
 
       case "video.info": {
@@ -199,11 +199,11 @@ class MediaAgent extends RedNodeAgent {
       }
 
       case "video.thumbnail": {
-        const file = args.file || ""; const time = args.time || "00:00:05"; if (!file) return { ok: false, error: "Missing video file" }; const out = args.output || "/tmp/thumbnail.jpg"; const r = await sh(`ffmpeg -ss ${time} -i "${file}" -vframes 1 -q:v 2 "${out}" 2>&1 && echo "Thumbnail: ${out}"`); return { ok: r.ok, output: r.output, tool }; ffmpeg thumbnail extraction
+        const file = args.file || ""; const time = args.time || "00:00:05"; if (!file) return { ok: false, error: "Missing video file" }; const out = args.output || "/tmp/thumbnail.jpg"; const r = await sh(`ffmpeg -ss ${time} -i "${file}" -vframes 1 -q:v 2 "${out}" 2>&1 && echo "Thumbnail: ${out}"`); return { ok: r.ok, output: r.output, tool };  // ffmpeg thumbnail extraction
       }
 
       case "video.convert": {
-        const file = args.file || ""; const format = args.format || "mp4"; if (!file) return { ok: false, error: "Missing video file" }; const out = file.replace(/\.[^.]+$/, `.${format}`); const r = await sh(`ffmpeg -i "${file}" -c:v libx264 -c:a aac "${out}" 2>&1 | tail -5`, 300000); return { ok: r.ok, output: r.output, tool }; ffmpeg conversion (medium risk)
+        const file = args.file || ""; const format = args.format || "mp4"; if (!file) return { ok: false, error: "Missing video file" }; const out = file.replace(/\.[^.]+$/, `.${format}`); const r = await sh(`ffmpeg -i "${file}" -c:v libx264 -c:a aac "${out}" 2>&1 | tail -5`, 300000); return { ok: r.ok, output: r.output, tool };
       }
 
 

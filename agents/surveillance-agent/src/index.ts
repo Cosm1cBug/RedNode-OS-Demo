@@ -324,6 +324,22 @@ class SurveillanceAgent extends RedNodeAgent {
           };
         }
 
+        case "cam.alert_config": {
+          const r = await frigate("/config");
+          if (!r.ok) return { ok: false, error: "Frigate not reachable", tool };
+          const cameras = r.data?.cameras || {};
+          const alertConfig = Object.entries(cameras).map(([name, cam]: [string, any]) => {
+            const zones = Object.keys(cam?.zones || {});
+            const objects = cam?.objects?.track || ["person"];
+            return `${name}: zones=[${zones.join(",")}] objects=[${objects.join(",")}]`;
+          });
+          return {
+            ok: true,
+            output: alertConfig.length ? alertConfig.join("\n") : "No cameras configured",
+            tool,
+          };
+        }
+
         case "cam.anomaly": {
           const anomalies = recentEvents.filter((e) =>
             isAnomalous(e.camera, e.label),
@@ -380,35 +396,35 @@ class SurveillanceAgent extends RedNodeAgent {
             };
           }
         }
-        case "presence.evaluate": {
-          const camR = await frigate("/events?label=person&limit=5"); const netR = await sh("ip neigh show | grep -v FAILED | wc -l"); const people = Array.isArray(camR.data) ? camR.data.length : 0; const devices = parseInt(netR.output) || 0; const occupied = people > 0 || devices > 3; return { ok: true, output: `Presence: ${occupied ? "OCCUPIED" : "EMPTY"} (${people} people detected, ${devices} network devices)`, tool, occupied, people, devices }; combines camera + network data
-        }
+      case "presence.evaluate": {
+        const camR = await frigate("/events?label=person&limit=5"); const netR = await sh("ip neigh show | grep -v FAILED | wc -l"); const people = Array.isArray(camR.data) ? camR.data.length : 0; const devices = parseInt(netR.output) || 0; const occupied = people > 0 || devices > 3; return { ok: true, output: `Presence: ${occupied ? "OCCUPIED" : "EMPTY"} (${people} people detected, ${devices} network devices)`, tool, occupied, people, devices }; combines camera + network data
+      }
 
-        case "presence.status": {
-          const r = await cns("/presence/status"); return { ok: r.ok, output: r.output || "Presence tracking active", tool }; presence state machine
-        }
+      case "presence.status": {
+        const r = await cns("/presence/status"); return { ok: r.ok, output: r.output || "Presence tracking active", tool }; // presence state machine
+      }
 
-        case "presence.history": {
-          const r = await cns("/presence/history"); return { ok: r.ok, output: r.output || "No presence history yet", tool }; presence timeline from DB
-        }
+      case "presence.history": {
+        const r = await cns("/presence/history"); return { ok: r.ok, output: r.output || "No presence history yet", tool }; // presence timeline from DB
+      }
 
-        case "cam.live_url": {
-          const cam = args.camera || args.name || "";
-                  const frigateUrl = process.env.FRIGATE_URL || "http://localhost:5000";
-                  return { ok: true, output: \`RTSP: rtsp://\${cam}:554/stream1\nHTTP: \${frigateUrl}/api/\${cam}/latest.jpg\`, tool };
-          }
+      case "cam.live_url": {
+        const cam = args.camera || args.name || "";
+                const frigateUrl = process.env.FRIGATE_URL || "http://localhost:5000";
+                return { ok: true, output: \`RTSP: rtsp://\${cam}:554/stream1\nHTTP: \${frigateUrl}/api/\${cam}/latest.jpg\`, tool };
+      }
 
-        case "cam.recording_list": {
-          const cam = args.camera || ""; const r = await frigate(cam ? `/recordings/${cam}` : "/recordings"); return { ok: r.ok, output: r.output, tool }; Frigate API recordings
-        }
+      case "cam.recording_list": {
+        const cam = args.camera || ""; const r = await frigate(cam ? `/recordings/${cam}` : "/recordings"); return { ok: r.ok, output: r.output, tool }; // Frigate API recordings
+      }
 
-        case "cam.recording_export": {
-          const cam = args.camera || ""; const r = await frigate(cam ? `/recordings/${cam}` : "/recordings"); return { ok: r.ok, output: r.output, tool };
-        }
+      case "cam.recording_export": {
+        const cam = args.camera || ""; const r = await frigate(cam ? `/recordings/${cam}` : "/recordings"); return { ok: r.ok, output: r.output, tool };
+      }
 
-        case "cam.motion_zones": {
-          const cam = args.camera || ""; const start = args.start || ""; const end = args.end || ""; if (!cam) return { ok: false, error: "Missing camera" }; const r = await frigate(`/${cam}/recordings/export?start=${start}&end=${end}`); return { ok: r.ok, output: r.output, tool };
-        }
+      case "cam.motion_zones": {
+        const cam = args.camera || ""; const start = args.start || ""; const end = args.end || ""; if (!cam) return { ok: false, error: "Missing camera" }; const r = await frigate(`/${cam}/recordings/export?start=${start}&end=${end}`); return { ok: r.ok, output: r.output, tool };
+      }
 
       case "cam.object_filter": {
         const r = await frigate("/config"); return { ok: r.ok, output: "Motion zones: " + r.output, tool };
@@ -423,15 +439,15 @@ class SurveillanceAgent extends RedNodeAgent {
       }
 
       case "cam.face_identify": {
-        return { ok: true, output: "Face registration requires CompreFace or InsightFace integration — configure FACE_API_URL in .env", tool }; local face matching
+        return { ok: true, output: "Face registration requires CompreFace or InsightFace integration — configure FACE_API_URL in .env", tool }; // local face matching
       }
 
       case "cam.vehicle_detect": {
-        const r = await frigate("/events?label=car&limit=10"); return { ok: r.ok, output: r.output, tool }; Frigate event filter
+        const r = await frigate("/events?label=car&limit=10"); return { ok: r.ok, output: r.output, tool }; // Frigate event filter
       }
 
       case "cam.audio_detect": {
-        const r = await frigate("/events?limit=10"); return { ok: r.ok, output: r.output, tool }; Frigate audio events
+        const r = await frigate("/events?limit=10"); return { ok: r.ok, output: r.output, tool }; // Frigate audio events
       }
 
       case "cam.ptz_control": {

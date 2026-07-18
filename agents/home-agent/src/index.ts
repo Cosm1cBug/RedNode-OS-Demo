@@ -261,11 +261,11 @@ class HomeAgent extends RedNodeAgent {
       }
 
       case "home.history": {
-        const entity = args.entity || ""; const r = await ha(`/history/period?filter_entity_id=${entity}&minimal_response`); return { ok: r.ok, output: r.output, tool }; HA API history
+        const entity = args.entity || ""; const r = await ha(`/history/period?filter_entity_id=${entity}&minimal_response`); return { ok: r.ok, output: r.output, tool }; // HA API history
       }
 
       case "home.energy": {
-        const r = await ha("/states"); const energy = Array.isArray(r.data) ? r.data.filter((s: any) => s.attributes?.device_class === "energy" || s.entity_id.includes("energy")) : []; return { ok: true, output: energy.map((e: any) => `${e.attributes?.friendly_name || e.entity_id}: ${e.state} ${e.attributes?.unit_of_measurement || ""}`).join("\n") || "No energy entities found", tool }; HA API energy dashboard
+        const r = await ha("/states"); const energy = Array.isArray(r.data) ? r.data.filter((s: any) => s.attributes?.device_class === "energy" || s.entity_id.includes("energy")) : []; return { ok: true, output: energy.map((e: any) => `${e.attributes?.friendly_name || e.entity_id}: ${e.state} ${e.attributes?.unit_of_measurement || ""}`).join("\n") || "No energy entities found", tool };  // HA API energy dashboard
       }
 
       case "home.battery_status": {
@@ -305,11 +305,11 @@ class HomeAgent extends RedNodeAgent {
       }
 
       case "home.notification": {
-        const message = args.message || ""; const title = args.title || "RedNode"; if (!message) return { ok: false, error: "Missing message" }; const r = await ha("/services/notify/notify", "POST", { message, title }); return { ok: r.ok, output: `Notification sent: ${title}`, tool }; HA notify service call
+        const message = args.message || ""; const title = args.title || "RedNode"; if (!message) return { ok: false, error: "Missing message" }; const r = await ha("/services/notify/notify", "POST", { message, title }); return { ok: r.ok, output: `Notification sent: ${title}`, tool };  // HA notify service call
       }
 
       case "home.logbook": {
-        const r = await ha("/logbook?period=1"); return { ok: r.ok, output: r.output, tool }; HA logbook API
+        const r = await ha("/logbook?period=1"); return { ok: r.ok, output: r.output, tool }; // HA logbook API
       }
 
 

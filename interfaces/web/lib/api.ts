@@ -1,3 +1,5 @@
+import process from "node:process";
+
 const CNS = process.env.NEXT_PUBLIC_CNS || 'http://localhost:8787';
 
 async function f(path: string, opts?: RequestInit) {
@@ -5,9 +7,13 @@ async function f(path: string, opts?: RequestInit) {
   return r.json();
 }
 
+function post(path: string, body: any) {
+  return f(path, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+}
+
 // ─── Core ───
 export const sendIntent = (intent: string, session_id = 'web') =>
-  f('/intent', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ intent, session_id }) });
+  post('/intent', { intent, session_id });
 
 export const getHealth = () => f('/health');
 export const getSentience = () => f('/sentience');
@@ -21,7 +27,7 @@ export const ackSecurityEvent = (id: string) =>
 // ─── Approvals ───
 export const getApprovals = () => f('/approvals');
 export const approve = (id: string, approved: boolean) =>
-  f(`/approvals/${id}/approve`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ approved }) });
+  post(`/approvals/${id}/approve`, { approved });
 
 // ─── Memory ───
 export const getMemory = (q: string) => f(`/memory/query?q=${encodeURIComponent(q)}`);
@@ -56,3 +62,16 @@ export const runWorkflow = (name: string) =>
   sendIntent(`run workflow ${name}`, 'dashboard');
 export const listWorkflows = () =>
   sendIntent('list available workflows', 'dashboard');
+
+// ─── Configuration — web UI as single config source ───
+export const getConfig = () => f('/config');
+export const getConfigSetup = () => f('/config/setup');
+export const getServiceConfig = (service: string) => f(`/config/${service}`);
+export const updateServiceConfig = (service: string, data: { url?: string; enabled?: boolean }) =>
+  post(`/config/${service}`, data);
+export const updatePreferences = (prefs: Record<string, any>) =>
+  post('/config/preferences', prefs);
+export const updateSecret = (service: string, key: string, value: string) =>
+  post('/config/secret', { service, key, value });
+export const testService = (service: string) =>
+  f(`/config/test/${service}`, { method: 'POST' });

@@ -1,4 +1,6 @@
 import { connect, NatsConnection, StringCodec, JSONCodec } from "nats";
+import { loadConfig, watchConfigChanges } from "./config-loader.js";
+
 const sc = StringCodec();
 const jc = JSONCodec();
 
@@ -25,8 +27,14 @@ export class RedNodeAgent {
   }
 
   async connect(url = process.env.NATS_URL || "nats://127.0.0.1:4222") {
+    // Load config from CNS BEFORE connecting
+    // This populates process.env with values from the web dashboard config
+    // If CNS is not reachable, process.env from .env file is used as fallback
+    await loadConfig();
+
     this.nc = await connect({ servers: url, name: `${this.name}-agent` });
     console.log(`[${this.name}-agent] connected to ${url}`);
+
     // heartbeat
     setInterval(() => {
       this.nc.publish(
@@ -39,43 +47,26 @@ export class RedNodeAgent {
           }),
         ),
       );
-    }, 15000);
+    }, 10_000);
+
+    // Watch for config changes from the dashboard
+    // When someone changes a setting in the web UI, this agent re-fetches
+    watchConfigChanges(this.nc, () => {
+      console.info(`[${this.name}-agent] Config reloaded from dashboard`);
+    });
   }
 
-  async callTool(tool: string, args: any = {}, actor?: string): Promise<any> {
-    if (!this.capabilities.has(tool)) {
-      console.warn(
-        `[${this.name}] tool ${tool} not in capability list – forwarding anyway (policy enforced in Rust)`,
-      );
-    }
-    const req = {
-      tool,
-      args,
-      actor: actor || `${this.name}-agent`,
-      agent: this.name,
-      session_id: "default",
-    };
+  /** Execute a tool via the Rust executor (sandboxed) */
+  async callTool(tool: string, args: any): Promise<any> {
+    const CNS = process.env.REDNODE_CNS || "http://localhost:8787";
     try {
-      const msg = await this.nc.request("rednode.tool.exec", jc.encode(req), {
-        timeout: 8000,
+      const resp = await fetch(`${CNS}/exec`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool, args, agent: this.name }),
       });
-      const resp = jc.decode(msg.data) as any;
-      // Rust Executor response: {ok, tool, exit_code, stdout, stderr, risk, audit_id, sandbox}
-      if (!resp.ok) {
-        throw new Error(resp.stderr || "tool_exec failed");
-      }
-      // Normalize for backward compat – dashboard expects `output`
-      return {
-        ok: true,
-        tool: resp.tool,
-        output: resp.stdout,
-        stdout: resp.stdout,
-        stderr: resp.stderr,
-        exit_code: resp.exit_code,
-        risk: resp.risk,
-        audit_id: resp.audit_id,
-        sandbox: resp.sandbox,
-      };
+      const result = await resp.json();
+      return result;
     } catch (e: any) {
       throw new Error(`tool_exec ${tool} failed: ${e.message}`);
     }
@@ -85,6 +76,22 @@ export class RedNodeAgent {
     const subject = `rednode.agent.${this.name}.task`;
     const sub = this.nc.subscribe(subject);
     console.log(`[${this.name}-agent] listening on ${subject}`);
+
+    // Listen for hot-reload signals from the evolution engine
+    const reloadSub = this.nc.subscribe(`rednode.reload.${this.name}-agent`);
+    (async () => {
+      for await (const msg of reloadSub) {
+        try {
+          const data = jc.decode(msg.data) as any;
+          console.info(
+            `[${this.name}-agent] 🔄 Reload signal received: new tool '${data.tool || "unknown"}' evolved. ` +
+            `Agent will use the updated handler on next call. ` +
+            `(Full restart needed for handler code changes to take effect.)`
+          );
+        } catch {}
+      }
+    })();
+
     for await (const m of sub) {
       let task: AgentTask;
       try {

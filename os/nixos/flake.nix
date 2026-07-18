@@ -158,6 +158,19 @@
       ];
     };
 
+    # ISO – live boot – for testing on any machine without installing
+    # DHCP on all interfaces, auto-login, SSH enabled, CPU-only Ollama
+    # Build: cd os/nixos && nix build .#iso-live
+    # Flash: sudo dd if=result/iso/*.iso of=/dev/sdX bs=4M status=progress
+    packages.x86_64-linux.iso-live = nixos-generators.nixosGenerate {
+      system = "x86_64-linux";
+      format = "iso";
+      modules = rednodeISOModules ++ [
+        ./live.nix
+        { isoImage.isoName = "rednode-os-0.9.0-live-x86_64.iso"; }
+      ];
+    };
+
     # ─── VM ───
 
     # QEMU VM – quick test

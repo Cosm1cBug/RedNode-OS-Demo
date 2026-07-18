@@ -336,23 +336,23 @@ function getPostFunction(
     case "linkedin":
       return postToLinkedIn;
       case "social.thread": {
-        const posts = args.posts || args.content || []; if (!posts.length) return { ok: false, error: "Missing thread posts array" }; return { ok: true, output: `Thread with ${Array.isArray(posts) ? posts.length : 1} posts — configure platform API to post`, tool };
+        const posts = args.posts || args.content || []; if (!posts.length) return { ok: false, error: "Missing thread posts array" }; // return { ok: true, output: `Thread with ${Array.isArray(posts) ? posts.length : 1} posts — configure platform API to post`, tool };
       }
 
       case "social.hashtags": {
-        const content = args.content || args.topic || ""; if (!content) return { ok: false, error: "Missing content" }; const tags = await llm(`Suggest 5-8 relevant hashtags for: "${content}". Output only hashtags.`); return { ok: true, output: tags, tool }; LLM hashtag suggestion
+        const content = args.content || args.topic || ""; if (!content) return { ok: false, error: "Missing content" }; const tags = await llm(`Suggest 5-8 relevant hashtags for: "${content}". Output only hashtags.`); return { ok: true, output: tags, tool };  // LLM hashtag suggestion
       }
 
       case "social.best_time": {
-        return { ok: true, output: "Best posting times analysis requires engagement data history — post regularly for 2+ weeks for accurate analysis", tool }; //analytics calculation
+        return { ok: true, output: "Best posting times analysis requires engagement data history — post regularly for 2+ weeks for accurate analysis", tool }; // analytics calculation
       }
 
       case "social.followers": {
-        return { ok: true, output: "Follower analytics requires platform API credentials — configure in .env", tool }; //platform API query
+        return { ok: true, output: "Follower analytics requires platform API credentials — configure in .env", tool }; // platform API query
       }
 
       case "social.mentions": {
-        return { ok: true, output: "Mentions tracking requires platform API credentials — configure in .env", tool }; //platform API query
+        return { ok: true, output: "Mentions tracking requires platform API credentials — configure in .env", tool }; // platform API query
       }
 
       case "social.block": {
@@ -365,7 +365,7 @@ function getPostFunction(
 
 
     default:
-      const content = args.content || ""; if (!content) return { ok: false, error: "Missing content" }; return { ok: true, output: `Cross-post to all configured platforms: "${content.substring(0, 50)}..." — configure API keys in .env`, tool };
+      return null;
   }
 }
 

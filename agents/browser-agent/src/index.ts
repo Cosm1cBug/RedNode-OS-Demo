@@ -293,7 +293,7 @@ class BrowserAgent extends RedNodeAgent {
                 data.length > 0
                   ? data
                       .map(
-                        (d: { tag: string; index: number; text: string }) =>
+                        (d) =>
                           `[${d.tag}#${d.index}] ${d.text.substring(0, 500)}`,
                       )
                       .join("\n\n")
@@ -497,33 +497,50 @@ class BrowserAgent extends RedNodeAgent {
           };
         }
       case "browser.pdf": {
-        return { ok: true, output: "Form filling requires Playwright — high-risk operation requiring approval", tool }; Playwright page.pdf()
+        const pdfUrl = args.url || url;
+        if (!pdfUrl) return { ok: false, error: "Missing 'url'" };
+        return { ok: true, output: `PDF generation requires Playwright. Use: page.pdf() on ${pdfUrl}`, tool };
       }
 
       case "browser.monitor": {
-        const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; const r = await sh(`curl -sL "${url}" 2>&1 | sha256sum`); return { ok: r.ok, output: `Page hash: ${r.output} — store and compare to detect changes`, tool }; page diff monitoring
+        const monUrl = args.url || url;
+        if (!monUrl) return { ok: false, error: "Missing 'url'" };
+        const monR = await sh(`curl -sL "${monUrl}" 2>&1 | sha256sum`);
+        return { ok: monR.ok, output: `Page hash: ${monR.output} — store and compare to detect changes`, tool };
       }
 
       case "browser.cookie_clean": {
-        const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; return { ok: true, output: "PDF generation requires Playwright: page.pdf({path: \"/tmp/page.pdf\"})", tool };
+        const cleanR = await sh("rm -rf /tmp/chromium-profile/Default/Cookies 2>/dev/null && echo 'Cookies cleared' || echo 'No browser profile found'");
+        return { ok: cleanR.ok, output: cleanR.output, tool };
       }
 
       case "browser.price_track": {
-        const r = await sh("rm -rf /tmp/chromium-profile/Default/Cookies 2>/dev/null && echo \"Cookies cleared\" || echo \"No browser profile found\""); return { ok: r.ok, output: r.output, tool }; page scrape + price extraction
+        const ptUrl = args.url || url;
+        if (!ptUrl) return { ok: false, error: "Missing product URL" };
+        const ptR = await sh(`curl -sL "${ptUrl}" 2>&1 | grep -oiP '\\$[\\d,.]+|price[^<]*[\\d,.]+' | head -5`);
+        return { ok: ptR.ok, output: ptR.output || "Could not extract price — page may require JavaScript", tool };
       }
 
       case "browser.archive": {
-        const url = args.url || ""; if (!url) return { ok: false, error: "Missing product URL" }; const r = await sh(`curl -sL "${url}" 2>&1 | grep -oiP '\$[\d,.]+|₹[\d,.]+|price[^<]*[\d,.]+' | head -5`); return { ok: r.ok, output: r.output || "Could not extract price — page may require JavaScript", tool }; wget --mirror
+        const archUrl = args.url || url;
+        if (!archUrl) return { ok: false, error: "Missing URL to archive" };
+        const archR = await sh(`wget -q --mirror --convert-links --page-requisites -P /tmp/archive "${archUrl}" 2>&1 | tail -5 || echo "wget archive attempt"`, 60000);
+        return { ok: archR.ok, output: archR.output, tool };
       }
 
       case "browser.readability": {
-        const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; const r = await sh(`wget -q --mirror --convert-links --page-requisites -P /tmp/archive "${url}" 2>&1 | tail -5 || echo "wget archive attempt"`, 60000); return { ok: r.ok, output: r.output, tool }; readability extraction
+        const readUrl = args.url || url;
+        if (!readUrl) return { ok: false, error: "Missing URL" };
+        const readR = await sh(`curl -sL "${readUrl}" 2>&1 | sed "s/<[^>]*>//g" | sed "/^$/d" | head -100`);
+        return { ok: readR.ok, output: readR.output, tool };
       }
+
+
 
 
 
         default:
-          const url = args.url || ""; if (!url) return { ok: false, error: "Missing URL" }; const r = await sh(`curl -sL "${url}" 2>&1 | sed "s/<[^>]*>//g" | sed "/^$/d" | head -100`); return { ok: r.ok, output: r.output, tool };
+          return null;
       }
     } catch (e: any) {
       console.error(`[browser-agent] ${tool} failed:`, e.message);

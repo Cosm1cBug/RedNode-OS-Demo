@@ -425,11 +425,11 @@ class LearningAgent extends RedNodeAgent {
         };
       }
       case "learn.benchmark": {
-        const prompt = "Generate a JSON plan for: check system health"; const start = Date.now(); const result = await llm(prompt, "You are RedNode planner. Output valid JSON."); const elapsed = Date.now() - start; let isJson = false; try { JSON.parse(result); isJson = true; } catch {} return { ok: true, output: `LLM Benchmark: ${elapsed}ms, JSON valid: ${isJson}, length: ${result.length}`, tool }; LLM benchmark suite
+        const prompt = "Generate a JSON plan for: check system health"; const start = Date.now(); const result = await llm(prompt, "You are RedNode planner. Output valid JSON."); const elapsed = Date.now() - start; let isJson = false; try { JSON.parse(result); isJson = true; } catch {} return { ok: true, output: `LLM Benchmark: ${elapsed}ms, JSON valid: ${isJson}, length: ${result.length}`, tool };  // LLM benchmark suite
       }
 
       case "learn.train_data": {
-        const r = await sh("python3 scripts/finetune/export-training-data.py --output /tmp/training_data.jsonl 2>&1", 30000); return { ok: r.ok, output: r.output, tool }; export-training-data.py
+        const r = await sh("python3 scripts/finetune/export-training-data.py --output /tmp/training_data.jsonl 2>&1", 30000); return { ok: r.ok, output: r.output, tool }; // export-training-data.py
       }
 
       case "learn.test_tool": {
@@ -437,15 +437,15 @@ class LearningAgent extends RedNodeAgent {
       }
 
       case "learn.watch_logs": {
-        const r = await sh("journalctl --since \"10 minutes ago\" --no-pager -p warning 2>&1 | tail -20"); return { ok: r.ok, output: r.output || "No warnings in last 10 minutes", tool }; journal pattern analysis
+        const r = await sh("journalctl --since \"10 minutes ago\" --no-pager -p warning 2>&1 | tail -20"); return { ok: r.ok, output: r.output || "No warnings in last 10 minutes", tool }; // journal pattern analysis
       }
 
       case "learn.suggest_tool": {
-        const r = await cns("/memory/query?type=failed_intent&limit=10"); const suggestions = await llm(`Based on these failed intents, suggest new tools that should be built: ${JSON.stringify(r.data).substring(0, 1000)}`); return { ok: true, output: suggestions, tool }; analyze failed intents
+        const r = await cns("/memory/query?type=failed_intent&limit=10"); const suggestions = await llm(`Based on these failed intents, suggest new tools that should be built: ${JSON.stringify(r.data).substring(0, 1000)}`); return { ok: true, output: suggestions, tool }; // analyze failed intents
       }
 
       case "learn.knowledge_map": {
-        const r = await cns("/memory/query?type=learned_doc"); return { ok: r.ok, output: `Knowledge map: ${r.output}`, tool }; knowledge graph summary
+        const r = await cns("/memory/query?type=learned_doc"); return { ok: r.ok, output: `Knowledge map: ${r.output}`, tool };  // knowledge graph summary
       }
 
 

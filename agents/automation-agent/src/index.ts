@@ -294,11 +294,11 @@ class AutomationAgent extends RedNodeAgent {
       }
 
       case "workflow.history": {
-        const r = await cns("/memory/query?type=workflow_run&limit=20"); return { ok: r.ok, output: r.output || "No workflow history yet", tool }; //query audit log for workflow runs
+        const r = await cns("/memory/query?type=workflow_run&limit=20"); return { ok: r.ok, output: r.output || "No workflow history yet", tool }; // query audit log for workflow runs
       }
 
       case "schedule.list": {
-        const r = await cns("/memory/query?type=schedule"); return { ok: r.ok, output: r.output || "No schedules configured", tool }; //list scheduled pipeline triggers
+        const r = await cns("/memory/query?type=schedule"); return { ok: r.ok, output: r.output || "No schedules configured", tool }; // list scheduled pipeline triggers
       }
 
       case "schedule.remove": {
@@ -318,17 +318,17 @@ class AutomationAgent extends RedNodeAgent {
       }
 
       case "trigger.mqtt": {
-        const path = args.path || ""; if (!path) return { ok: false, error: "Missing file/directory path to watch" }; return { ok: true, output: `File watch trigger for ${path} — requires inotifywait (inotify-tools package)`, tool };
+        const path = args.path || ""; if (!path) return { ok: false, error: "Missing file/directory path to watch" }; // return { ok: true, output: `File watch trigger for ${path} — requires inotifywait (inotify-tools package)`, tool };
       }
 
       case "trigger.conditional": {
-        const topic = args.topic || ""; if (!topic) return { ok: false, error: "Missing MQTT topic" }; return { ok: true, output: `MQTT trigger for topic: ${topic} — subscribing via Mosquitto at localhost:1883`, tool };
+        const topic = args.topic || ""; if (!topic) return { ok: false, error: "Missing MQTT topic" }; // return { ok: true, output: `MQTT trigger for topic: ${topic} — subscribing via Mosquitto at localhost:1883`, tool };
       }
 
 
 
       default:
-        const condition = args.condition || ""; const action = args.action || ""; if (!condition || !action) return { ok: false, error: "Missing condition and action" }; return { ok: true, output: `Conditional trigger: IF ${condition} THEN ${action}`, tool };
+        return null;
     }
   }
 }

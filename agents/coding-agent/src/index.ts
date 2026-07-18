@@ -364,11 +364,11 @@ Return ONLY the refactored code with brief comments explaining changes.`,
       }
 
       case "code.lint": {
-        const file = args.file || args.dir || "."; const r = await sh(`eslint "${file}" 2>&1 || cargo clippy 2>&1 || ruff check "${file}" 2>&1 || echo "No linter found"`, 30000); return { ok: r.ok, output: r.output, tool }; runs linter for detected language
+        const file = args.file || args.dir || "."; const r = await sh(`eslint "${file}" 2>&1 || cargo clippy 2>&1 || ruff check "${file}" 2>&1 || echo "No linter found"`, 30000); return { ok: r.ok, output: r.output, tool }; // runs linter for detected language
       }
 
       case "code.diff": {
-        const r = await sh("git diff --stat 2>&1 || diff -u " + (args.file1 || "") + " " + (args.file2 || "") + " 2>&1"); return { ok: r.ok, output: r.output, tool }; diff command
+        const r = await sh("git diff --stat 2>&1 || diff -u " + (args.file1 || "") + " " + (args.file2 || "") + " 2>&1"); return { ok: r.ok, output: r.output, tool }; // diff command
       }
 
       case "code.todo": {
@@ -381,7 +381,7 @@ Return ONLY the refactored code with brief comments explaining changes.`,
       }
 
       case "code.dependency_check": {
-        const dir = args.dir || "."; const r = await sh(`cd ${dir} && (npm audit --json 2>&1 | head -50 || cargo audit 2>&1 | head -30 || echo "No auditor found")`, 30000); return { ok: r.ok, output: r.output, tool }; npm audit / cargo audit
+        const dir = args.dir || "."; const r = await sh(`cd ${dir} && (npm audit --json 2>&1 | head -50 || cargo audit 2>&1 | head -30 || echo "No auditor found")`, 30000); return { ok: r.ok, output: r.output, tool }; // npm audit / cargo audit
       }
 
       case "code.coverage": {
@@ -389,7 +389,7 @@ Return ONLY the refactored code with brief comments explaining changes.`,
       }
 
       case "code.complexity": {
-        const dir = args.dir || "."; const r = await sh(`cd ${dir} && (npx jest --coverage 2>&1 || cargo tarpaulin 2>&1 || echo "No coverage tool found") | tail -20`, 60000); return { ok: r.ok, output: r.output, tool }; complexity analysis tool
+        const dir = args.dir || "."; const r = await sh(`cd ${dir} && (npx jest --coverage 2>&1 || cargo tarpaulin 2>&1 || echo "No coverage tool found") | tail -20`, 60000); return { ok: r.ok, output: r.output, tool }; // complexity analysis tool
       }
 
       case "git.log": {

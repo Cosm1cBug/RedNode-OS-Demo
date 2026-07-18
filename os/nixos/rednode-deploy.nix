@@ -54,6 +54,71 @@
         update)
           sudo /etc/rednode/selfheal.sh repair
           ;;
+        voice)
+          shift
+          case "''${1:-status}" in
+            on|start)
+              echo "🎤 Starting RedNode Voice..."
+              sudo systemctl start rednode-stt rednode-tts rednode-voice 2>/dev/null && \
+                echo "  Voice pipeline started ✅ (STT + TTS + Wake Word)" || \
+                echo "  ⚠️  Voice services not found. Run on NixOS with voice config enabled."
+              ;;
+            off|stop)
+              echo "🎤 Stopping RedNode Voice..."
+              sudo systemctl stop rednode-voice rednode-tts rednode-stt 2>/dev/null && \
+                echo "  Voice pipeline stopped" || echo "  Voice was not running"
+              ;;
+            status)
+              echo "🎤 Voice Pipeline Status:"
+              for svc in rednode-stt rednode-tts rednode-voice; do
+                if systemctl is-active --quiet "$svc" 2>/dev/null; then
+                  echo "  ✅ $svc: running"
+                else
+                  echo "  ❌ $svc: not running"
+                fi
+              done
+              ;;
+            *)
+              echo "Usage: rednode voice {on|off|status}"
+              ;;
+          esac
+          ;;
+        gui)
+          shift
+          case "''${1:-status}" in
+            on|start)
+              echo "🖥️ Starting RedNode GUI kiosk..."
+              if systemctl is-active --quiet cage-tty1 2>/dev/null; then
+                echo "  Already running ✅"
+              else
+                sudo systemctl start cage-tty1 2>/dev/null && echo "  Kiosk started ✅" || \
+                echo "  ⚠️ Cage service not found. Enable kiosk in NixOS:"
+                echo "    1. Uncomment ./kiosk.nix in os/nixos/configuration.nix"
+                echo "    2. sudo nixos-rebuild switch"
+              fi
+              ;;
+            off|stop)
+              echo "🖥️ Stopping RedNode GUI kiosk..."
+              sudo systemctl stop cage-tty1 2>/dev/null && echo "  Kiosk stopped ✅" || \
+              echo "  Kiosk was not running"
+              ;;
+            status)
+              if systemctl is-active --quiet cage-tty1 2>/dev/null; then
+                echo "🖥️ GUI Kiosk: RUNNING ✅"
+                echo "  Display: $(systemctl show cage-tty1 --property=ActiveState --value)"
+                echo "  URL: http://localhost:3000"
+                echo "  RAM: ~200-350 MB overhead"
+              else
+                echo "🖥️ GUI Kiosk: OFF (headless mode)"
+                echo "  Access dashboard at: http://$(hostname -I 2>/dev/null | awk '{print $1}'):3000"
+                echo "  Enable: rednode gui on"
+              fi
+              ;;
+            *)
+              echo "Usage: rednode gui {on|off|status}"
+              ;;
+          esac
+          ;;
         help|--help|-h|"")
           echo ""
           echo "🧠 RedNode-OS CLI"
@@ -64,6 +129,8 @@
           echo "  status             Show system health"
           echo "  repair             Auto-repair any broken services"
           echo "  intent \"text\"       Send intent to CNS"
+          echo "  voice on|off|status Toggle voice pipeline (mic + wake word + speak)"
+          echo "  gui on|off|status  Toggle branded GUI kiosk display"
           echo "  logs               View self-heal logs"
           echo "  update             Pull latest + rebuild + restart"
           echo ""

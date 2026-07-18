@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
-# RedNode-OS – ISO Builder – v0.3.1
+# RedNode-OS – ISO Builder – v0.9.0
 # Privacy-first, self-aware, sentient operating system
 # Produces a bootable, signed, reproducible ISO
+#
+# Variants:
+#   ./scripts/rednode-build-iso.sh           # Standard ISO (for installation)
+#   ./scripts/rednode-build-iso.sh live      # Live boot ISO (test on any machine)
+#   ./scripts/rednode-build-iso.sh kiosk     # Kiosk ISO (with branded GUI display)
 
 cd "$(dirname "$0")/.."
 
-VERSION="${REDNODE_VERSION:-0.3.1}"
+VERSION="${REDNODE_VERSION:-0.9.0}"
 OUT_DIR="${OUT_DIR:-./dist}"
 mkdir -p "$OUT_DIR"
 
@@ -20,10 +25,17 @@ if ! command -v nix >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "==> [1/4] Building RedNode-OS ISO – NixOS – x86_64"
+VARIANT="${1:-standard}"
+case "$VARIANT" in
+  live)    NIX_TARGET="iso-live";  VARIANT_LABEL="LIVE (test on any machine)" ;;
+  kiosk)   NIX_TARGET="iso-kiosk"; VARIANT_LABEL="KIOSK (branded GUI display)" ;;
+  *)       NIX_TARGET="iso";       VARIANT_LABEL="STANDARD (for installation)" ;;
+esac
+
+echo "==> [1/4] Building RedNode-OS ISO – $VARIANT_LABEL – x86_64"
 echo "   This will download ~1.8 GB – first build takes ~25 min"
 echo ""
-nix build .#iso --out-link "$OUT_DIR/rednode-iso" \
+nix build .#${NIX_TARGET} --out-link "$OUT_DIR/rednode-iso" \
   --extra-experimental-features "nix-command flakes" \
   --print-build-logs || {
   echo ""

@@ -313,7 +313,7 @@ class StorageAgent extends RedNodeAgent {
       }
 
       case "nas.compression_stats": {
-        const r = await truenas("/pool/dataset"); if (!r.ok) return r; const items = Array.isArray(r.data) ? r.data : [r.data]; const lines = items.map((d: any) => `${d.name}: compression=${d.compression?.value || "off"} ratio=${d.compressratio?.rawvalue || "1.00x"}`); return { ok: true, output: lines.join("\n"), tool }; TrueNAS API query
+        const r = await truenas("/pool/dataset"); if (!r.ok) return r; const items = Array.isArray(r.data) ? r.data : [r.data]; const lines = items.map((d: any) => `${d.name}: compression=${d.compression?.value || "off"} ratio=${d.compressratio?.rawvalue || "1.00x"}`); return { ok: true, output: lines.join("\n"), tool }; // TrueNAS API query
       }
 
       case "nas.rsync_job": {
@@ -329,25 +329,25 @@ class StorageAgent extends RedNodeAgent {
       }
 
       case "nas.file_search": {
-        const path = args.path || args.dataset || ""; if (!path) return { ok: false, error: "Missing path" }; const r = await truenas(`/pool/dataset/id/${encodeURIComponent(path)}/permission`, "POST", { mode: args.mode || "755", user: args.user || "root", group: args.group || "wheel" }); return { ok: r.ok, output: r.output, tool }; find command on NAS mount
+        const path = args.path || args.dataset || ""; if (!path) return { ok: false, error: "Missing path" }; const r = await truenas(`/pool/dataset/id/${encodeURIComponent(path)}/permission`, "POST", { mode: args.mode || "755", user: args.user || "root", group: args.group || "wheel" }); return { ok: r.ok, output: r.output, tool };  // find command on NAS mount
       }
 
       case "nas.dedup_report": {
-        const pattern = args.pattern || args.name || "*"; const path = args.path || "/mnt"; const r = await sh(`find ${path} -name "${pattern}" -maxdepth 4 2>/dev/null | head -30`, 15000); return { ok: r.ok, output: r.output || "No files found", tool }; TrueNAS API query
+        const pattern = args.pattern || args.name || "*"; const path = args.path || "/mnt"; const r = await sh(`find ${path} -name "${pattern}" -maxdepth 4 2>/dev/null | head -30`, 15000); return { ok: r.ok, output: r.output || "No files found", tool }; // TrueNAS API query
       }
 
       case "nas.io_stats": {
-        const r = await truenas("/pool"); if (!r.ok) return r; const pools = Array.isArray(r.data) ? r.data : [r.data]; const lines = pools.map((p: any) => `${p.name}: dedup_ratio=${p.dedupratio || "N/A"}`); return { ok: true, output: lines.join("\n"), tool }; TrueNAS API query
+        const r = await truenas("/pool"); if (!r.ok) return r; const pools = Array.isArray(r.data) ? r.data : [r.data]; const lines = pools.map((p: any) => `${p.name}: dedup_ratio=${p.dedupratio || "N/A"}`); return { ok: true, output: lines.join("\n"), tool }; // TrueNAS API query
       }
 
       case "nas.temperature_history": {
-        const r = await truenas("/reporting/get_data", "POST", { graphs: [{ name: "disk" }], reporting_query: { start: "now-1h", end: "now" } }); return { ok: r.ok, output: r.output, tool }; TrueNAS API query
+        const r = await truenas("/reporting/get_data", "POST", { graphs: [{ name: "disk" }], reporting_query: { start: "now-1h", end: "now" } }); return { ok: r.ok, output: r.output, tool }; // TrueNAS API query
       }
 
 
 
         default:
-          const r = await truenas("/reporting/get_data", "POST", { graphs: [{ name: "disktemp" }], reporting_query: { start: "now-24h", end: "now" } }); return { ok: r.ok, output: r.output, tool }; // fall through to Rust executor
+          return null;
       }
     } catch (e: any) {
       console.error(`[storage-agent] ${tool} failed:`, e.message);

@@ -9,7 +9,9 @@
     ./hardware.nix
     ./disk-encryption.nix
     ./rednode-deploy.nix      # Autonomous deployment + self-healing
-    # ./kiosk.nix             # Uncomment for branded GUI kiosk (adds ~200-350 MB RAM)
+    # ./kiosk.nix             # GUI kiosk: uncomment to enable, comment to disable
+                              # Toggle at runtime: rednode gui on/off
+                              # RAM overhead: ~200-350 MB when enabled
     # ./extras.nix            # Uncomment for WireGuard VPN, UPS monitoring, Suricata IDS
   ];
 
@@ -31,10 +33,11 @@
   ];
 
   # ──────────────────────────────────────────────
-  # Networking – VLAN-aware for home infrastructure
+  # Networking
   # ──────────────────────────────────────────────
   networking.hostName = "rednode";
-  networking.useDHCP = false;
+  networking.useDHCP = true;
+  networking.networkmanager.enable = true;
   networking.firewall.enable = true;
   networking.firewall.allowedTCPPorts = [
     8787   # CNS API
@@ -46,27 +49,35 @@
   # All other ports (NATS 4222, Postgres 5432, Qdrant 6333, Ollama 11434)
   # are localhost-only — not exposed to the network
 
-  # Static IP on Management VLAN (VLAN 50)
-  # Adjust interface name to match your hardware (run: ip link)
-  networking.interfaces.enp0s31f6 = {
-    useDHCP = false;
-    ipv4.addresses = [{
-      address = "10.0.50.10";
-      prefixLength = 24;
-    }];
-  };
-  networking.defaultGateway = {
-    address = "10.0.50.1";  # pfSense VLAN 50 interface
-    interface = "enp0s31f6";
-  };
-  networking.nameservers = [ "10.0.50.2" ];  # Pi-hole
-
-  # NetworkManager disabled — static config, no surprises
-  networking.networkmanager.enable = false;
-
-  # DNS — use Pi-hole, fallback to Quad9
+  # DNS — Quad9 as default, Pi-hole configured in .env after setup
   services.resolved.enable = true;
   services.resolved.fallbackDns = [ "9.9.9.9" "149.112.112.112" ];
+
+  # ───────────────────────────────────────────────────────────────
+  # Static IP / VLAN Setup (optional — configure after installation)
+  #
+  # To set a static IP on your homelab VLAN, create or edit:
+  #   /etc/nixos/network-override.nix
+  #
+  # Example for VLAN 50 (management):
+  #
+  #   { ... }: {
+  #     networking.useDHCP = false;
+  #     networking.networkmanager.enable = false;
+  #     networking.interfaces.enp0s31f6 = {
+  #       useDHCP = false;
+  #       ipv4.addresses = [{ address = "10.0.50.10"; prefixLength = 24; }];
+  #     };
+  #     networking.defaultGateway = {
+  #       address = "10.0.50.1";
+  #       interface = "enp0s31f6";
+  #     };
+  #     networking.nameservers = [ "10.0.50.2" ];  # Pi-hole
+  #   }
+  #
+  # Then add to imports above: ./network-override.nix
+  # And run: sudo nixos-rebuild switch
+  # ───────────────────────────────────────────────────────────────
 
   # ──────────────────────────────────────────────
   # Time & Locale
@@ -75,6 +86,41 @@
   services.chrony.enable = true;
   i18n.defaultLocale = "en_US.UTF-8";
   console.keyMap = "us";
+
+  # ──────────────────────────────────────────────
+  # RedNode Branding — visible on all TTYs (headless + kiosk)
+  # ──────────────────────────────────────────────
+
+  # Banner shown on the TTY BEFORE login prompt (visible even when no one is logged in)
+  environment.etc.issue.text = ''
+
+    ══════════════════════════════════════════════════════
+     🧠  R E D N O D E - O S    v0.9.0
+         The Personal Autonomous Operating System
+    ──────────────────────────────────────────────────────
+     Status:    rednode status
+     Dashboard: http://\4:3000
+     API:       http://\4:8787
+    ══════════════════════════════════════════════════════
+
+  '';
+
+  # Greeting line on the login prompt itself
+  services.getty.greetingLine = ''
+    \e{bold}\e{lightred}RedNode-OS\e{reset} — \l @ \n (\4)
+  '';
+
+  # Help text below the login prompt
+  services.getty.helpLine = ''
+    Login as 'owner' to manage. Dashboard: http://\4:3000
+  '';
+
+  # Plymouth boot splash — branded even in headless mode
+  # Shows RedNode logo during boot instead of NixOS snowflake or text scrolling
+  boot.plymouth = {
+    enable = true;
+    logo = ../../os/branding/rednode-logo.png;
+  };
 
   # ──────────────────────────────────────────────
   # Users
@@ -288,16 +334,111 @@
     nodejs_22
     nodePackages.pnpm
 
-    # Python — for voice interface
+    # Python — for voice interface + AI tools
     (python312.withPackages (ps: with ps; [
       fastapi uvicorn
-      # faster-whisper and piper-tts installed via pip in venv
+      numpy sounddevice
+      requests
     ]))
 
     # Build tools (for cargo build of rednode-core)
     rustc cargo clippy rustfmt
     pkg-config openssl
   ];
+
+  # ──────────────────────────────────────────────
+  # Voice Interface — auto-setup + systemd services
+  # ──────────────────────────────────────────────
+  # Creates a Python venv with voice dependencies on first boot,
+  # then runs STT, TTS, and wake-word services automatically.
+
+  systemd.services.rednode-voice-setup = {
+    description = "RedNode-OS Voice — First-time Python venv setup";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "network.target" ];
+    unitConfig.ConditionPathExists = "!/var/lib/rednode/voice-venv/bin/activate";
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "rednode-voice-setup" ''
+        set -e
+        echo "[voice-setup] Creating Python venv..."
+        ${pkgs.python312}/bin/python -m venv /var/lib/rednode/voice-venv
+        source /var/lib/rednode/voice-venv/bin/activate
+        pip install --quiet faster-whisper piper-tts openwakeword sounddevice numpy requests fastapi uvicorn python-multipart
+        echo "[voice-setup] Voice dependencies installed ✅"
+      '';
+      User = "rednode";
+      TimeoutStartSec = "600";
+    };
+  };
+
+  systemd.services.rednode-stt = {
+    description = "RedNode-OS STT — Whisper Speech-to-Text (port 8081)";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "rednode-voice-setup.service" ];
+    wants = [ "rednode-voice-setup.service" ];
+    unitConfig.ConditionPathExists = "/var/lib/rednode/voice-venv/bin/activate";
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = pkgs.writeShellScript "rednode-stt" ''
+        source /var/lib/rednode/voice-venv/bin/activate
+        cd /var/lib/rednode/source/interfaces/voice
+        exec python stt_server.py
+      '';
+      Restart = "always";
+      RestartSec = "5";
+      User = "rednode";
+      Environment = [ "REDNODE_VOICE=on" ];
+    };
+  };
+
+  systemd.services.rednode-tts = {
+    description = "RedNode-OS TTS — Piper Text-to-Speech (port 8082)";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "rednode-voice-setup.service" ];
+    wants = [ "rednode-voice-setup.service" ];
+    unitConfig.ConditionPathExists = "/var/lib/rednode/voice-venv/bin/activate";
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = pkgs.writeShellScript "rednode-tts" ''
+        source /var/lib/rednode/voice-venv/bin/activate
+        cd /var/lib/rednode/source/interfaces/voice
+        exec python tts_server.py
+      '';
+      Restart = "always";
+      RestartSec = "5";
+      User = "rednode";
+      Environment = [ "REDNODE_VOICE=on" ];
+    };
+  };
+
+  systemd.services.rednode-voice = {
+    description = "RedNode-OS Voice Loop — Wake word + mic + speakers";
+    after = [ "rednode-stt.service" "rednode-tts.service" "rednode-core.service" ];
+    wants = [ "rednode-stt.service" "rednode-tts.service" ];
+    # NOT in wantedBy — voice loop only starts if REDNODE_VOICE=on in .env
+    # Enable manually: sudo systemctl start rednode-voice
+    # Or: rednode voice on
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = pkgs.writeShellScript "rednode-voice-loop" ''
+        source /var/lib/rednode/voice-venv/bin/activate
+        cd /var/lib/rednode/source/interfaces/voice
+        exec python voice_loop.py
+      '';
+      Restart = "always";
+      RestartSec = "5";
+      User = "rednode";
+      SupplementaryGroups = [ "audio" ];
+      Environment = [
+        "REDNODE_VOICE=on"
+        "STT_URL=http://localhost:8081"
+        "TTS_URL=http://localhost:8082"
+        "CNS_URL=http://localhost:8787"
+      ];
+    };
+  };
 
   # ──────────────────────────────────────────────
   # Fonts – for dashboard
@@ -312,7 +453,7 @@
 
   # ──────────────────────────────────────────────
   # No X11 / Wayland — RedNode is headless
-  # Web UI served at http://10.0.50.10:3000
+  # Web UI served at http://YOUR-IP:3000 (check IP with: ip addr)
   # ──────────────────────────────────────────────
 
   system.stateVersion = "24.05";

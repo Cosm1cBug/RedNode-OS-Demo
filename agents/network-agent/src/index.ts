@@ -323,12 +323,13 @@ class NetworkAgent extends RedNodeAgent {
 
       case "net.wol": {
         const mac = args.mac || args.target || "";
-                if (!mac) return { ok: false, error: "Missing 'mac' address for Wake-on-LAN" };
-                const mac = args.mac || ""; if (!mac) return { ok: false, error: "Missing MAC address" }; const r = await sh(`etherwake ${mac} 2>&1 || wakeonlan ${mac} 2>&1 || echo "WoL tools not installed"`); return { ok: r.ok, output: r.output, tool }; etherwake / wol
+        if (!mac) return { ok: false, error: "Missing 'mac' address for Wake-on-LAN" };
+        const r = await sh(`etherwake ${mac} 2>&1 || wakeonlan ${mac} 2>&1 || echo "WoL tools not installed"`);
+        return { ok: r.ok, output: r.output, tool };
       }
 
       case "net.bandwidth": {
-        const iface = args.interface || "enp0s31f6"; const r = await sh(`vnstat -i ${iface} --oneline 2>/dev/null || cat /proc/net/dev | grep ${iface}`); return { ok: r.ok, output: r.output, tool }; vnstat / nethogs summary
+        const iface = args.interface || "enp0s31f6"; const r = await sh(`vnstat -i ${iface} --oneline 2>/dev/null || cat /proc/net/dev | grep ${iface}`); return { ok: r.ok, output: r.output, tool }; // vnstat / nethogs summary
       }
 
       case "net.ping": {

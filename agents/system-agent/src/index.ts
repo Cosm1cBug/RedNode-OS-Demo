@@ -146,13 +146,15 @@ class SystemAgent extends RedNodeAgent {
       }
 
       case "shell.run_safe": {
-        // Pass through to Rust executor — it enforces the allowlist
-        const cmd = args.command || args.cmd || ""; if (!cmd) return { ok: false, error: "Missing command" }; const r = await sh(cmd); return { ok: r.ok, output: r.output, tool };
+        const cmd = args.command || args.cmd || "";
+        if (!cmd) return { ok: false, error: "Missing command" };
+        const r = await sh(cmd);
+        return { ok: r.ok, output: r.output, tool };
       }
       case "service.restart": {
         const svc = args.service || args.name || "";
-                if (!svc) return { ok: false, error: "Missing 'service' name" };
-                const svc = args.service || args.name || ""; const r = await sh(svc ? `systemctl status ${svc} --no-pager 2>&1` : "systemctl list-units --type=service --state=running --no-pager | head -30"); return { ok: r.ok, output: r.output, tool }; systemctl restart <svc>
+        if (!svc) return { ok: false, error: "Missing 'service' name" };
+        return null; // High-risk: requires approval via Rust executor
       }
 
       case "ups.status": {
@@ -172,7 +174,7 @@ class SystemAgent extends RedNodeAgent {
       }
 
       case "ups.test": {
-        const r = await sh("upscmd rednode-ups@localhost test.battery.start 2>&1 || echo \"UPS test not available\""); return { ok: r.ok, output: r.output, tool }; upscmd rednode-ups@localhost test.battery.start
+        const r = await sh("upscmd rednode-ups@localhost test.battery.start 2>&1 || echo \"UPS test not available\""); return { ok: r.ok, output: r.output, tool }; // upscmd rednode-ups@localhost test.battery.start
       }
 
       case "predict.maintenance": {
@@ -185,9 +187,10 @@ class SystemAgent extends RedNodeAgent {
 
       case "notify.send": {
         const title = args.title || "RedNode Notification";
-                const body = args.body || args.message || "";
-                if (!body) return { ok: false, error: "Missing 'body' or 'message'" };
-                const title = args.title || "Notification"; const body = args.body || args.message || ""; const r = await cns("/notify", { method: "POST", body: { title, body, urgency: args.urgency || "normal" } }); return { ok: r.ok, output: r.output, tool }; // Rust executor delegates to notifications module
+        const body = args.body || args.message || "";
+        if (!body) return { ok: false, error: "Missing 'body' or 'message'" };
+        const r = await cns("/notify", { method: "POST", body: { title, body, urgency: args.urgency || "normal" } });
+        return { ok: r.ok, output: r.output, tool };
       }
 
       case "notify.digest": {
@@ -204,14 +207,16 @@ class SystemAgent extends RedNodeAgent {
 
       case "pipeline.run": {
         const name = args.name || args.pipeline || "";
-                if (!name) return { ok: false, error: "Missing 'name' of pipeline to run" };
-                const name = args.name || ""; if (!name) return { ok: false, error: "Missing pipeline name" }; const r = await cns(`/pipelines/${name}/run`, { method: "POST" }); return { ok: r.ok, output: r.output, tool }; // Rust executor delegates to pipelines module
+        if (!name) return { ok: false, error: "Missing 'name' of pipeline to run" };
+        const r = await cns(`/pipelines/${name}/run`, { method: "POST" });
+        return { ok: r.ok, output: r.output, tool };
       }
 
       case "pipeline.enable": {
         const name = args.name || args.pipeline || "";
-                if (!name) return { ok: false, error: "Missing 'name' of pipeline" };
-                const name = args.name || ""; const r = await cns(`/pipelines/${name}/enable`, { method: "POST", body: { enabled: args.enabled !== false } }); return { ok: r.ok, output: r.output, tool }; // Rust executor delegates to pipelines module
+        if (!name) return { ok: false, error: "Missing 'name' of pipeline" };
+        const r = await cns(`/pipelines/${name}/enable`, { method: "POST", body: { enabled: args.enabled !== false } });
+        return { ok: r.ok, output: r.output, tool };
       }
 
       case "sys.cpu_profile": {
@@ -271,7 +276,7 @@ class SystemAgent extends RedNodeAgent {
       }
 
       case "sys.cron_create": {
-        const cmd = args.command || args.cmd || ""; const schedule = args.schedule || ""; if (!cmd || !schedule) return { ok: false, error: "Missing command and schedule" }; return { ok: true, output: `To create timer: systemd-run --on-calendar="${schedule}" ${cmd}`, tool }; requires approval (medium risk)
+        const cmd = args.command || args.cmd || ""; const schedule = args.schedule || ""; if (!cmd || !schedule) return { ok: false, error: "Missing command and schedule" }; // return { ok: true, output: `To create timer: systemd-run --on-calendar="${schedule}" ${cmd}`, tool };
       }
 
       case "sys.package_list": {
@@ -300,10 +305,37 @@ class SystemAgent extends RedNodeAgent {
 
       case "sys.temperature": {
         try {
-                  const { execSync } = await import("child_process");
-                  const sensors = execSync("sensors 2>/dev/null || cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null | while read t; do echo "$(($t/1000))°C"; done || echo 'No temperature sensors'", { encoding: "utf-8", timeout: 5000 });
-                  return { ok: true, output: sensors.trim(), tool };
-                } catch (e: any) { return { ok: false, error: e.message }; }
+          const { execSync } = await import("child_process");
+
+          const output = execSync(
+            `
+            if command -v sensors >/dev/null 2>&1; then
+              sensors
+            elif ls /sys/class/thermal/thermal_zone*/temp >/dev/null 2>&1; then
+              for f in /sys/class/thermal/thermal_zone*/temp; do
+                awk '{print int($1/1000) "°C"}' "$f"
+              done
+            else
+              echo "No temperature sensors"
+            fi
+            `,
+            {
+              encoding: "utf8",
+              timeout: 5000,
+            }
+          );
+
+          return {
+            ok: true,
+            output: output.trim(),
+            tool,
+          };
+        } catch (e) {
+          return {
+            ok: false,
+            error: e instanceof Error ? e.message : String(e),
+          };
+        }
       }
 
       case "sys.fan_speed": {

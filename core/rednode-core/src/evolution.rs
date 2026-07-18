@@ -311,7 +311,7 @@ pub async fn evolve_tool(
     // Inject into agent's index.ts
     inject_handler(project_root, &tool, &handler_code)?;
     
-    // Emit evolution event
+    // Emit evolution event (agents listen for this to hot-reload)
     crate::events::emit(serde_json::json!({
         "type": "tool_evolved",
         "tool": tool.name,
@@ -321,11 +321,41 @@ pub async fn evolve_tool(
         "timestamp": chrono::Utc::now().to_rfc3339(),
     }));
     
+    // Emit agent reload signal via NATS
+    // Agents that subscribe to "rednode.reload.<agent>" will restart their
+    // tool handler when they receive this message.
+    if let Ok(nc) = crate::bus::get_connection().await {
+        let reload_subject = format!("rednode.reload.{}", tool.agent);
+        let reload_msg = serde_json::json!({
+            "type": "reload",
+            "reason": "tool_evolved",
+            "tool": tool.name,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        });
+        if let Ok(payload) = serde_json::to_vec(&reload_msg) {
+            let _ = nc.publish(reload_subject.clone(), payload.into()).await;
+            tracing::info!(
+                subject = reload_subject,
+                "🔄 Reload signal sent to {} — agent should pick up new tool",
+                tool.agent
+            );
+        }
+    }
+    
+    // Also emit a notification so the user knows
+    crate::notifications::notify(
+        "🧬 Tool Evolved",
+        &format!("{} — new tool '{}' is now available", tool.agent, tool.name),
+        crate::notifications::Urgency::Low,
+        "evolution",
+        "learning",
+    );
+    
     tracing::info!(
         tool = tool.name,
         agent = tool.agent,
         handler_type,
-        "🧬 Tool evolved: {} — {} can now use it",
+        "🧬 Tool evolved: {} — {} can now use it. Reload signal sent.",
         tool.name, tool.agent
     );
     

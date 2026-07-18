@@ -1,96 +1,71 @@
-# RedNode-OS Architecture
+# v0.9.2 — Web UI as the ONLY Configuration Interface
+
+## How It Works
 
 ```
-Human Intent → Interface Layer → CNS (Rust) → Agent Society (TS) → Execution Layer → Host OS → Hardware
+FIRST BOOT:
+  Browser → http://rednode:3000/setup
+    → Setup wizard: enter Pi-hole URL, TrueNAS API key, etc.
+    → All values saved to config.json (secrets encrypted with age)
+    → CNS loads config.json at startup
+    → Agents fetch config from CNS API at startup
+    → Everything works — no .env editing ever needed
+
+CHANGING CONFIG LATER:
+  Browser → http://rednode:3000/settings
+    → Change Pi-hole URL → Test Connection → Save
+    → CNS writes to config.json
+    → CNS broadcasts config-changed event via NATS
+    → Agents re-fetch config automatically
+    → No restart needed
+
+FLOW:
+  ┌──────────────┐     ┌─────────────────────────┐
+  │  Web UI      │────▶│  CNS API                │
+  │  /settings   │     │  POST /config/:service  │
+  │  /setup      │     │  GET  /config           │
+  └──────────────┘     └────────┬────────────────┘
+                                │ read/write
+                                ▼
+                       ┌─────────────────────────┐
+                       │  config.json            │
+                       │  (encrypted secrets)    │
+                       │  chmod 600              │
+                       └────────┬────────────────┘
+                                │ serve via API
+                                ▼
+                       ┌─────────────────────────┐
+                       │  Agents                 │
+                       │  fetch config on startup│
+                       │  re-fetch on NATS signal│
+                       │  populate process.env   │
+                       └─────────────────────────┘
 ```
 
-## Central Nervous System — Rust — `core/rednode-core`
+## Key Design: Zero process.env Changes
 
-17 modules:
+Agents currently do `process.env.PIHOLE_URL`. Instead of changing all 101 
+references, the shared config fetcher:
 
-| Module | Lines | What It Does |
-|---|---|---|
-| `planner.rs` | 337 | LLM-powered planning via Ollama (Qwen2.5) with keyword fallback |
-| `sentience.rs` | 686 | Self-model, 5 homeostatic drives (real data), autonomous goal execution, memory consolidation |
-| `memory.rs` | 550+ | PostgreSQL + Qdrant vectors + Kuzu/Postgres knowledge graph, RAG pipeline, entity extraction |
-| `executor.rs` | 380 | Sandboxed tool execution (firejail/bubblewrap/seccomp) with resource limits |
-| `api.rs` | 350+ | 17 REST endpoints + real-time WebSocket event streaming |
-| `security.rs` | 220+ | 359 tools risk-tagged, 25+ deny patterns, path traversal + injection protection |
-| `events.rs` | 137 | `tokio::broadcast` event bus — all modules publish, WebSocket subscribes |
-| `auth.rs` | 107 | Bearer token middleware with constant-time comparison |
-| `coordinator.rs` | 97 | Plan execution: security check → approval gate → NATS dispatch → audit |
-| `intent_router.rs` | 56 | RAG context enrichment before planning |
-| `bus.rs` | 66 | NATS JetStream client (safe, OnceCell) |
-| `init.rs` | 445 | PID1 mode: mount filesystems, supervise services, signal handling, watchdog |
-| `pii.rs` | 227 | PII detection pipeline: 14 types, auto-redact/block/log before memory ingestion |
-| `goap.rs` | 248 | Goal-Oriented Action Planning: A* search with preconditions, costs, dependency ordering |
-| `memory_optimizer.rs` | 200 | Runtime memory management: pressure detection, auto-pruning, critical alerts |
-| `main.rs` | 49 | Entry point: events → memory → bus → executor → sentience → API |
-| `lib.rs` | 12 | Module declarations |
+1. On agent startup: `GET /config` from CNS
+2. For each config value: `process.env.PIHOLE_URL = config.pihole.url`
+3. Existing agent code works unchanged
+4. On NATS `rednode.config.changed` signal: re-fetch and re-populate
 
-## Agent Society — 16 Agents — TypeScript — NATS
+## Secret Handling
 
-Each agent connects to NATS, subscribes to `rednode.agent.{name}.task`, and dispatches tool calls to the Rust executor via `rednode.tool.exec`.
+Secrets are encrypted in config.json using `age` (the same tool RedNode
+uses for export/import). The encryption key is at `/var/lib/rednode/config.key`
+(generated on first boot, chmod 600).
 
-| Agent | Subject | Tools | Integration |
-|---|---|---|---|
-| System | `rednode.agent.system.*` | 6 | OS, Docker, processes, filesystem |
-| Security | `rednode.agent.security.*` | 7 | CVE (NVD sync), Falco eBPF, threat intel (abuse.ch/OTX), auto-patcher |
-| Coding | `rednode.agent.coding.*` | 5 | Ollama codegen, clippy, tests, git |
-| Research | `rednode.agent.research.*` | 8 | RAG, SearXNG, OCR, PDF, knowledge graph |
-| Automation | `rednode.agent.automation.*` | 4 | Workflows, scheduler, triggers |
-| Network | `rednode.agent.network.*` | 8 | Connections, firewall, DNS, VPN, device isolation |
-| Infrastructure | `rednode.agent.infra.*` | 9 | Pi-hole v6 API |
-| Storage | `rednode.agent.storage.*` | 14 | TrueNAS REST API v2.0 |
-| Surveillance | `rednode.agent.surveillance.*` | 11 | Frigate MQTT + REST API |
-| Communications | `rednode.agent.comms.*` | 10 | IMAP, SMTP, CalDAV |
-| Productivity | `rednode.agent.productivity.*` | 10 | Notes, tasks, bookmarks |
-| Media | `rednode.agent.media.*` | 7 | Jellyfin API |
-| Home | `rednode.agent.home.*` | 7 | Home Assistant REST API |
-| Browser | `rednode.agent.browser.*` | 7 | Playwright + cheerio (stealth) |
-| Social | `rednode.agent.social.*` | 9 | Twitter/X, Mastodon, Bluesky, LinkedIn, Instagram, WhatsApp |
-| Signal Bot | (standalone) | — | E2EE messaging via signal-cli |
+In the web UI, secrets show as `••••••••` with a "Change" button.
+When saved, they're encrypted before writing to config.json.
 
-## Memory
+## Files
 
-- **PostgreSQL 16** — intentions, audit_log (SHA-256 hash-chained), security_events, approvals, documents, knowledge graph (kg_entities, kg_relationships)
-- **Qdrant** — 768-dimensional vector embeddings, cosine similarity, collection `rednode_docs`
-- **Kuzu** (optional, `--features kuzu`) — embedded graph DB, Cypher queries. Falls back to Postgres JSON tables.
-- **Ollama** — `nomic-embed-text` for embeddings, `qwen2.5` for LLM planning/generation
-
-## Execution
-
-Tool Registry (`tools.json`) — 359 tools, each with name, agent, risk level, description. Executor runs commands inside firejail/bubblewrap sandbox with seccomp BPF, resource limits, and timeout. Every execution is hash-chain audited.
-
-### Parallel Execution
-
-The coordinator groups plan steps by agent. Steps targeting **different agents run concurrently** via `tokio::spawn`. Steps targeting the **same agent run sequentially** (agents handle one task at a time). Results are sorted back to original plan order before returning.
-
-### State Caching
-
-Within a single intent execution, each step's result is cached in a shared `Arc<RwLock<HashMap>>`. Later steps receive all previous results via `_state_cache` in their args — no redundant re-fetching.
-
-### Proposition-Level Memory
-
-When a document is ingested, a background task extracts 3-8 atomic factual propositions via the LLM, embeds each separately in Qdrant with `type: "proposition"` and a `parent_doc` reference. RAG search returns fine-grained facts alongside whole-document matches.
-
-## Event Bus
-
-`tokio::broadcast` channel (capacity 512). Publishers: sentience, coordinator, API handlers. Subscribers: WebSocket clients (dashboard). 9 typed emitters: intent, plan, tool_result, drives, goal, security_event, agent_heartbeat, approval_needed.
-
-## Observability
-
-OpenTelemetry → OTEL Collector → Loki (logs) + Prometheus (metrics) → Grafana (dashboards). Security telemetry: Falco eBPF + threat intel feeds.
-
-## Interfaces
-
-- **Web**: Next.js 14 — 13-tab dashboard (localhost:3000)
-- **Mobile**: Flutter 3.22 — biometric approvals, FCM push, WireGuard
-- **Desktop**: Tauri 2 — native window (~8 MB)
-- **CLI**: TypeScript — 19 commands
-- **Voice**: Whisper STT + Piper TTS + customizable wake word
-- **Signal Bot**: E2EE messaging via signal-cli
-- **REST API**: Axum — 17 endpoints (localhost:8787)
-- **WebSocket**: Real-time event stream (ws://localhost:8787/events)
-
-All interfaces are thin clients. Intelligence lives in the CNS.
+| File | What |
+|---|---|
+| `core/rednode-core/src/config.rs` | Rust config manager — load/save/encrypt/serve |
+| `agents/shared/src/config-loader.ts` | TypeScript config fetcher — populates process.env from CNS |
+| `interfaces/web/app/settings/page.tsx` | Settings page — forms for every service |
+| `interfaces/web/app/setup/page.tsx` | First-boot setup wizard |

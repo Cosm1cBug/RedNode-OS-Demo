@@ -2,11 +2,13 @@
 pub mod api;
 pub mod auth;
 pub mod bus;
+pub mod config;
 pub mod coordinator;
 pub mod events;
 pub mod evolution;
 pub mod executor;
 pub mod goap;
+pub mod init;
 pub mod intent_router;
 pub mod memory;
 pub mod memory_optimizer;

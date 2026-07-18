@@ -1,8 +1,5 @@
 use axum::{
-    extract::{
-        ws::{WebSocket, WebSocketUpgrade},
-        Path, Query,
-    },
+    extract::{ws::{WebSocket, WebSocketUpgrade}, Path, Query},
     response::Response,
     routing::{get, post},
     Json, Router,
@@ -56,12 +53,8 @@ async fn intent_handler(Json(req): Json<IntentRequest>) -> Json<IntentResponse> 
     for r in &results {
         let tool = r.get("tool").and_then(|v| v.as_str()).unwrap_or("-");
         let agent = r.get("agent").and_then(|v| v.as_str()).unwrap_or("-");
-        let status = r
-            .get("status")
-            .and_then(|v| v.as_str())
-            .unwrap_or("unknown");
-        let audit_id = r
-            .get("result")
+        let status = r.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let audit_id = r.get("result")
             .and_then(|v| v.get("audit_id"))
             .and_then(|v| v.as_i64());
         crate::events::emit_tool_result(tool, agent, status, audit_id);
@@ -213,9 +206,7 @@ async fn memory_query(Query(params): Query<HashMap<String, String>>) -> Json<ser
         .unwrap_or(5);
     match crate::memory::rag_query(&q, limit).await {
         Ok(results) => Json(serde_json::json!({ "ok": true, "query": q, "results": results })),
-        Err(e) => Json(
-            serde_json::json!({ "ok": false, "query": q, "error": e.to_string(), "results": [] }),
-        ),
+        Err(e) => Json(serde_json::json!({ "ok": false, "query": q, "error": e.to_string(), "results": [] })),
     }
 }
 
@@ -310,18 +301,10 @@ async fn sentience_status() -> Json<serde_json::Value> {
 
 // ─── Knowledge Graph ───
 
-async fn kg_query_handler(
-    Query(params): Query<HashMap<String, String>>,
-) -> Json<serde_json::Value> {
-    let q = params
-        .get("q")
-        .or(params.get("cypher"))
-        .cloned()
-        .unwrap_or_default();
+async fn kg_query_handler(Query(params): Query<HashMap<String, String>>) -> Json<serde_json::Value> {
+    let q = params.get("q").or(params.get("cypher")).cloned().unwrap_or_default();
     if q.is_empty() {
-        return Json(
-            serde_json::json!({"ok": false, "error": "Missing 'q' or 'cypher' query parameter"}),
-        );
+        return Json(serde_json::json!({"ok": false, "error": "Missing 'q' or 'cypher' query parameter"}));
     }
     match crate::memory::kg_query(&q) {
         Ok(results) => Json(serde_json::json!({"ok": true, "query": q, "results": results})),
@@ -352,9 +335,7 @@ async fn kg_add_entity_handler(Json(body): Json<KgEntityBody>) -> Json<serde_jso
     for rel in &body.relationships {
         let _ = crate::memory::kg_add_rel(&body.name, &rel.to, &rel.relation);
     }
-    Json(
-        serde_json::json!({"ok": true, "entity": body.name, "kind": body.kind, "relationships": body.relationships.len()}),
-    )
+    Json(serde_json::json!({"ok": true, "entity": body.name, "kind": body.kind, "relationships": body.relationships.len()}))
 }
 
 // ─── Tool Evolution ───
@@ -424,6 +405,90 @@ async fn list_evolved_tools() -> Json<serde_json::Value> {
     }
 }
 
+
+// ─── Configuration API ───
+
+async fn config_dashboard() -> Json<serde_json::Value> {
+    Json(crate::config::get_for_dashboard())
+}
+
+async fn config_agent() -> Json<serde_json::Value> {
+    Json(crate::config::get_for_agents())
+}
+
+async fn config_get_service(Path(service): Path<String>) -> Json<serde_json::Value> {
+    let config = crate::config::get();
+    match config.services.get(&service) {
+        Some(svc) => Json(serde_json::json!({"ok": true, "service": svc})),
+        None => Json(serde_json::json!({"ok": false, "error": "Unknown service"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct ConfigUpdateReq {
+    url: Option<String>,
+    enabled: Option<bool>,
+}
+
+async fn config_update_service(
+    Path(service): Path<String>,
+    Json(req): Json<ConfigUpdateReq>,
+) -> Json<serde_json::Value> {
+    match crate::config::update(|cfg| {
+        if let Some(svc) = cfg.services.get_mut(&service) {
+            if let Some(ref url) = req.url { svc.url = url.clone(); }
+            if let Some(enabled) = req.enabled { svc.enabled = enabled; }
+        }
+    }) {
+        Ok(()) => Json(serde_json::json!({"ok": true, "message": format!("{} updated", service)})),
+        Err(e) => Json(serde_json::json!({"ok": false, "error": format!("{}", e)})),
+    }
+}
+
+async fn config_update_preferences(Json(prefs): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    match crate::config::update(|cfg| {
+        if let Some(v) = prefs.get("notify_quiet_start").and_then(|v| v.as_u64()) { cfg.preferences.notify_quiet_start = v as u32; }
+        if let Some(v) = prefs.get("notify_quiet_end").and_then(|v| v.as_u64()) { cfg.preferences.notify_quiet_end = v as u32; }
+        if let Some(v) = prefs.get("notify_channel").and_then(|v| v.as_str()) { cfg.preferences.notify_channel = v.into(); }
+        if let Some(v) = prefs.get("voice_enabled").and_then(|v| v.as_bool()) { cfg.preferences.voice_enabled = v; }
+        if let Some(v) = prefs.get("voice_wake_word").and_then(|v| v.as_str()) { cfg.preferences.voice_wake_word = v.into(); }
+        if let Some(v) = prefs.get("gui_enabled").and_then(|v| v.as_bool()) { cfg.preferences.gui_enabled = v; }
+        if let Some(v) = prefs.get("predict_min_days").and_then(|v| v.as_u64()) { cfg.preferences.predict_min_days = v; }
+        if let Some(v) = prefs.get("predict_min_logs").and_then(|v| v.as_i64()) { cfg.preferences.predict_min_logs = v; }
+        if let Some(v) = prefs.get("weather_location").and_then(|v| v.as_str()) { cfg.preferences.weather_location = v.into(); }
+        if let Some(v) = prefs.get("rss_check_interval").and_then(|v| v.as_u64()) { cfg.preferences.rss_check_interval = v; }
+    }) {
+        Ok(()) => Json(serde_json::json!({"ok": true, "message": "Preferences updated"})),
+        Err(e) => Json(serde_json::json!({"ok": false, "error": format!("{}", e)})),
+    }
+}
+
+#[derive(Deserialize)]
+struct SecretUpdateReq {
+    service: String,
+    key: String,
+    value: String,
+}
+
+async fn config_set_secret(Json(req): Json<SecretUpdateReq>) -> Json<serde_json::Value> {
+    match crate::config::update(|cfg| {
+        if let Some(svc) = cfg.services.get_mut(&req.service) {
+            svc.secrets.insert(req.key.clone(), req.value.clone());
+        }
+    }) {
+        Ok(()) => Json(serde_json::json!({"ok": true, "message": format!("Secret updated for {}", req.service)})),
+        Err(e) => Json(serde_json::json!({"ok": false, "error": format!("{}", e)})),
+    }
+}
+
+async fn config_test_service(Path(service): Path<String>) -> Json<serde_json::Value> {
+    Json(crate::config::test_service(&service).await)
+}
+
+async fn config_setup_status() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "setup_complete": crate::config::is_setup_complete() }))
+}
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -455,6 +520,14 @@ pub fn router() -> Router {
         // Tool Evolution — self-evolving tool creation
         .route("/evolve/tool", post(evolve_tool_handler))
         .route("/evolve/tools", get(list_evolved_tools))
+        // Configuration — web UI as single config source
+        .route("/config", get(config_dashboard))
+        .route("/config/agent", get(config_agent))
+        .route("/config/setup", get(config_setup_status))
+        .route("/config/preferences", post(config_update_preferences))
+        .route("/config/secret", post(config_set_secret))
+        .route("/config/:service", get(config_get_service).post(config_update_service))
+        .route("/config/test/:service", post(config_test_service))
         // Auth middleware — checks Bearer token on all routes except /health and /events
         // Set REDNODE_API_TOKEN env var to enable. If unset, auth is disabled (dev mode).
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
