@@ -20,7 +20,7 @@
     # RedNode Core – Rust – CNS + Sentience Engine + Tool Executor
     rednode-core = pkgs.rustPlatform.buildRustPackage {
       pname = "rednode-core";
-      version = "0.9.0";
+      version = "0.9.3";
       src = ../../core/rednode-core;
       cargoLock = {
         lockFile = ../../core/rednode-core/Cargo.lock;
