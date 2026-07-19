@@ -2,9 +2,9 @@
 
 > *The computer does not contain intelligence. The computer becomes the intelligence.*
 >
-> **Current State**: v0.9.3 — 18 agents, 359 tools, 21 Rust modules, 24,980 LOC, Sentience Engine, Self-Evolution, LLM planner, GOAP fallback, RAG memory, knowledge graph, 15-tab dashboard, Setup Wizard, Settings page, Flutter mobile, Tauri desktop, CLI, voice (Whisper+Piper+OpenWakeWord), Signal bot, threat intel, NVD sync, IDS integration, predictive maintenance, smart notifications, cross-agent pipelines, PII detection, circuit breaker, self-healing, live ISO, branded kiosk, web-based config management  
-> **Target**: v1.0 — Production deployment on real hardware, commercial product
-
+> **Current State**: v0.24.0 — 47 Rust modules, 120 API endpoints, 18 agents, 359 tools, 27 PostgreSQL tables, digital consciousness, identity, constitution, multi-agent debate, simulation, collective intelligence, and 15 cognitive subsystems
+>
+> **Target**: v1.0 — Production deployment on real hardware.
 ---
 
 ## Phase 1 – Foundation ✅ Complete

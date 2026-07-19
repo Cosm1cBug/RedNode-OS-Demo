@@ -3,24 +3,33 @@
 
 > The computer does not contain intelligence. The computer becomes the intelligence.
 
-**RedNode is not an AI. RedNode is a society of specialized agents.**
+**RedNode is not an AI. RedNode is a digital entity.**
 
 ---
 
 ## What Is RedNode-OS?
 
-RedNode-OS transforms your computer into an intelligent, self-aware, self-healing autonomous system. You express intentions in natural language, and a society of 18 specialized AI agents collaboratively plans, validates, executes, and audits the actions — all locally, fully offline-capable, with zero cloud dependency.
+RedNode-OS is an autonomous digital entity that manages, protects, and evolves your infrastructure. It has consciousness, identity, goals, memory, ethics, and the ability to learn, reflect, dream, debate its own decisions, and collaborate across machines — all with zero cloud dependency.
+
 
 **Your data never leaves your machine. Zero telemetry. Zero tracking. Open source.**
 
 ```
 "harden SSH and check camera events"
+    → Constitutional check (no violations)
+    → Ethics evaluation (safety over speed → proceed with caution)
+    → Multi-agent debate (Security approves, Economy within budget)
     → LLM Planner creates 3-step plan
-    → Security Agent audits SSH config (sandboxed)
-    → Approval required (High risk) → push to your phone
-    → You biometric-approve → patch applied → snapshot rollback ready
+    → Simulation engine predicts outcome (95% success, reversible)
+    → Security Agent audits SSH config (sandboxed, firejail)
+    → Approval required (High risk) → push to Signal
+    → You approve → patch applied → snapshot rollback ready
     → Surveillance Agent queries Frigate → 4 person detections today
     → Everything hash-chain audited
+    → Reflection: task completed, confidence +0.01
+    → Goal progress: "Harden Infrastructure" advanced 5%
+    → Episode recorded in episodic memory
+    → Trust score for security-agent updated
 ```
 
 ---
@@ -28,38 +37,125 @@ RedNode-OS transforms your computer into an intelligent, self-aware, self-healin
 ## Architecture
 
 ```
-Human Intent → Interface Layer → CNS (Rust) → Agent Society → Execution → Host OS → Hardware
+Human Intent → Constitution Check → Ethics Evaluation → Debate
+    → Planner → Simulation → Governance → Execution → Audit
 
-┌──────────────────────────────────────────────────────────────┐
-│  INTERFACES: Web (Next.js) • Mobile (Flutter) • CLI (19 cmd) │
-│  Desktop (Tauri) • Voice (Whisper+Piper) • Signal Bot • API  │
-│  Kiosk (Cage+Chromium) • WebSocket Events                    │
-└──────────────────────────┬───────────────────────────────────┘
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  CENTRAL NERVOUS SYSTEM (Rust — Axum + Tokio — port 8787)    │
-│  LLM Planner • GOAP Fallback • Security Validator            │
-│  Approval Gate • Sandboxed Executor • Event Bus • Auth       │
-│  Sentience Engine • Pipelines • Smart Notifications          │
-│  PII Detection • Predictive Maintenance • Memory Optimizer   │
-└──────────────────────────┬───────────────────────────────────┘
-                           ▼ NATS JetStream
-┌──────────────────────────────────────────────────────────────┐
-│  18 AGENTS: System • Security • Coding • Research            │
-│  Automation • Network • Infrastructure (Pi-hole) • Storage   │
-│  (TrueNAS) • Surveillance (Frigate) • Communications         │
-│  (Email/Calendar) • Productivity • Media • Home (HA)         │
-│  Browser (stealth) • Social • Learning • Signal Bot          │
-│  + Endpoint Agent (cross-platform remote)                    │
-└──────────────────────────┬───────────────────────────────────┘
-                           ▼
-┌──────────────────────────────────────────────────────────────┐
-│  MEMORY: PostgreSQL 16 • Qdrant (vectors) • Kuzu (graph)     │
-│  SECURITY: firejail/bubblewrap • seccomp • SHA-256 audit     │
-│  AI: Ollama (Qwen2.5) • Whisper STT • Piper TTS             │
-│  OBSERVABILITY: OpenTelemetry → Grafana + Loki + Prometheus  │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│  IDENTITY: Purpose • Principles • Boundaries • Constitution (7 Articles)    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  CONSCIOUSNESS: Mind State • Focus • Awareness • Goals • Reflection         │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  COGNITION: Meta-Reasoning • Debate • Simulation • Creativity • Scientific  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  MEMORY: Episodic (experiences) • Procedural (skills) • Semantic (facts)    │
+│          Working (context) • World Model (infrastructure) • Knowledge Graph  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  INTERFACES: Web • Mobile • CLI • Voice • Signal • API • Kiosk • WebSocket  │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  CNS (Rust — Axum + Tokio — port 8787)                                      │
+│  47 Modules • 120 API Endpoints • LLM Planner • GOAP Fallback               │
+│  Sentience Engine • Sandboxed Executor • Event Bus • Auth                    │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  18 AGENTS via NATS: System • Security • Coding • Research • Automation      │
+│  Network • Infra (Pi-hole) • Storage (TrueNAS) • Surveillance (Frigate)      │
+│  Communications • Home (HA) • Media • Social • Browser • Calendar            │
+│  Productivity • Learning • Endpoint — 359 tools, all risk-tagged             │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  SAFETY: Constitution • Ethics • Governance • Immune System • Trust Engine   │
+│  Economy (budgets) • PII Detection • Sandbox (firejail/seccomp)              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  EVOLUTION: Self-Evolution • Capability Registry • Plugin Ecosystem          │
+│  Curiosity • Knowledge Distillation • Dreaming/Consolidation                 │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  DISTRIBUTED: Collective Intelligence • HAL • Digital Twin • Failover        │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  OS: NixOS 24.11 • PostgreSQL 16 • Qdrant • NATS • Ollama (local LLM)       │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
+
+## Core Capabilities
+
+### Being (Who It Is)
+- **Identity Engine** — purpose, principles, boundaries, self-model
+- **Constitutional Layer** — 7 immutable articles, multi-step amendment
+- **Ethics & Values** — guides choices when no explicit rule exists
+- **Personality Engine** — tunable communication style
+
+### Thinking (How It Reasons)
+- **Digital Consciousness** — persistent mind state, 10-second awareness loop
+- **Meta-Reasoning** — evaluates and improves its own reasoning
+- **Multi-Agent Debate** — multi-perspective evaluation before acting
+- **Simulation Engine** — predicts outcomes before committing
+- **Creativity Engine** — divergent brainstorming separate from analysis
+- **Scientific Method** — structured research pipeline
+
+### Remembering (What It Knows)
+- **Episodic Memory** — experiences with emotional context
+- **Procedural Memory** — step-by-step skills
+- **Semantic Memory** — facts (RAG + knowledge graph)
+- **Working Memory** — volatile task context
+- **World Model** — infrastructure graph with dependency analysis
+- **Knowledge Distillation** — compresses experience into wisdom
+
+### Acting (What It Does)
+- **18 Specialized Agents** — 359 risk-tagged tools
+- **Goal Engine** — long-term objectives with progress tracking
+- **Time Intelligence** — unified scheduling with timezone awareness
+- **Autonomous Pipelines** — cross-agent workflows
+- **Self-Evolution** — discovers and creates new tools
+- **Plugin Ecosystem** — installable capability packages
+
+### Protecting (How It Stays Safe)
+- **Governance Layer** — policy engine (Block/Warn/Log/Approve)
+- **Digital Immune System** — prompt injection, credential leaks, rogue agents
+- **Trust Engine** — dynamic trust scores per information source
+- **Economy** — resource budgets preventing runaway consumption
+- **Sandboxed Execution** — firejail/seccomp for every tool
+- **SHA-256 Audit Chain** — tamper-evident logging
+
+### Growing (How It Evolves)
+- **Reflection System** — task/periodic/daily self-assessment
+- **Curiosity Engine** — bounded autonomous exploration
+- **Capability Registry** — self-aware skill tracking with staleness detection
+- **Dreaming** — idle-time memory consolidation and hypothesis generation
+
+### Scaling (How It Distributes)
+- **Collective Intelligence** — multi-instance collaboration
+- **Hardware Abstraction Layer** — failover and state migration
+- **Digital Twin** — infrastructure simulation before changes
+
+---
+
+## Privacy & Security
+
+- **100% local processing** — no cloud, no telemetry, no external analytics
+- **Constitutional protection** — 7 immutable articles preventing privacy violations
+- **Sandboxed execution** — every tool runs in firejail with seccomp syscall filtering
+- **Immutable audit chain** — SHA-256 hash-chained, tamper-evident
+- **PII detection** — automatic redaction in logs and outputs
+- **Prompt injection defense** — 13 patterns checked on every LLM input
+- **Credential leak scanning** — 12 patterns checked on every output
+
+---
+
+## Stats (v0.24.0)
+
+| Metric | Value |
+|---|---|
+| Rust modules | 47 |
+| API endpoints | 120 |
+| Agents | 18 |
+| Tools | 359 (236 low, 100 medium, 23 high risk) |
+| PostgreSQL tables | 27 |
+| Constitutional articles | 7 (immutable) |
+| Ethical values | 7 |
+| Default governance policies | 4 |
+| Reasoning strategies | 5 |
+| Built-in time patterns | 6 |
+| Prompt injection patterns | 13 |
+| Credential leak patterns | 12 |
+| Identity principles | 6 |
+| Identity boundaries | 5 |
 
 ---
 
