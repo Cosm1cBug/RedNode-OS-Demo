@@ -534,4 +534,4 @@ MIT — © 2026 RedNode
 
 ---
 
-*RedNode-OS v0.9.0 — 359 tools, 18 agents, 21 Rust modules, 24,487 lines — The computer becomes the intelligence.*
+*RedNode-OS v0.35.0 — 70 modules, 159 endpoints, 359 tools, 18 agents, ~24,000 lines of Rust — The computer becomes the intelligence.*
