@@ -102,7 +102,7 @@
 
         # ISO-specific settings
         isoImage.squashfsCompression = "zstd -Xcompression-level 19";
-        isoImage.isoName = "rednode-os-0.9.0-x86_64.iso";
+        isoImage.isoName = "rednode-os-0.35.0-x86_64.iso";
         isoImage.volumeID = "REDNODE-OS";
       }
     ];
@@ -154,7 +154,7 @@
       format = "iso";
       modules = rednodeISOModules ++ [
         ./kiosk.nix
-        { isoImage.isoName = "rednode-os-0.9.0-kiosk-x86_64.iso"; }
+        { isoImage.isoName = "rednode-os-0.35.0-kiosk-x86_64.iso"; }
       ];
     };
 
@@ -167,7 +167,7 @@
       format = "iso";
       modules = rednodeISOModules ++ [
         ./live.nix
-        { isoImage.isoName = "rednode-os-0.9.0-live-x86_64.iso"; }
+        { isoImage.isoName = "rednode-os-0.35.0-live-x86_64.iso"; }
       ];
     };
 
