@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.11.0",
+        "version": "0.12.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.11.0",
+                "version": "0.12.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1001,6 +1001,52 @@ async fn time_summary() -> Json<serde_json::Value> {
 }
 
 
+
+// ─── Personality API ───
+
+async fn personality_get() -> Json<serde_json::Value> {
+    let profile = crate::personality::get().await;
+    Json(serde_json::json!({"ok": true, "personality": profile}))
+}
+
+async fn personality_update(Json(patch): Json<crate::personality::PersonalityPatch>) -> Json<serde_json::Value> {
+    crate::personality::update(patch).await;
+    let profile = crate::personality::get().await;
+    Json(serde_json::json!({"ok": true, "personality": profile}))
+}
+
+async fn personality_prompt() -> Json<serde_json::Value> {
+    let prompt = crate::personality::system_prompt_fragment().await;
+    Json(serde_json::json!({"ok": true, "prompt_fragment": prompt}))
+}
+
+
+// ─── Reflection API ───
+
+async fn reflection_today() -> Json<serde_json::Value> {
+    let today = crate::reflection::get_today().await;
+    let stats = crate::reflection::get_stats().await;
+    Json(serde_json::json!({"ok": true, "reflections": today, "stats": stats}))
+}
+
+#[derive(Deserialize)]
+struct ReflectionHistoryQuery {
+    #[serde(default = "default_history_limit")]
+    limit: usize,
+}
+fn default_history_limit() -> usize { 30 }
+
+async fn reflection_history(Query(params): Query<ReflectionHistoryQuery>) -> Json<serde_json::Value> {
+    let history = crate::reflection::get_history(params.limit).await;
+    Json(serde_json::json!({"ok": true, "count": history.len(), "history": history}))
+}
+
+async fn reflection_trigger() -> Json<serde_json::Value> {
+    let reflection = crate::reflection::on_demand().await;
+    Json(serde_json::json!({"ok": true, "reflection": reflection}))
+}
+
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -1029,10 +1075,10 @@ pub fn router() -> Router {
         // Knowledge Graph
         .route("/kg/query", get(kg_query_handler))
         .route("/kg/entity", post(kg_add_entity_handler))
-        // Tool Evolution — self-evolving tool creation
+        // Tool Evolution
         .route("/evolve/tool", post(evolve_tool_handler))
         .route("/evolve/tools", get(list_evolved_tools))
-        // Configuration — web UI as single config source
+        // Configuration
         .route("/config", get(config_dashboard))
         .route("/config/agent", get(config_agent))
         .route("/config/setup", get(config_setup_status))
@@ -1040,15 +1086,15 @@ pub fn router() -> Router {
         .route("/config/secret", post(config_set_secret))
         .route("/config/:service", get(config_get_service).post(config_update_service))
         .route("/config/test/:service", post(config_test_service))
-        // Consciousness — state of mind
+        // Consciousness
         .route("/consciousness", get(consciousness_status))
         .route("/consciousness/summary", get(consciousness_summary))
-        // Goals — long-term objectives
+        // Goals
         .route("/goals", get(goals_list).post(goals_create))
         .route("/goals/:id", get(goals_get).delete(goals_delete))
         .route("/goals/:id/subgoal", post(goals_add_subgoal))
         .route("/goals/:id/contribute", post(goals_contribute))
-        // World Model — infrastructure awareness
+        // World Model
         .route("/world", get(world_full))
         .route("/world/summary", get(world_summary))
         .route("/world/machines", get(world_machines_list).post(world_machine_upsert))
@@ -1060,7 +1106,7 @@ pub fn router() -> Router {
         .route("/world/diff", get(world_diff))
         .route("/world/edges", post(world_add_edge))
         .route("/world/scan", post(world_scan))
-        // Time Intelligence — time-aware scheduling
+        // Time Intelligence
         .route("/time", get(time_awareness))
         .route("/time/summary", get(time_summary))
         .route("/time/events", get(time_events_list).post(time_event_create))
@@ -1069,8 +1115,14 @@ pub fn router() -> Router {
         .route("/time/patterns/:id", delete(time_pattern_delete))
         .route("/time/deadlines", get(time_deadlines_list).post(time_deadline_create))
         .route("/time/due", get(time_due_items))
-        // Auth middleware — checks Bearer token on all routes except /health and /events
-        // Set REDNODE_API_TOKEN env var to enable. If unset, auth is disabled (dev mode).
+        // Personality
+        .route("/personality", get(personality_get).post(personality_update))
+        .route("/personality/prompt", get(personality_prompt))
+        // Reflection
+        .route("/reflection/today", get(reflection_today))
+        .route("/reflection/history", get(reflection_history))
+        .route("/reflection/trigger", post(reflection_trigger))
+        // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
