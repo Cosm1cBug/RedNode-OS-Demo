@@ -2,9 +2,11 @@
 pub mod api;
 pub mod auth;
 pub mod bus;
+pub mod capability_registry;
 pub mod constitution;
 pub mod creativity;
 pub mod debate;
+pub mod dreaming;
 pub mod episodic_memory;
 pub mod ethics;
 pub mod identity;
