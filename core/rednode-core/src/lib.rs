@@ -2,6 +2,8 @@
 pub mod api;
 pub mod auth;
 pub mod bus;
+pub mod constitution;
+pub mod identity;
 pub mod config;
 pub mod consciousness;
 pub mod coordinator;

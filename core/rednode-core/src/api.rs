@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.16.0",
+        "version": "0.17.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.16.0",
+                "version": "0.17.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1420,6 +1420,354 @@ async fn twin_validate(Json(req): Json<ValidateChangeReq>) -> Json<serde_json::V
 }
 
 
+
+// ─── Identity API ───
+
+async fn identity_get() -> Json<serde_json::Value> {
+    let id = crate::identity::get().await;
+    Json(serde_json::json!({"ok": true, "identity": id}))
+}
+
+async fn identity_update(Json(patch): Json<crate::identity::IdentityPatch>) -> Json<serde_json::Value> {
+    match crate::identity::update(patch).await {
+        Ok(()) => { let id = crate::identity::get().await; Json(serde_json::json!({"ok": true, "identity": id})) }
+        Err(e) => Json(serde_json::json!({"ok": false, "error": e})),
+    }
+}
+
+async fn identity_purpose() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "purpose": crate::identity::get_purpose().await}))
+}
+
+async fn identity_principles() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "principles": crate::identity::get_principles().await}))
+}
+
+async fn identity_boundaries() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "boundaries": crate::identity::get_boundaries().await}))
+}
+
+async fn identity_capabilities() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "capabilities": crate::identity::get_capabilities().await}))
+}
+
+async fn identity_prompt() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "prompt_fragment": crate::identity::system_prompt_fragment().await}))
+}
+
+
+// ─── Constitution API ───
+
+async fn constitution_get() -> Json<serde_json::Value> {
+    let c = crate::constitution::get_articles().await;
+    let stats = crate::constitution::get_stats().await;
+    Json(serde_json::json!({"ok": true, "articles": c, "stats": stats}))
+}
+
+#[derive(Deserialize)]
+struct ConstitutionCheckReq { tool: String, #[serde(default)] args: serde_json::Value, #[serde(default)] description: String }
+
+async fn constitution_check(Json(req): Json<ConstitutionCheckReq>) -> Json<serde_json::Value> {
+    let result = crate::constitution::check(&req.tool, &req.args, &req.description).await;
+    Json(serde_json::json!({"ok": true, "result": result}))
+}
+
+async fn constitution_violations() -> Json<serde_json::Value> {
+    let v = crate::constitution::get_violations(100).await;
+    Json(serde_json::json!({"ok": true, "violations": v}))
+}
+
+#[derive(Deserialize)]
+struct AmendReq { article_id: Option<String>, proposed_text: String, rationale: String }
+
+async fn constitution_amend(Json(req): Json<AmendReq>) -> Json<serde_json::Value> {
+    let a = crate::constitution::propose_amendment(req.article_id.as_deref(), &req.proposed_text, &req.rationale).await;
+    Json(serde_json::json!({"ok": true, "amendment": a}))
+}
+
+
+// ─── Meta-Reasoning API ───
+
+async fn meta_analysis() -> Json<serde_json::Value> {
+    let a = crate::meta_reasoning::get_analyses(20).await;
+    let stats = crate::meta_reasoning::get_stats().await;
+    Json(serde_json::json!({"ok": true, "analyses": a, "stats": stats}))
+}
+
+async fn meta_strategies() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "strategies": crate::meta_reasoning::get_strategies().await}))
+}
+
+async fn meta_suggestions() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "suggestions": crate::meta_reasoning::get_suggestions().await}))
+}
+
+
+// ─── Episodic Memory API ───
+
+async fn memory_episodic(Query(params): Query<HashMap<String, String>>) -> Json<serde_json::Value> {
+    let q = params.get("q").cloned().unwrap_or_default();
+    let limit = params.get("limit").and_then(|s| s.parse().ok()).unwrap_or(20);
+    let episodes = if q.is_empty() { crate::episodic_memory::get_recent_episodes(limit).await }
+        else { crate::episodic_memory::search_episodes(&q, limit).await };
+    let stats = crate::episodic_memory::get_stats().await;
+    Json(serde_json::json!({"ok": true, "episodes": episodes, "stats": stats}))
+}
+
+async fn memory_procedural() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "procedures": crate::episodic_memory::get_procedures().await}))
+}
+
+async fn memory_working() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "working": crate::episodic_memory::get_working().await}))
+}
+
+
+// ─── Simulation API ───
+
+async fn simulate_plan(Json(req): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    let name = req.get("name").and_then(|v| v.as_str()).unwrap_or("plan_sim");
+    let sim_type = match req.get("type").and_then(|v| v.as_str()).unwrap_or("plan") {
+        "deployment" => crate::simulation::SimulationType::Deployment,
+        "security" => crate::simulation::SimulationType::SecurityResponse,
+        "code" => crate::simulation::SimulationType::CodeChange,
+        _ => crate::simulation::SimulationType::PlanExecution,
+    };
+    let result = crate::simulation::simulate(crate::simulation::SimulationRequest {
+        name: name.into(), simulation_type: sim_type, inputs: req.clone(), constraints: vec![],
+    }).await;
+    Json(serde_json::json!({"ok": true, "result": result}))
+}
+
+async fn simulate_history() -> Json<serde_json::Value> {
+    let h = crate::simulation::get_history(20).await;
+    Json(serde_json::json!({"ok": true, "history": h, "stats": crate::simulation::get_stats().await}))
+}
+
+
+// ─── Debate API ───
+
+#[derive(Deserialize)]
+struct DebateReq { topic: String, proposed_action: String, #[serde(default)] context: serde_json::Value }
+
+async fn debate_start(Json(req): Json<DebateReq>) -> Json<serde_json::Value> {
+    let result = crate::debate::debate(crate::debate::DebateRequest { topic: req.topic, proposed_action: req.proposed_action, context: req.context }).await;
+    Json(serde_json::json!({"ok": true, "result": result}))
+}
+
+async fn debate_history() -> Json<serde_json::Value> {
+    let h = crate::debate::get_history(20).await;
+    Json(serde_json::json!({"ok": true, "history": h, "stats": crate::debate::get_stats().await}))
+}
+
+
+// ─── Trust API ───
+
+async fn trust_all() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "trust_scores": crate::trust::get_all().await}))
+}
+
+async fn trust_get(Path(source): Path<String>) -> Json<serde_json::Value> {
+    match crate::trust::get_score(&source).await {
+        Some(s) => Json(serde_json::json!({"ok": true, "trust": s})),
+        None => Json(serde_json::json!({"ok": false, "error": "Source not found"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct TrustSetReq { score: f32, #[serde(default)] note: Option<String> }
+
+async fn trust_set(Path(source): Path<String>, Json(req): Json<TrustSetReq>) -> Json<serde_json::Value> {
+    crate::trust::set_trust(&source, req.score, req.note).await;
+    Json(serde_json::json!({"ok": true, "source": source, "score": req.score}))
+}
+
+
+// ─── Ethics API ───
+
+async fn ethics_values() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "values": crate::ethics::get_values().await}))
+}
+
+#[derive(Deserialize)]
+struct EthicsEvalReq { action: String, context: String }
+
+async fn ethics_evaluate(Json(req): Json<EthicsEvalReq>) -> Json<serde_json::Value> {
+    let eval = crate::ethics::evaluate(&req.action, &req.context).await;
+    Json(serde_json::json!({"ok": true, "evaluation": eval}))
+}
+
+async fn ethics_dilemmas() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "evaluations": crate::ethics::get_evaluations(20).await}))
+}
+
+
+// ─── Creativity API ───
+
+async fn creativity_brainstorm(Json(req): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    let topic = req.get("topic").and_then(|v| v.as_str()).unwrap_or("general");
+    let domain = match req.get("domain").and_then(|v| v.as_str()).unwrap_or("general") {
+        "architecture" => crate::creativity::CreativeDomain::Architecture,
+        "security" => crate::creativity::CreativeDomain::Security,
+        "infrastructure" => crate::creativity::CreativeDomain::Infrastructure,
+        "coding" => crate::creativity::CreativeDomain::Coding,
+        "ui" => crate::creativity::CreativeDomain::UI,
+        other => crate::creativity::CreativeDomain::Custom(other.into()),
+    };
+    let count = req.get("count").and_then(|v| v.as_u64()).unwrap_or(5) as u32;
+    let result = crate::creativity::brainstorm(crate::creativity::BrainstormRequest { topic: topic.into(), domain, constraints: vec![], count }).await;
+    Json(serde_json::json!({"ok": true, "result": result}))
+}
+
+async fn creativity_ideas() -> Json<serde_json::Value> {
+    let ideas = crate::creativity::get_ideas(20).await;
+    Json(serde_json::json!({"ok": true, "ideas": ideas, "stats": crate::creativity::get_stats().await}))
+}
+
+
+// ─── Science API ───
+
+async fn science_experiments() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "experiments": crate::scientific::list_experiments().await}))
+}
+
+async fn science_experiment_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::scientific::get_experiment(&id).await {
+        Some(e) => Json(serde_json::json!({"ok": true, "experiment": e})),
+        None => Json(serde_json::json!({"ok": false, "error": "Experiment not found"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct CreateExperimentReq { title: String, domain: String, observation: String, hypothesis: String, #[serde(default)] methodology: Vec<String>, #[serde(default)] variables: Vec<crate::scientific::Variable> }
+
+async fn science_create(Json(req): Json<CreateExperimentReq>) -> Json<serde_json::Value> {
+    let exp = crate::scientific::create_experiment(&req.title, &req.domain, &req.observation, &req.hypothesis, req.methodology, req.variables).await;
+    Json(serde_json::json!({"ok": true, "experiment": exp}))
+}
+
+#[derive(Deserialize)]
+struct RecordResultReq { measurement: String, value: serde_json::Value, #[serde(default)] notes: String }
+
+async fn science_record_result(Path(id): Path<String>, Json(req): Json<RecordResultReq>) -> Json<serde_json::Value> {
+    let ok = crate::scientific::record_result(&id, &req.measurement, req.value, &req.notes).await;
+    Json(serde_json::json!({"ok": ok}))
+}
+
+
+// ─── Capability Registry API ───
+
+async fn capabilities_list() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "capabilities": crate::capability_registry::list().await}))
+}
+
+async fn capabilities_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::capability_registry::get(&id).await {
+        Some(c) => Json(serde_json::json!({"ok": true, "capability": c})),
+        None => Json(serde_json::json!({"ok": false, "error": "Capability not found"})),
+    }
+}
+
+async fn capabilities_search(Query(params): Query<HashMap<String, String>>) -> Json<serde_json::Value> {
+    let q = params.get("q").cloned().unwrap_or_default();
+    Json(serde_json::json!({"ok": true, "results": crate::capability_registry::search(&q).await}))
+}
+
+async fn capabilities_verify(Path(id): Path<String>) -> Json<serde_json::Value> {
+    crate::capability_registry::mark_verified(&id, None).await;
+    Json(serde_json::json!({"ok": true, "id": id, "verified": true}))
+}
+
+
+// ─── Dreaming API ───
+
+async fn dreaming_status() -> Json<serde_json::Value> {
+    Json(crate::dreaming::get_status().await)
+}
+
+async fn dreaming_start() -> Json<serde_json::Value> {
+    let session = crate::dreaming::start_dream(crate::dreaming::DreamTrigger::Manual).await;
+    Json(serde_json::json!({"ok": true, "session": session}))
+}
+
+async fn dreaming_history() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "history": crate::dreaming::get_history(10).await}))
+}
+
+
+// ─── Collective Intelligence API ───
+
+async fn collective_status() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "collective": crate::collective::get_status().await}))
+}
+
+async fn collective_peers() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "peers": crate::collective::get_peers().await}))
+}
+
+#[derive(Deserialize)]
+struct RegisterPeerReq { name: String, url: String, role: String, #[serde(default)] capabilities: Vec<String>, #[serde(default)] version: String }
+
+async fn collective_register_peer(Json(req): Json<RegisterPeerReq>) -> Json<serde_json::Value> {
+    let role = match req.role.as_str() { "primary" => crate::collective::PeerRole::Primary, "edge" => crate::collective::PeerRole::Edge, "storage" => crate::collective::PeerRole::Storage, "compute" => crate::collective::PeerRole::Compute, _ => crate::collective::PeerRole::Secondary };
+    let peer = crate::collective::register_peer(&req.name, &req.url, role, req.capabilities, &req.version).await;
+    Json(serde_json::json!({"ok": true, "peer": peer}))
+}
+
+
+// ─── HAL API ───
+
+async fn hal_profile() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "profile": crate::hal::get_profile().await}))
+}
+
+async fn hal_cluster() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "cluster": crate::hal::get_cluster_view().await}))
+}
+
+
+// ─── Mission Control API ───
+
+async fn mission_control() -> Json<serde_json::Value> {
+    let mind = crate::consciousness::get_mind().await;
+    let goals = crate::goals::get_for_api().await;
+    let world_summary = crate::world_model::summary().await;
+    let time_summary = crate::time_intel::time_summary().await;
+    let immune_health = crate::immune::health_score().await;
+    let economy = crate::economy::get_status().await;
+    let identity = crate::identity::get_purpose().await;
+    let constitution_stats = crate::constitution::get_stats().await;
+    let trust_scores = crate::trust::get_all().await;
+    let collective = crate::collective::get_status().await;
+    let dreaming = crate::dreaming::get_status().await;
+    let hal = crate::hal::get_profile().await;
+
+    Json(serde_json::json!({
+        "ok": true,
+        "mission_control": {
+            "identity": { "mission": identity.mission },
+            "consciousness": {
+                "focus": mind.focus,
+                "awareness": mind.awareness,
+                "uptime_secs": mind.uptime_secs,
+                "tasks_completed": mind.total_tasks_completed,
+                "tasks_failed": mind.total_tasks_failed,
+                "active_tasks": mind.active_tasks.len(),
+                "pending_tasks": mind.pending_tasks.len(),
+            },
+            "goals": goals,
+            "world": world_summary,
+            "time": time_summary,
+            "security": { "immune_health": immune_health, "constitution": constitution_stats },
+            "economy": economy,
+            "trust": trust_scores.len(),
+            "collective": collective,
+            "dreaming": dreaming,
+            "hardware": { "hostname": hal.hostname, "cpu_cores": hal.cpu_cores, "ram_mb": hal.ram_total_mb },
+        }
+    }))
+}
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -1427,31 +1775,19 @@ pub fn router() -> Router {
         .route("/health", get(health))
         .route("/intent", post(intent_handler))
         .route("/events", get(ws_handler))
-        // Audit
         .route("/audit", get(audit_log))
-        // Approvals
         .route("/approvals", get(list_approvals))
         .route("/approvals/:id/approve", post(approve_handler))
-        // Memory – RAG
         .route("/memory/query", get(memory_query))
         .route("/memory/ingest", post(memory_ingest))
-        // Security
-        .route(
-            "/security/events",
-            get(security_events).post(security_event_post),
-        )
+        .route("/security/events", get(security_events).post(security_event_post))
         .route("/security/events/:id/ack", post(security_event_ack))
-        // Agents
         .route("/agents/status", get(agents_status))
-        // Sentience
         .route("/sentience", get(sentience_status))
-        // Knowledge Graph
         .route("/kg/query", get(kg_query_handler))
         .route("/kg/entity", post(kg_add_entity_handler))
-        // Tool Evolution
         .route("/evolve/tool", post(evolve_tool_handler))
         .route("/evolve/tools", get(list_evolved_tools))
-        // Configuration
         .route("/config", get(config_dashboard))
         .route("/config/agent", get(config_agent))
         .route("/config/setup", get(config_setup_status))
@@ -1459,15 +1795,12 @@ pub fn router() -> Router {
         .route("/config/secret", post(config_set_secret))
         .route("/config/:service", get(config_get_service).post(config_update_service))
         .route("/config/test/:service", post(config_test_service))
-        // Consciousness
         .route("/consciousness", get(consciousness_status))
         .route("/consciousness/summary", get(consciousness_summary))
-        // Goals
         .route("/goals", get(goals_list).post(goals_create))
         .route("/goals/:id", get(goals_get).delete(goals_delete))
         .route("/goals/:id/subgoal", post(goals_add_subgoal))
         .route("/goals/:id/contribute", post(goals_contribute))
-        // World Model
         .route("/world", get(world_full))
         .route("/world/summary", get(world_summary))
         .route("/world/machines", get(world_machines_list).post(world_machine_upsert))
@@ -1479,7 +1812,6 @@ pub fn router() -> Router {
         .route("/world/diff", get(world_diff))
         .route("/world/edges", post(world_add_edge))
         .route("/world/scan", post(world_scan))
-        // Time Intelligence
         .route("/time", get(time_awareness))
         .route("/time/summary", get(time_summary))
         .route("/time/events", get(time_events_list).post(time_event_create))
@@ -1488,46 +1820,46 @@ pub fn router() -> Router {
         .route("/time/patterns/:id", delete(time_pattern_delete))
         .route("/time/deadlines", get(time_deadlines_list).post(time_deadline_create))
         .route("/time/due", get(time_due_items))
-        // Personality
         .route("/personality", get(personality_get).post(personality_update))
         .route("/personality/prompt", get(personality_prompt))
-        // Reflection
         .route("/reflection/today", get(reflection_today))
         .route("/reflection/history", get(reflection_history))
         .route("/reflection/trigger", post(reflection_trigger))
-        // Curiosity
         .route("/curiosity", get(curiosity_status))
         .route("/curiosity/discoveries", get(curiosity_discoveries))
         .route("/curiosity/config", post(curiosity_config_update))
         .route("/curiosity/explore", post(curiosity_explore))
-        // Distillation
         .route("/distillation", get(distillation_list))
         .route("/distillation/search", get(distillation_search))
         .route("/distillation/trigger", post(distillation_trigger))
         .route("/distillation/:id", get(distillation_get))
-        // Economy
         .route("/economy", get(economy_status))
         .route("/economy/history", get(economy_history))
         .route("/economy/budget", post(economy_set_budget))
-        // Immune System
         .route("/immune", get(immune_status))
         .route("/immune/threats", get(immune_threats))
         .route("/immune/scan", post(immune_scan))
-        // Governance
         .route("/governance/policies", get(governance_policies).post(governance_create_policy))
         .route("/governance/policies/:id", delete(governance_delete_policy))
         .route("/governance/violations", get(governance_violations))
         .route("/governance/check", post(governance_check))
-        // Plugins
         .route("/plugins", get(plugins_list))
         .route("/plugins/install", post(plugins_install))
         .route("/plugins/:id", get(plugins_get).delete(plugins_uninstall))
         .route("/plugins/:id/enable", post(plugins_enable))
-        // Digital Twin
         .route("/twin/simulate", post(twin_simulate))
         .route("/twin/history", get(twin_history))
         .route("/twin/validate", post(twin_validate))
-        // Middleware
+        .route("/identity", get(identity_get).post(identity_update))
+        .route("/identity/purpose", get(identity_purpose))
+        .route("/identity/principles", get(identity_principles))
+        .route("/identity/boundaries", get(identity_boundaries))
+        .route("/identity/capabilities", get(identity_capabilities))
+        .route("/identity/prompt", get(identity_prompt))
+        .route("/constitution", get(constitution_get))
+        .route("/constitution/check", post(constitution_check))
+        .route("/constitution/violations", get(constitution_violations))
+        .route("/constitution/amend", post(constitution_amend))
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
