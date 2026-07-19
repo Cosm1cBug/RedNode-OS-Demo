@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.20.0",
+        "version": "0.21.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.20.0",
+                "version": "0.21.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1818,5 +1818,9 @@ pub fn router() -> Router {
         .route("/debate/start", post(debate_start)).route("/debate/history", get(debate_history))
         .route("/trust", get(trust_all)).route("/trust/:source", get(trust_get).post(trust_set))
         .route("/ethics", get(ethics_values)).route("/ethics/evaluate", post(ethics_evaluate)).route("/ethics/dilemmas", get(ethics_dilemmas))
+        .route("/creativity/brainstorm", post(creativity_brainstorm)).route("/creativity/ideas", get(creativity_ideas))
+        .route("/science/experiments", get(science_experiments).post(science_create))
+        .route("/science/experiment/:id", get(science_experiment_get))
+        .route("/science/experiment/:id/result", post(science_record_result))
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware)).layer(TraceLayer::new_for_http()).layer(CorsLayer::permissive())
 }
