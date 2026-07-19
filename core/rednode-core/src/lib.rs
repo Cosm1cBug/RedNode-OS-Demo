@@ -24,6 +24,7 @@ pub mod personality;
 pub mod pii;
 pub mod pipelines;
 pub mod planner;
+pub mod plugins;
 pub mod predict;
 pub mod reflection;
 pub mod security;

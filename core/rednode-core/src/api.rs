@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.14.0",
+        "version": "0.15.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.14.0",
+                "version": "0.15.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1293,6 +1293,55 @@ async fn governance_check(Json(req): Json<GovernanceCheckReq>) -> Json<serde_jso
 }
 
 
+
+// ─── Plugins API ───
+
+async fn plugins_list() -> Json<serde_json::Value> {
+    let plugins = crate::plugins::list().await;
+    Json(serde_json::json!({"ok": true, "count": plugins.len(), "plugins": plugins}))
+}
+
+async fn plugins_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::plugins::get(&id).await {
+        Some(p) => Json(serde_json::json!({"ok": true, "plugin": p})),
+        None => Json(serde_json::json!({"ok": false, "error": "Plugin not found"})),
+    }
+}
+
+async fn plugins_install(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    let manifest: crate::plugins::PluginManifest = match serde_json::from_value(
+        body.get("manifest").cloned().unwrap_or_default()
+    ) {
+        Ok(m) => m,
+        Err(e) => return Json(serde_json::json!({"ok": false, "error": format!("Invalid manifest: {}", e)})),
+    };
+    let config = body.get("config").cloned().unwrap_or(serde_json::json!({}));
+
+    match crate::plugins::install(manifest, config).await {
+        Ok(plugin) => Json(serde_json::json!({"ok": true, "plugin": plugin})),
+        Err(e) => Json(serde_json::json!({"ok": false, "error": e})),
+    }
+}
+
+#[derive(Deserialize)]
+struct PluginEnableReq {
+    enabled: bool,
+}
+
+async fn plugins_enable(
+    Path(id): Path<String>,
+    Json(req): Json<PluginEnableReq>,
+) -> Json<serde_json::Value> {
+    let ok = crate::plugins::set_enabled(&id, req.enabled).await;
+    Json(serde_json::json!({"ok": ok, "id": id, "enabled": req.enabled}))
+}
+
+async fn plugins_uninstall(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let ok = crate::plugins::uninstall(&id).await;
+    Json(serde_json::json!({"ok": ok, "id": id}))
+}
+
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -1391,6 +1440,11 @@ pub fn router() -> Router {
         .route("/governance/policies/:id", delete(governance_delete_policy))
         .route("/governance/violations", get(governance_violations))
         .route("/governance/check", post(governance_check))
+        // Plugins
+        .route("/plugins", get(plugins_list))
+        .route("/plugins/install", post(plugins_install))
+        .route("/plugins/:id", get(plugins_get).delete(plugins_uninstall))
+        .route("/plugins/:id/enable", post(plugins_enable))
         // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())

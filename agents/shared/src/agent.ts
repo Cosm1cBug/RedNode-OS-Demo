@@ -16,10 +16,39 @@ export interface AgentTask {
   risk?: string;
 }
 
+// ─── Multi-Agent Society: Reputation + Confidence + Work Queue ───
+
+export interface AgentMetrics {
+  /** Reputation score (0-100) based on task success rate */
+  reputation: number;
+  /** Self-assessed confidence in current capabilities (0-100) */
+  confidence: number;
+  /** Total tasks completed successfully */
+  tasks_completed: number;
+  /** Total tasks failed */
+  tasks_failed: number;
+  /** Average task duration in ms */
+  avg_duration_ms: number;
+  /** Currently queued tasks awaiting execution */
+  work_queue_size: number;
+}
+
 export class RedNodeAgent {
   nc!: NatsConnection;
   name: string;
   private capabilities: Set<string>;
+
+  // ─── Agent Society Metrics ───
+  metrics: AgentMetrics = {
+    reputation: 80,
+    confidence: 80,
+    tasks_completed: 0,
+    tasks_failed: 0,
+    avg_duration_ms: 0,
+    work_queue_size: 0,
+  };
+  private durationHistory: number[] = [];
+  private workQueue: AgentTask[] = [];
 
   constructor(name: string, capabilities: string[]) {
     this.name = name;
@@ -35,7 +64,7 @@ export class RedNodeAgent {
     this.nc = await connect({ servers: url, name: `${this.name}-agent` });
     console.log(`[${this.name}-agent] connected to ${url}`);
 
-    // heartbeat
+    // heartbeat — now includes reputation and confidence
     setInterval(() => {
       this.nc.publish(
         `rednode.agent.${this.name}.heartbeat`,
@@ -44,6 +73,12 @@ export class RedNodeAgent {
             agent: this.name,
             ts: Date.now(),
             capabilities: [...this.capabilities],
+            reputation: this.metrics.reputation,
+            confidence: this.metrics.confidence,
+            tasks_completed: this.metrics.tasks_completed,
+            tasks_failed: this.metrics.tasks_failed,
+            avg_duration_ms: this.metrics.avg_duration_ms,
+            work_queue_size: this.workQueue.length,
           }),
         ),
       );
@@ -54,6 +89,36 @@ export class RedNodeAgent {
     watchConfigChanges(this.nc, () => {
       console.info(`[${this.name}-agent] Config reloaded from dashboard`);
     });
+
+    // Listen for peer-review requests from other agents
+    const peerSub = this.nc.subscribe(`rednode.agent.${this.name}.peer_review`);
+    (async () => {
+      for await (const msg of peerSub) {
+        try {
+          const request = jc.decode(msg.data) as any;
+          const review = await this.peerReview(request);
+          if (msg.reply) msg.respond(jc.encode(review));
+        } catch (e: any) {
+          if (msg.reply) {
+            msg.respond(jc.encode({ ok: false, error: e.message }));
+          }
+        }
+      }
+    })();
+
+    // Listen for metric queries
+    const metricSub = this.nc.subscribe(`rednode.agent.${this.name}.metrics`);
+    (async () => {
+      for await (const msg of metricSub) {
+        if (msg.reply) {
+          msg.respond(jc.encode({
+            ok: true,
+            agent: this.name,
+            metrics: this.metrics,
+          }));
+        }
+      }
+    })();
   }
 
   /** Execute a tool via the Rust executor (sandboxed) */
@@ -72,6 +137,66 @@ export class RedNodeAgent {
     }
   }
 
+  /** Request a peer review from another agent */
+  async requestPeerReview(targetAgent: string, data: any): Promise<any> {
+    try {
+      const subject = `rednode.agent.${targetAgent}.peer_review`;
+      const resp = await this.nc.request(subject, jc.encode(data), { timeout: 5000 });
+      return jc.decode(resp.data);
+    } catch (e: any) {
+      console.warn(`[${this.name}] Peer review from ${targetAgent} failed: ${e.message}`);
+      return null;
+    }
+  }
+
+  /** Handle a peer review request — override in subclasses for domain-specific review */
+  async peerReview(request: any): Promise<any> {
+    return {
+      ok: true,
+      reviewer: this.name,
+      verdict: "no_opinion",
+      message: "Agent does not implement domain-specific peer review",
+    };
+  }
+
+  /** Update metrics after a task completes */
+  private recordTaskResult(success: boolean, durationMs: number) {
+    if (success) {
+      this.metrics.tasks_completed++;
+    } else {
+      this.metrics.tasks_failed++;
+    }
+
+    // Update average duration
+    this.durationHistory.push(durationMs);
+    if (this.durationHistory.length > 100) {
+      this.durationHistory.shift();
+    }
+    this.metrics.avg_duration_ms = Math.round(
+      this.durationHistory.reduce((a, b) => a + b, 0) / this.durationHistory.length
+    );
+
+    // Recalculate reputation (weighted success rate)
+    const total = this.metrics.tasks_completed + this.metrics.tasks_failed;
+    if (total > 0) {
+      const successRate = this.metrics.tasks_completed / total;
+      // Smooth towards actual success rate (EMA)
+      this.metrics.reputation = Math.round(
+        this.metrics.reputation * 0.9 + successRate * 100 * 0.1
+      );
+      this.metrics.reputation = Math.max(0, Math.min(100, this.metrics.reputation));
+    }
+
+    // Confidence adjusts based on recent performance
+    if (success) {
+      this.metrics.confidence = Math.min(100, this.metrics.confidence + 1);
+    } else {
+      this.metrics.confidence = Math.max(10, this.metrics.confidence - 3);
+    }
+
+    this.metrics.work_queue_size = this.workQueue.length;
+  }
+
   async serve() {
     const subject = `rednode.agent.${this.name}.task`;
     const sub = this.nc.subscribe(subject);
@@ -84,7 +209,7 @@ export class RedNodeAgent {
         try {
           const data = jc.decode(msg.data) as any;
           console.info(
-            `[${this.name}-agent] 🔄 Reload signal received: new tool '${data.tool || "unknown"}' evolved. ` +
+            `[${this.name}-agent] Reload signal received: new tool '${data.tool || "unknown"}' evolved. ` +
             `Agent will use the updated handler on next call. ` +
             `(Full restart needed for handler code changes to take effect.)`
           );
@@ -99,6 +224,11 @@ export class RedNodeAgent {
       } catch {
         task = JSON.parse(sc.decode(m.data));
       }
+
+      // Add to work queue
+      this.workQueue.push(task);
+      this.metrics.work_queue_size = this.workQueue.length;
+
       const start = Date.now();
       console.log(`[${this.name}] task: ${task.tool}`, task.args || {});
       try {
@@ -107,21 +237,35 @@ export class RedNodeAgent {
         const result =
           handled ?? (await this.callTool(task.tool, task.args || {}));
 
+        const durationMs = Date.now() - start;
+        this.recordTaskResult(true, durationMs);
+
+        // Remove from work queue
+        this.workQueue = this.workQueue.filter(t => t !== task);
+
         const response = {
           ok: true,
           agent: this.name,
           tool: task.tool,
           result,
-          duration_ms: Date.now() - start,
+          duration_ms: durationMs,
+          reputation: this.metrics.reputation,
         };
         if (m.reply) m.respond(jc.encode(response));
       } catch (err: any) {
+        const durationMs = Date.now() - start;
+        this.recordTaskResult(false, durationMs);
+
+        // Remove from work queue
+        this.workQueue = this.workQueue.filter(t => t !== task);
+
         console.error(`[${this.name}] task failed:`, err.message);
         const response = {
           ok: false,
           agent: this.name,
           tool: task.tool,
           error: err.message,
+          reputation: this.metrics.reputation,
         };
         if (m.reply) m.respond(jc.encode(response));
       }
