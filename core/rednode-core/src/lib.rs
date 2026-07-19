@@ -30,4 +30,5 @@ pub mod reflection;
 pub mod security;
 pub mod sentience;
 pub mod time_intel;
+pub mod twin;
 pub mod world_model;

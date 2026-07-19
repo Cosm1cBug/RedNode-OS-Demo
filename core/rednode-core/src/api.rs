@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.15.0",
+        "version": "0.16.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.15.0",
+                "version": "0.16.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1342,6 +1342,84 @@ async fn plugins_uninstall(Path(id): Path<String>) -> Json<serde_json::Value> {
 }
 
 
+
+// ─── Digital Twin API ───
+
+#[derive(Deserialize)]
+struct SimulateReq {
+    name: String,
+    description: String,
+    actions: Vec<serde_json::Value>,
+}
+
+fn parse_simulated_action(v: &serde_json::Value) -> Option<crate::twin::SimulatedAction> {
+    let action_type = v.get("type")?.as_str()?;
+    match action_type {
+        "machine_offline" => Some(crate::twin::SimulatedAction::MachineOffline {
+            machine_id: v.get("machine_id")?.as_str()?.into(),
+        }),
+        "service_offline" => Some(crate::twin::SimulatedAction::ServiceOffline {
+            service_id: v.get("service_id")?.as_str()?.into(),
+        }),
+        "vlan_remove" => Some(crate::twin::SimulatedAction::VlanRemove {
+            vlan_id: v.get("vlan_id")?.as_str()?.into(),
+        }),
+        "network_partition" => Some(crate::twin::SimulatedAction::NetworkPartition {
+            vlan_a: v.get("vlan_a")?.as_str()?.into(),
+            vlan_b: v.get("vlan_b")?.as_str()?.into(),
+        }),
+        "power_outage" => Some(crate::twin::SimulatedAction::PowerOutage {
+            vlan_id: v.get("vlan_id")?.as_str()?.into(),
+        }),
+        "service_upgrade" => Some(crate::twin::SimulatedAction::ServiceUpgrade {
+            service_id: v.get("service_id")?.as_str()?.into(),
+            new_version: v.get("new_version")?.as_str()?.into(),
+        }),
+        "machine_add" => Some(crate::twin::SimulatedAction::MachineAdd {
+            name: v.get("name")?.as_str()?.into(),
+            role: v.get("role")?.as_str()?.into(),
+        }),
+        _ => Some(crate::twin::SimulatedAction::Custom {
+            description: v.get("description").and_then(|d| d.as_str()).unwrap_or("custom action").into(),
+        }),
+    }
+}
+
+async fn twin_simulate(Json(req): Json<SimulateReq>) -> Json<serde_json::Value> {
+    let actions: Vec<crate::twin::SimulatedAction> = req.actions.iter()
+        .filter_map(|a| parse_simulated_action(a))
+        .collect();
+
+    if actions.is_empty() {
+        return Json(serde_json::json!({"ok": false, "error": "No valid actions provided"}));
+    }
+
+    let result = crate::twin::simulate(&req.name, &req.description, actions).await;
+    Json(serde_json::json!({"ok": true, "result": result}))
+}
+
+async fn twin_history() -> Json<serde_json::Value> {
+    let history = crate::twin::get_history(20).await;
+    let stats = crate::twin::get_stats().await;
+    Json(serde_json::json!({"ok": true, "history": history, "stats": stats}))
+}
+
+#[derive(Deserialize)]
+struct ValidateChangeReq {
+    action: serde_json::Value,
+}
+
+async fn twin_validate(Json(req): Json<ValidateChangeReq>) -> Json<serde_json::Value> {
+    match parse_simulated_action(&req.action) {
+        Some(action) => {
+            let result = crate::twin::validate_change(action).await;
+            Json(serde_json::json!({"ok": true, "result": result}))
+        }
+        None => Json(serde_json::json!({"ok": false, "error": "Invalid action format"})),
+    }
+}
+
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -1445,6 +1523,10 @@ pub fn router() -> Router {
         .route("/plugins/install", post(plugins_install))
         .route("/plugins/:id", get(plugins_get).delete(plugins_uninstall))
         .route("/plugins/:id/enable", post(plugins_enable))
+        // Digital Twin
+        .route("/twin/simulate", post(twin_simulate))
+        .route("/twin/history", get(twin_history))
+        .route("/twin/validate", post(twin_validate))
         // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())
