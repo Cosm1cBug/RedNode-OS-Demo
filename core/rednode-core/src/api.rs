@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.22.0",
+        "version": "0.23.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.22.0",
+                "version": "0.23.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1825,5 +1825,7 @@ pub fn router() -> Router {
         .route("/capabilities", get(capabilities_list)).route("/capabilities/search", get(capabilities_search))
         .route("/capabilities/:id", get(capabilities_get)).route("/capabilities/verify/:id", post(capabilities_verify))
         .route("/dreaming", get(dreaming_status)).route("/dreaming/start", post(dreaming_start)).route("/dreaming/history", get(dreaming_history))
+        .route("/collective", get(collective_status)).route("/collective/peers", get(collective_peers).post(collective_register_peer))
+        .route("/hal", get(hal_profile)).route("/hal/cluster", get(hal_cluster))
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware)).layer(TraceLayer::new_for_http()).layer(CorsLayer::permissive())
 }
