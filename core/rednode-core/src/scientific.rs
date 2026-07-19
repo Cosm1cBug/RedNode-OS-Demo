@@ -25,6 +25,12 @@ pub struct Experiment {
     pub status: ExperimentStatus, pub results: Vec<ExperimentResult>,
     pub conclusion: Option<String>, pub knowledge_stored: bool,
     pub created_at: DateTime<Utc>, pub completed_at: Option<DateTime<Utc>>,
+    /// Controlled variables (held constant during the experiment)
+    pub controls: Vec<Variable>,
+    /// Can this experiment be reproduced? (0.0–1.0)
+    pub reproducibility_score: Option<f32>,
+    /// IDs of replication attempts
+    pub replications: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +53,8 @@ impl Default for ScienceState { fn default() -> Self { Self { experiments: Vec::
 fn gen_id() -> String { format!("exp_{}", chrono::Utc::now().timestamp_millis()) }
 
 pub async fn create_experiment(title: &str, domain: &str, observation: &str, hypothesis: &str, methodology: Vec<String>, variables: Vec<Variable>) -> Experiment {
-    let exp = Experiment { id: gen_id(), title: title.into(), domain: domain.into(), observation: observation.into(), hypothesis: hypothesis.into(), methodology, variables, status: ExperimentStatus::Planned, results: Vec::new(), conclusion: None, knowledge_stored: false, created_at: Utc::now(), completed_at: None };
+    let controls: Vec<Variable> = variables.iter().filter(|v| v.variable_type == VarType::Controlled).cloned().collect();
+    let exp = Experiment { id: gen_id(), title: title.into(), domain: domain.into(), observation: observation.into(), hypothesis: hypothesis.into(), methodology, variables, status: ExperimentStatus::Planned, results: Vec::new(), conclusion: None, knowledge_stored: false, created_at: Utc::now(), completed_at: None, controls, reproducibility_score: None, replications: Vec::new() };
     let mut state = SCIENCE.write().await;
     state.experiments.push(exp.clone()); state.total += 1;
     tracing::info!(title = title, "Experiment created");

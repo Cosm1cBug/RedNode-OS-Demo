@@ -26,7 +26,7 @@ static CREATIVE: once_cell::sync::Lazy<Arc<RwLock<CreativityState>>> =
 pub struct BrainstormRequest { pub topic: String, pub domain: CreativeDomain, pub constraints: Vec<String>, pub count: u32 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum CreativeDomain { Architecture, Coding, UI, Branding, Research, Documentation, Infrastructure, Security, Custom(String) }
+pub enum CreativeDomain { Architecture, Coding, UI, Branding, Research, Documentation, Infrastructure, Security, Writing, Visual, Business, Custom(String) }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreativeIdea {
@@ -74,6 +74,27 @@ pub async fn brainstorm(request: BrainstormRequest) -> BrainstormResult {
             ("Self-healing clusters", "Services auto-restart, auto-scale, auto-migrate"),
             ("Declarative networking", "Define network state, let system converge to it"),
             ("Predictive scaling", "Scale resources based on predicted demand, not current"),
+        ],
+        CreativeDomain::Writing => vec![
+            ("Narrative structure", "Tell the story through a problem-solution-result arc"),
+            ("Audience adaptation", "Rewrite for a different audience level"),
+            ("Analogy technique", "Explain using a familiar analogy from another domain"),
+            ("Compression challenge", "Convey the same meaning in half the words"),
+            ("Multi-format", "Present as FAQ, tutorial, reference, and cheatsheet"),
+        ],
+        CreativeDomain::Visual => vec![
+            ("Dashboard redesign", "Organize information by priority and frequency of use"),
+            ("Color semantics", "Use color to encode meaning — red for danger, green for healthy"),
+            ("Progressive disclosure", "Show summary first, details on demand"),
+            ("Spatial mapping", "Arrange elements to mirror physical/logical topology"),
+            ("Animation for state", "Use transitions to show state changes over time"),
+        ],
+        CreativeDomain::Business => vec![
+            ("Value proposition", "Define the unique value this provides vs alternatives"),
+            ("Risk-reward matrix", "Map all options by risk level and potential reward"),
+            ("Resource optimization", "Identify the highest-impact use of limited resources"),
+            ("Stakeholder mapping", "Identify who benefits, who decides, who blocks"),
+            ("Monetization model", "Explore subscription, one-time, freemium, or open-core"),
         ],
         _ => vec![
             ("Lateral thinking", "Apply concepts from an unrelated domain"),

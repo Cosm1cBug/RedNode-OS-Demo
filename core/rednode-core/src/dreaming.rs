@@ -92,6 +92,19 @@ pub async fn start_dream(trigger: DreamTrigger) -> DreamSession {
     let hypotheses = 1u32;
     tasks.push(DreamTask { name: "Hypothesis generation".into(), description: "Generated hypotheses from accumulated patterns".into(), result: "1 hypothesis generated".into(), duration_ms: 50 });
 
+    // Task 6: Planner strategy benchmarking
+    let benchmark = crate::meta_reasoning::benchmark_strategies().await;
+    let strats_with_data = benchmark.get("strategies_with_data").and_then(|v| v.as_u64()).unwrap_or(0);
+    tasks.push(DreamTask { name: "Planner benchmarking".into(), description: format!("Benchmarked {} strategies with usage data", strats_with_data), result: "Rankings computed".into(), duration_ms: 30 });
+
+    // Task 7: Assumption challenging — check identity consistency
+    let identity_issues = crate::identity::consistency_check().await;
+    tasks.push(DreamTask { name: "Assumption challenging".into(), description: format!("Checked identity consistency: {} issues found", identity_issues.len()), result: if identity_issues.is_empty() { "Identity consistent".into() } else { format!("Issues: {}", identity_issues.join(", ")) }, duration_ms: 20 });
+
+    // Task 8: Memory entropy check
+    let entropy = crate::episodic_memory::compute_entropy().await;
+    tasks.push(DreamTask { name: "Memory entropy analysis".into(), description: format!("Memory diversity score: {:.2}", entropy), result: if entropy > 0.5 { "Healthy diversity".into() } else { "Low diversity — may need broader experiences".into() }, duration_ms: 10 });
+
     let session = DreamSession {
         id: gen_id(), started_at: start, ended_at: Some(Utc::now()),
         tasks_performed: tasks, duration_secs: (Utc::now() - start).num_seconds().max(1) as u64,

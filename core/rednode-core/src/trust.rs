@@ -36,6 +36,37 @@ pub struct TrustScore {
     pub last_interaction: Option<DateTime<Utc>>,
     pub trend: TrustTrend,
     pub notes: Vec<String>,
+    /// Multi-axis trust breakdown
+    pub axes: TrustAxes,
+    /// Federated trust from collective peers (if available)
+    pub community_trust: Option<f32>,
+}
+
+/// Multi-dimensional trust — different aspects of reliability
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrustAxes {
+    /// Does the source produce technically correct results?
+    pub technical: f32,
+    /// Does the source behave predictably and consistently?
+    pub behavioral: f32,
+    /// Does the source avoid security risks?
+    pub security: f32,
+    /// Is the source historically reliable over time?
+    pub historical: f32,
+}
+
+impl Default for TrustAxes {
+    fn default() -> Self {
+        Self { technical: 0.5, behavioral: 0.5, security: 0.5, historical: 0.5 }
+    }
+}
+
+impl TrustAxes {
+    /// Weighted composite score from all axes
+    pub fn composite(&self) -> f32 {
+        (self.technical * 0.3 + self.behavioral * 0.2 + self.security * 0.3 + self.historical * 0.2)
+            .clamp(0.0, 1.0)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -65,6 +96,8 @@ impl Default for TrustState {
                 source: name.into(), category: cat, score, interactions: 0,
                 accurate_count: 0, inaccurate_count: 0, last_interaction: None,
                 trend: TrustTrend::New, notes: vec![],
+                axes: TrustAxes { technical: score, behavioral: score, security: score, historical: score },
+                community_trust: None,
             });
         }
         Self { scores, total_interactions: 0 }
@@ -82,6 +115,7 @@ pub async fn record_interaction(source: &str, category: SourceCategory, accurate
         source: source.into(), category, score: 0.5, interactions: 0,
         accurate_count: 0, inaccurate_count: 0, last_interaction: None,
         trend: TrustTrend::New, notes: vec![],
+        axes: TrustAxes::default(), community_trust: None,
     });
     entry.interactions += 1;
     if accurate { entry.accurate_count += 1; } else { entry.inaccurate_count += 1; }
@@ -132,7 +166,19 @@ pub async fn init_table() {
 mod tests {
     use super::*;
     #[test]
-    fn test_default() { let s = TrustState::default(); assert!(s.scores.contains_key("user")); assert_eq!(s.scores["user"].score, 1.0); }
+    fn test_default() {
+        let s = TrustState::default();
+        assert!(s.scores.contains_key("user"));
+        assert_eq!(s.scores["user"].score, 1.0);
+        assert_eq!(s.scores["user"].axes.technical, 1.0);
+        assert!(s.scores["user"].community_trust.is_none());
+    }
     #[test]
     fn test_category_eq() { assert_eq!(SourceCategory::User, SourceCategory::User); }
+    #[test]
+    fn test_axes_composite() {
+        let axes = TrustAxes { technical: 0.8, behavioral: 0.6, security: 0.9, historical: 0.7 };
+        let c = axes.composite();
+        assert!(c > 0.5 && c < 1.0);
+    }
 }

@@ -51,6 +51,9 @@ pub struct MindState {
     pub next_actions: Vec<PlannedAction>,
     pub active_goal_count: usize,
 
+    // ── Awareness history (keeps last 288 entries = 24h at 5min intervals) ──
+    pub awareness_history: VecDeque<AwarenessSnapshot>,
+
     // ── Meta ──
     pub boot_ts: DateTime<Utc>,
     pub last_tick: DateTime<Utc>,
@@ -129,6 +132,26 @@ pub struct AwarenessState {
     pub urgency: f32,
     pub curiosity: f32,
     pub period: TimePeriod,
+    /// Confidence trend direction computed from history
+    pub confidence_trend: TrendDirection,
+}
+
+/// Trend direction for awareness indicators
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum TrendDirection {
+    Rising,
+    Stable,
+    Falling,
+}
+
+/// A point-in-time snapshot of awareness for history tracking
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AwarenessSnapshot {
+    pub timestamp: DateTime<Utc>,
+    pub level: f32,
+    pub confidence: f32,
+    pub urgency: f32,
+    pub curiosity: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -180,7 +203,9 @@ impl Default for MindState {
                 urgency: 0.0,
                 curiosity: 0.3,
                 period: current_period(),
+                confidence_trend: TrendDirection::Stable,
             },
+            awareness_history: VecDeque::with_capacity(288),
             resource_snapshot: ResourceSnapshot {
                 cpu_percent: 0.0,
                 ram_used_mb: 0,
@@ -361,6 +386,53 @@ pub async fn tick() {
         mind.awareness.curiosity = (mind.awareness.curiosity + 0.002).min(0.8);
     }
 
+    // ── Awareness Recovery ──
+    // When urgency drops and no recent failures, actively boost awareness
+    if mind.awareness.urgency < 0.1
+        && mind.recent_failures.is_empty()
+        && mind.awareness.level < 0.7
+    {
+        mind.awareness.level = (mind.awareness.level + 0.01).min(0.8);
+    }
+
+    // ── Record awareness snapshot (every ~5 min = every 30th tick at 10s interval) ──
+    let should_snapshot = mind.awareness_history.back()
+        .map_or(true, |last| (now - last.timestamp).num_seconds() >= 300);
+    if should_snapshot {
+        if mind.awareness_history.len() >= 288 {
+            mind.awareness_history.pop_front();
+        }
+        mind.awareness_history.push_back(AwarenessSnapshot {
+            timestamp: now,
+            level: mind.awareness.level,
+            confidence: mind.awareness.confidence,
+            urgency: mind.awareness.urgency,
+            curiosity: mind.awareness.curiosity,
+        });
+
+        // ── Compute confidence trend from last 10 snapshots ──
+        let history_len = mind.awareness_history.len();
+        if history_len >= 3 {
+            let recent: Vec<f32> = mind.awareness_history.iter()
+                .rev()
+                .take(10)
+                .map(|s| s.confidence)
+                .collect();
+            let first_half_avg = recent.iter().skip(recent.len() / 2).sum::<f32>()
+                / (recent.len() - recent.len() / 2) as f32;
+            let second_half_avg = recent.iter().take(recent.len() / 2).sum::<f32>()
+                / (recent.len() / 2).max(1) as f32;
+            let delta = second_half_avg - first_half_avg;
+            mind.awareness.confidence_trend = if delta > 0.02 {
+                TrendDirection::Rising
+            } else if delta < -0.02 {
+                TrendDirection::Falling
+            } else {
+                TrendDirection::Stable
+            };
+        }
+    }
+
     // Timeout check: kill tasks that have been running too long
     let timed_out: Vec<_> = mind.active_tasks.iter()
         .filter(|t| (now - t.started_at).num_seconds() > t.timeout_secs as i64)
@@ -530,6 +602,8 @@ mod tests {
         assert_eq!(mind.active_tasks.len(), 0);
         assert_eq!(mind.total_tasks_completed, 0);
         assert!(mind.awareness.confidence > 0.0);
+        assert_eq!(mind.awareness.confidence_trend, TrendDirection::Stable);
+        assert!(mind.awareness_history.is_empty());
     }
 
     #[test]

@@ -40,6 +40,8 @@ pub enum SimulationType {
     CodeChange,
     Conversation,
     ResourceAllocation,
+    AttackSimulation,
+    FutureProjection,
     Custom(String),
 }
 
@@ -136,6 +138,32 @@ pub async fn simulate(request: SimulationRequest) -> SimulationOutput {
             (0.75, 120, vec!["Need to restart affected services".into()], vec![
                 FailureMode { description: "Regression".into(), probability: 0.2, impact: "Feature broken".into(), mitigation: "Run test suite".into() },
             ], true)
+        }
+        SimulationType::AttackSimulation => {
+            let target = request.inputs.get("target").and_then(|v| v.as_str()).unwrap_or("system");
+            let attack_type = request.inputs.get("attack_type").and_then(|v| v.as_str()).unwrap_or("generic");
+            (0.3, 30, vec![
+                format!("Simulated {} attack on {}", attack_type, target),
+                "Immune system response tested".into(),
+            ], vec![
+                FailureMode { description: "Intrusion detection bypassed".into(), probability: 0.1, impact: "Unauthorized access".into(), mitigation: "Update detection signatures".into() },
+                FailureMode { description: "Lateral movement possible".into(), probability: 0.15, impact: "Multiple systems compromised".into(), mitigation: "Network segmentation".into() },
+                FailureMode { description: "Data exfiltration window".into(), probability: 0.05, impact: "Data breach".into(), mitigation: "DLP monitoring".into() },
+            ], true)
+        }
+        SimulationType::Conversation => {
+            (0.9, 10, vec![], vec![
+                FailureMode { description: "Intent misunderstood".into(), probability: 0.15, impact: "Wrong action taken".into(), mitigation: "Clarification loop".into() },
+            ], true)
+        }
+        SimulationType::FutureProjection => {
+            let days = request.inputs.get("days").and_then(|v| v.as_u64()).unwrap_or(7);
+            (0.5, days * 86400, vec![
+                format!("Projecting system state {} days ahead", days),
+                "Based on current trends and scheduled events".into(),
+            ], vec![
+                FailureMode { description: "Unpredictable external events".into(), probability: 0.4, impact: "Projection invalidated".into(), mitigation: "Re-run projection periodically".into() },
+            ], false) // Future projections are not reversible (they're informational)
         }
         _ => (0.6, 60, vec![], vec![], true),
     };

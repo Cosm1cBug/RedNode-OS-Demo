@@ -1,5 +1,35 @@
 # RedNode-OS Changelog
 
+## v0.35.0 — Cognitive Architecture Enhancement
+
+### New Foundation Systems
+- **Cognitive Bus**: Event-driven backbone — 23 typed cognitive events, broadcast subscribers, loose coupling between all modules
+- **Perception Layer**: Normalizes 10 input modalities (vision, speech, logs, sensors, APIs, network) into standardized observations
+- **Language Engine**: Prompt templates, terminology glossary, rule-based summarization, entity/fact/action extraction
+
+### Module Deepening (20 modules enhanced)
+- **Consciousness**: Awareness history (288 snapshots), confidence trend analysis (Rising/Stable/Falling), awareness recovery mechanism
+- **Goals**: Dependency graph, conflict detection, risk scoring, completion prediction, inherited context
+- **Identity**: Mission hierarchy (sub-missions), achievement records, capability change history, consistency checking
+- **Episodic Memory**: Contradiction detection, Shannon entropy measurement, auto-indexing from goals and capabilities
+- **Trust**: Multi-axis trust (technical/behavioral/security/historical), community trust from peers
+- **Debate**: 4 new roles — Devil's Advocate, Historian, Scientist, Ethicist (total: 10 roles)
+- **Immune System**: Behavioral baselines with anomaly detection, attack surface mapping
+- **Simulation**: Attack simulation, conversation simulation, future projection types
+- **Meta-Reasoning**: Tree Search, Constraint Solver, Monte Carlo, Hybrid strategies + benchmarking (total: 9 strategies)
+- **Reflection**: Security posture, plugin health, infrastructure health review scopes
+- **Evolution Sandbox**: Reasoning, memory indexing, policy evolution types
+- **Adaptive Architecture**: EvolutionTarget enum for categorized proposals
+- **Plugins**: Full lifecycle (Developing → Testing → Sandboxing → Verifying → Approved → Active → Deprecated → Removed) with transition validation
+- **World Model**: Threat layer, economic layer, cross-layer queries
+- **HAL**: Thermal monitoring, GPU time-sharing, hardware benchmarking
+- **Creativity**: Writing, Visual, Business domains (total: 12 domains)
+- **Scientific**: Controls tracking, reproducibility scoring, replication records
+- **Distillation**: Textbook, DecisionTree, TrainingMaterial categories
+- **Dreaming**: Planner benchmarking, assumption challenging, memory entropy analysis tasks
+- **Curiosity**: Discovery impact tracking
+- **Collective**: Peer specialization, federation policy (knowledge sharing controls)
+
 ## v0.34.0 — Collective Governance
 - **Collective Governance**: Voting with quorum, leader election by trust, configurable consensus (simple majority, supermajority, unanimous, weighted-by-trust)
 

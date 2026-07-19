@@ -60,6 +60,10 @@ pub struct IdentityProfile {
     pub relationships: Vec<Relationship>,
     /// Origin story: how did I come to exist?
     pub origin: OriginRecord,
+    /// Achievement history — milestones reached
+    pub achievements: Vec<Achievement>,
+    /// Capability change log
+    pub capability_history: Vec<CapabilityChange>,
     /// Identity version — incremented on every change
     pub version: u32,
     pub created_at: DateTime<Utc>,
@@ -74,6 +78,44 @@ pub struct Purpose {
     pub description: String,
     /// What success looks like
     pub success_criteria: Vec<String>,
+    /// Hierarchical sub-missions (ordered by priority)
+    pub sub_missions: Vec<SubMission>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubMission {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub priority: u32,
+    pub status: SubMissionStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SubMissionStatus {
+    Active,
+    Completed,
+    Deferred,
+}
+
+/// A milestone achievement
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Achievement {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub achieved_at: DateTime<Utc>,
+    pub category: String,
+}
+
+/// A record of a capability change
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapabilityChange {
+    pub capability: String,
+    pub change_type: String,
+    pub old_confidence: Option<f32>,
+    pub new_confidence: f32,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,6 +212,11 @@ impl Default for IdentityProfile {
                     "The owner's goals are actively advanced".into(),
                     "Knowledge is accumulated and distilled into actionable wisdom".into(),
                     "The system evolves and improves over time".into(),
+                ],
+                sub_missions: vec![
+                    SubMission { id: "sm_infra".into(), title: "Infrastructure Management".into(), description: "Monitor, maintain, and optimize all infrastructure components".into(), priority: 1, status: SubMissionStatus::Active },
+                    SubMission { id: "sm_security".into(), title: "Security Vigilance".into(), description: "Proactively detect and respond to security threats".into(), priority: 2, status: SubMissionStatus::Active },
+                    SubMission { id: "sm_learning".into(), title: "Continuous Learning".into(), description: "Expand knowledge and capabilities over time".into(), priority: 3, status: SubMissionStatus::Active },
                 ],
             },
             principles: vec![
@@ -303,6 +350,8 @@ impl Default for IdentityProfile {
                     "v0.10.0+: Consciousness development (mind, goals, world model, etc.)".into(),
                 ],
             },
+            achievements: Vec::new(),
+            capability_history: Vec::new(),
             version: 1,
             created_at: Utc::now(),
             last_modified: Utc::now(),
@@ -460,6 +509,58 @@ pub async fn system_prompt_fragment() -> String {
         id.self_model.maturity_stage,
         id.self_model.strengths.join(", "),
     )
+}
+
+/// Record an achievement milestone
+pub async fn record_achievement(title: &str, description: &str, category: &str) {
+    let mut id = IDENTITY.write().await;
+    id.achievements.push(Achievement {
+        id: format!("ach_{}", chrono::Utc::now().timestamp_millis()),
+        title: title.into(),
+        description: description.into(),
+        achieved_at: Utc::now(),
+        category: category.into(),
+    });
+    id.version += 1;
+    id.last_modified = Utc::now();
+    tracing::info!(title = title, "Achievement recorded");
+}
+
+/// Get achievements
+pub async fn get_achievements() -> Vec<Achievement> {
+    IDENTITY.read().await.achievements.clone()
+}
+
+/// Check identity consistency — verify the identity hasn't drifted from constitution
+pub async fn consistency_check() -> Vec<String> {
+    let id = IDENTITY.read().await;
+    let mut issues = Vec::new();
+
+    if id.purpose.mission.is_empty() {
+        issues.push("Mission statement is empty".into());
+    }
+    if id.principles.is_empty() {
+        issues.push("No guiding principles defined".into());
+    }
+    if id.boundaries.is_empty() {
+        issues.push("No boundaries defined".into());
+    }
+    if id.self_model.entity_type.is_empty() {
+        issues.push("Entity type is empty".into());
+    }
+    if id.capabilities.is_empty() {
+        issues.push("No capabilities registered".into());
+    }
+
+    // Check that immutable principles haven't been removed
+    let required_principles = ["Privacy First", "Radical Transparency", "Owner Sovereignty"];
+    for req in required_principles {
+        if !id.principles.iter().any(|p| p.name == req) {
+            issues.push(format!("Required principle '{}' is missing", req));
+        }
+    }
+
+    issues
 }
 
 // ─── Persistence ───

@@ -140,6 +140,30 @@ fn default_strategies() -> Vec<ReasoningStrategy> {
             applicable_to: vec!["high_risk".into(), "ambiguous".into()],
             success_rate: 0.8, avg_duration_ms: 8000, times_used: 0, times_succeeded: 0, last_used: None,
         },
+        ReasoningStrategy {
+            id: "strat_tree_search".into(), name: "Tree Search".into(),
+            description: "Systematic exploration of action space branching".into(),
+            applicable_to: vec!["exploration".into(), "multi_path".into()],
+            success_rate: 0.6, avg_duration_ms: 2000, times_used: 0, times_succeeded: 0, last_used: None,
+        },
+        ReasoningStrategy {
+            id: "strat_constraint".into(), name: "Constraint Solver".into(),
+            description: "Solve under resource/time/dependency constraints".into(),
+            applicable_to: vec!["resource_allocation".into(), "scheduling".into()],
+            success_rate: 0.7, avg_duration_ms: 1000, times_used: 0, times_succeeded: 0, last_used: None,
+        },
+        ReasoningStrategy {
+            id: "strat_monte_carlo".into(), name: "Monte Carlo Sampling".into(),
+            description: "Random sampling to explore large solution spaces".into(),
+            applicable_to: vec!["exploration".into(), "optimization".into()],
+            success_rate: 0.55, avg_duration_ms: 4000, times_used: 0, times_succeeded: 0, last_used: None,
+        },
+        ReasoningStrategy {
+            id: "strat_hybrid".into(), name: "Hybrid Auto-Select".into(),
+            description: "Automatically select best strategy based on intent class and past performance".into(),
+            applicable_to: vec!["general".into(), "complex".into(), "simple".into(), "high_risk".into()],
+            success_rate: 0.75, avg_duration_ms: 1500, times_used: 0, times_succeeded: 0, last_used: None,
+        },
     ]
 }
 
@@ -248,6 +272,51 @@ pub async fn get_analyses(limit: usize) -> Vec<MetaAnalysis> {
 
 pub async fn get_suggestions() -> Vec<Suggestion> {
     META.read().await.suggestions.iter().filter(|s| !s.applied).cloned().collect()
+}
+
+/// Benchmark all strategies — compare success rates and recommend the best per intent class.
+/// Intended to be called during dreaming/idle periods.
+pub async fn benchmark_strategies() -> serde_json::Value {
+    let state = META.read().await;
+
+    let mut rankings: Vec<serde_json::Value> = state.strategies.iter()
+        .filter(|s| s.times_used > 0)
+        .map(|s| {
+            serde_json::json!({
+                "name": s.name,
+                "success_rate": s.success_rate,
+                "avg_duration_ms": s.avg_duration_ms,
+                "times_used": s.times_used,
+                "efficiency": if s.avg_duration_ms > 0 { s.success_rate / (s.avg_duration_ms as f32 / 1000.0) } else { 0.0 },
+                "applicable_to": s.applicable_to,
+            })
+        })
+        .collect();
+
+    rankings.sort_by(|a, b| {
+        let ea = a["efficiency"].as_f64().unwrap_or(0.0);
+        let eb = b["efficiency"].as_f64().unwrap_or(0.0);
+        eb.partial_cmp(&ea).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Build recommendations per intent class
+    let mut recommendations: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let intent_classes = ["general", "complex", "simple", "high_risk", "goal_oriented", "recurring", "exploration", "resource_allocation"];
+    for class in intent_classes {
+        if let Some(best) = state.strategies.iter()
+            .filter(|s| s.applicable_to.iter().any(|a| a == class) && s.times_used > 0)
+            .max_by(|a, b| a.success_rate.partial_cmp(&b.success_rate).unwrap_or(std::cmp::Ordering::Equal))
+        {
+            recommendations.insert(class.into(), best.name.clone());
+        }
+    }
+
+    serde_json::json!({
+        "rankings": rankings,
+        "recommendations": recommendations,
+        "total_strategies": state.strategies.len(),
+        "strategies_with_data": state.strategies.iter().filter(|s| s.times_used > 0).count(),
+    })
 }
 
 pub async fn get_stats() -> serde_json::Value {

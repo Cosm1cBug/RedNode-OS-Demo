@@ -2,7 +2,7 @@
 
 > *The computer does not contain intelligence. The computer becomes the intelligence.*
 >
-> **Current State**: v0.34.0 — 67 Rust modules, 150 API endpoints, 18 agents, 359 tools, 53 PostgreSQL tables, full cognitive architecture with consciousness, identity, constitution, attention, meta-reasoning, multi-agent debate, simulation, collective intelligence, and 20 cognitive subsystems
+> **Current State**: v0.35.0 — 70 Rust modules, 159 API endpoints, 18 agents, 359 tools, 56 PostgreSQL tables, full cognitive architecture with consciousness, identity, constitution, perception, cognitive bus, language engine, attention, meta-reasoning (9 strategies), multi-agent debate (10 roles), simulation, collective intelligence, and 20 deepened cognitive subsystems
 >
 > **Target**: v1.0 — Production deployment on real hardware
 
@@ -91,7 +91,33 @@
 - [x] **Adaptive Architecture** — proposes structural improvements
 - [x] **Collective Governance** — voting, leader election, consensus
 
-## Phase 6 – Production (v1.0) 🔜
+## Phase 6 – Enhancement (v0.35.0) ✅ Complete
+
+- [x] **Cognitive Bus** — 23 typed events connecting all modules (loose coupling)
+- [x] **Perception Layer** — 10 input modalities normalized into observations
+- [x] **Language Engine** — prompt templates, glossary, summarization, extraction
+- [x] **Consciousness depth** — awareness history, confidence trends, recovery
+- [x] **Goal depth** — dependency graphs, conflict detection, risk scoring, prediction
+- [x] **Identity depth** — mission hierarchy, achievements, consistency checking
+- [x] **Memory depth** — contradiction detection, entropy measurement, auto-indexing
+- [x] **Trust depth** — multi-axis trust (technical/behavioral/security/historical)
+- [x] **Debate depth** — 4 new roles (Devil's Advocate, Historian, Scientist, Ethicist)
+- [x] **Immune depth** — behavioral baselines, anomaly detection, attack surface mapping
+- [x] **Simulation depth** — attack simulation, conversation, future projection
+- [x] **Meta-reasoning depth** — 4 new strategies, comparative benchmarking
+- [x] **Reflection depth** — security/plugin/infrastructure review scopes
+- [x] **Evolution depth** — reasoning/memory/policy evolution types
+- [x] **Plugin depth** — full lifecycle (Develop → Test → Sandbox → Verify → Active → Deprecated)
+- [x] **World model depth** — threat layer, economic layer, cross-layer queries
+- [x] **HAL depth** — thermal monitoring, GPU scheduling, hardware benchmarking
+- [x] **Creativity depth** — Writing, Visual, Business domains
+- [x] **Scientific depth** — controls tracking, reproducibility scoring
+- [x] **Distillation depth** — Textbook, DecisionTree, TrainingMaterial categories
+- [x] **Dreaming depth** — planner benchmarking, assumption challenging, entropy analysis
+- [x] **Curiosity depth** — discovery impact tracking
+- [x] **Collective depth** — peer specialization, federation policy
+
+## Phase 7 – Production (v1.0) 🔜
 
 - [ ] Deploy on real hardware (homelab)
 - [ ] End-to-end integration testing across all 67 modules
@@ -128,4 +154,4 @@
 
 ---
 
-*RedNode-OS v0.34.0 — 67 modules, 150 endpoints, 359 tools, 18 agents, ~22,000 lines of Rust — The computer becomes the intelligence.*
+*RedNode-OS v0.35.0 — 70 modules, 159 endpoints, 359 tools, 18 agents, ~24,000 lines of Rust — The computer becomes the intelligence.*

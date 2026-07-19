@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.34.0",
+        "version": "0.35.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.34.0",
+                "version": "0.35.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1949,6 +1949,99 @@ async fn collective_election() -> Json<serde_json::Value> {
     Json(serde_json::json!({"ok": true, "election": election}))
 }
 
+
+// ─── Cognitive Bus API ───
+
+async fn cognitive_bus_recent() -> Json<serde_json::Value> {
+    let events = crate::cognitive_bus::get_recent(50).await;
+    let stats = crate::cognitive_bus::get_stats().await;
+    Json(serde_json::json!({"ok": true, "events": events, "stats": stats}))
+}
+
+async fn cognitive_bus_stats() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "stats": crate::cognitive_bus::get_stats().await}))
+}
+
+
+// ─── Perception API ───
+
+#[derive(Deserialize)]
+struct ObserveReq {
+    modality: String,
+    source: String,
+    content: String,
+    #[serde(default)]
+    data: Option<serde_json::Value>,
+    #[serde(default = "default_confidence")]
+    confidence: f32,
+}
+fn default_confidence() -> f32 { 0.8 }
+
+fn parse_modality(s: &str) -> crate::perception::Modality {
+    match s.to_lowercase().as_str() {
+        "vision" => crate::perception::Modality::Vision,
+        "speech" => crate::perception::Modality::Speech,
+        "log" | "logentry" => crate::perception::Modality::LogEntry,
+        "file" | "filechange" => crate::perception::Modality::FileChange,
+        "sensor" | "sensorreading" => crate::perception::Modality::SensorReading,
+        "api" | "apiresponse" => crate::perception::Modality::ApiResponse,
+        "network" | "networkevent" => crate::perception::Modality::NetworkEvent,
+        "user" | "userinput" => crate::perception::Modality::UserInput,
+        "agent" | "agentreport" => crate::perception::Modality::AgentReport,
+        _ => crate::perception::Modality::SystemMetric,
+    }
+}
+
+async fn perception_observe(Json(req): Json<ObserveReq>) -> Json<serde_json::Value> {
+    let modality = parse_modality(&req.modality);
+    let obs = crate::perception::observe(modality, &req.source, &req.content, req.data, req.confidence).await;
+    let _ = crate::perception::process_and_forward(&obs).await;
+    Json(serde_json::json!({"ok": true, "observation": obs}))
+}
+
+async fn perception_recent() -> Json<serde_json::Value> {
+    let recent = crate::perception::get_recent(50).await;
+    Json(serde_json::json!({"ok": true, "observations": recent, "stats": crate::perception::get_stats().await}))
+}
+
+async fn perception_stats() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "stats": crate::perception::get_stats().await}))
+}
+
+
+// ─── Language Engine API ───
+
+#[derive(Deserialize)]
+struct SummarizeReq { text: String, #[serde(default = "default_max_sentences")] max_sentences: usize }
+fn default_max_sentences() -> usize { 5 }
+
+async fn language_summarize(Json(req): Json<SummarizeReq>) -> Json<serde_json::Value> {
+    let summary = crate::language::summarize(&req.text, req.max_sentences).await;
+    Json(serde_json::json!({"ok": true, "summary": summary}))
+}
+
+#[derive(Deserialize)]
+struct ExtractReq { text: String }
+
+async fn language_extract(Json(req): Json<ExtractReq>) -> Json<serde_json::Value> {
+    let extraction = crate::language::extract(&req.text).await;
+    Json(serde_json::json!({"ok": true, "extraction": extraction}))
+}
+
+async fn language_glossary() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "glossary": crate::language::get_glossary().await}))
+}
+
+async fn language_add_term(Json(term): Json<crate::language::GlossaryTerm>) -> Json<serde_json::Value> {
+    crate::language::add_glossary_term(term).await;
+    Json(serde_json::json!({"ok": true, "message": "Term added"}))
+}
+
+async fn language_stats() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "stats": crate::language::get_stats().await}))
+}
+
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -2029,6 +2122,12 @@ pub fn router() -> Router {
         .route("/legacy", get(legacy_status)).route("/legacy/export", post(legacy_export))
         .route("/architecture", get(architecture_current)).route("/architecture/proposals", get(architecture_proposals))
         .route("/collective/votes", get(collective_votes)).route("/collective/election", post(collective_election))
+        // Enhancement (v0.35.0)
+        .route("/cognitive-bus/recent", get(cognitive_bus_recent)).route("/cognitive-bus/stats", get(cognitive_bus_stats))
+        .route("/perception/observe", post(perception_observe)).route("/perception/recent", get(perception_recent)).route("/perception/stats", get(perception_stats))
+        .route("/language/summarize", post(language_summarize)).route("/language/extract", post(language_extract))
+        .route("/language/glossary", get(language_glossary).post(language_add_term)).route("/language/stats", get(language_stats))
+        // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())

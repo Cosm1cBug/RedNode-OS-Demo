@@ -61,9 +61,37 @@ pub struct WorldModel {
     /// Directed edges: entity_id -> list of (target_id, relation)
     pub edges: HashMap<String, Vec<Edge>>,
 
+    /// Threat layer: active threats mapped to infrastructure entities
+    pub threat_layer: Vec<ThreatMapping>,
+    /// Economic layer: cost per service/machine
+    pub economic_layer: Vec<ServiceCost>,
+
     pub last_scan: Option<DateTime<Utc>>,
     pub last_updated: DateTime<Utc>,
     pub snapshot_history: VecDeque<WorldSnapshot>,
+}
+
+/// A threat mapped to a specific infrastructure entity
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThreatMapping {
+    pub entity_id: String,
+    pub entity_name: String,
+    pub threat_type: String,
+    pub severity: String,
+    pub description: String,
+    pub detected_at: DateTime<Utc>,
+    pub mitigated: bool,
+}
+
+/// Cost associated with running a service or machine
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServiceCost {
+    pub entity_id: String,
+    pub entity_name: String,
+    pub cost_per_month: f64,
+    pub currency: String,
+    pub category: String,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -329,6 +357,8 @@ impl Default for WorldModel {
             people: Vec::new(),
             projects: Vec::new(),
             edges: HashMap::new(),
+            threat_layer: Vec::new(),
+            economic_layer: Vec::new(),
             last_scan: None,
             last_updated: Utc::now(),
             snapshot_history: VecDeque::with_capacity(30),
@@ -700,6 +730,75 @@ fn find_entity_type(world: &WorldModel, id: &str) -> String {
     if world.cameras.iter().any(|c| c.id == id) { return "camera".into(); }
     if world.iot_devices.iter().any(|d| d.id == id) { return "iot_device".into(); }
     "unknown".into()
+}
+
+// ─── Threat & Economic Layers ───
+
+/// Map a threat to an infrastructure entity
+pub async fn add_threat_mapping(entity_id: &str, threat_type: &str, severity: &str, description: &str) {
+    let mut world = WORLD.write().await;
+    let entity_name = find_entity_name(&world, entity_id)
+        .unwrap_or_else(|| entity_id.to_string());
+    world.threat_layer.push(ThreatMapping {
+        entity_id: entity_id.into(), entity_name, threat_type: threat_type.into(),
+        severity: severity.into(), description: description.into(),
+        detected_at: Utc::now(), mitigated: false,
+    });
+    world.last_updated = Utc::now();
+}
+
+/// Mark a threat mapping as mitigated
+pub async fn mitigate_threat_mapping(entity_id: &str, threat_type: &str) {
+    let mut world = WORLD.write().await;
+    for tm in &mut world.threat_layer {
+        if tm.entity_id == entity_id && tm.threat_type == threat_type {
+            tm.mitigated = true;
+        }
+    }
+}
+
+/// Get active (unmitigated) threats
+pub async fn get_active_threat_mappings() -> Vec<ThreatMapping> {
+    WORLD.read().await.threat_layer.iter().filter(|t| !t.mitigated).cloned().collect()
+}
+
+/// Set the cost for a service/machine
+pub async fn set_service_cost(entity_id: &str, cost_per_month: f64, currency: &str, category: &str, notes: Option<String>) {
+    let mut world = WORLD.write().await;
+    let entity_name = find_entity_name(&world, entity_id)
+        .unwrap_or_else(|| entity_id.to_string());
+    // Update existing or add new
+    if let Some(sc) = world.economic_layer.iter_mut().find(|s| s.entity_id == entity_id) {
+        sc.cost_per_month = cost_per_month;
+        sc.currency = currency.into();
+        sc.category = category.into();
+        sc.notes = notes;
+    } else {
+        world.economic_layer.push(ServiceCost {
+            entity_id: entity_id.into(), entity_name,
+            cost_per_month, currency: currency.into(), category: category.into(), notes,
+        });
+    }
+    world.last_updated = Utc::now();
+}
+
+/// Get total monthly cost across all services
+pub async fn total_monthly_cost() -> f64 {
+    WORLD.read().await.economic_layer.iter().map(|s| s.cost_per_month).sum()
+}
+
+/// Cross-layer query: entities that are both expensive AND have active threats
+pub async fn expensive_threatened_entities() -> Vec<(ServiceCost, ThreatMapping)> {
+    let world = WORLD.read().await;
+    let mut results = Vec::new();
+    for cost in &world.economic_layer {
+        for threat in &world.threat_layer {
+            if threat.entity_id == cost.entity_id && !threat.mitigated {
+                results.push((cost.clone(), threat.clone()));
+            }
+        }
+    }
+    results
 }
 
 // ─── Snapshots & Diffs ───

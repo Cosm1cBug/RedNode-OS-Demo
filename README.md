@@ -43,8 +43,11 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  IDENTITY: Purpose • Principles • Boundaries • Constitution (7 Articles)    │
 ├──────────────────────────────────────────────────────────────────────────────┤
+│  PERCEPTION: Vision • Speech • Logs • Sensors • APIs • Network → Observations│
+├──────────────────────────────────────────────────────────────────────────────┤
 │  CONSCIOUSNESS: Mind State • Focus • Awareness • Goals • Reflection         │
 │  ATTENTION: Signal Scoring • Priority Queue • Cognitive Load Management     │
+│  COGNITIVE BUS: Typed Events Connecting All Modules (23 event types)        │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  COGNITION: Meta-Reasoning • Debate • Simulation • Creativity • Scientific  │
 │  Intent Clarification • Context Activation • Explainability • Uncertainty   │
@@ -57,10 +60,12 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 │  EMOTIONAL STATE: Confidence • Stress • Curiosity • Satisfaction • Fatigue  │
 │  COGNITIVE METRICS: Decision Quality • Autonomy • Learning Rate • 14 total  │
 ├──────────────────────────────────────────────────────────────────────────────┤
+│  LANGUAGE: Prompt Optimization • Glossary • Summarization • Extraction      │
+├──────────────────────────────────────────────────────────────────────────────┤
 │  INTERFACES: Web • Mobile • CLI • Voice • Signal • API • Kiosk • WebSocket  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  CNS (Rust — Axum + Tokio — port 8787)                                      │
-│  67 Modules • 150 API Endpoints • LLM Planner • GOAP Fallback               │
+│  70 Modules • 159 API Endpoints • LLM Planner • GOAP Fallback               │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  18 AGENTS via NATS: System • Security • Coding • Research • Automation      │
 │  Network • Infra (Pi-hole) • Storage (TrueNAS) • Surveillance (Frigate)      │
@@ -83,30 +88,31 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 
 ---
 
-## Stats (v0.34.0)
+## Stats (v0.35.0)
 
 | Metric | Value |
 |---|---|
-| Rust modules | 67 |
-| Rust source files | 69 |
-| Rust LOC | ~22,000 |
-| API endpoints | 150 |
+| Rust modules | 70 |
+| Rust source files | 72 |
+| Rust LOC | ~24,000 |
+| API endpoints | 159 |
 | Agents | 18 |
 | Tools | 359 (236 low, 100 medium, 23 high risk) |
-| PostgreSQL tables | 53 |
+| PostgreSQL tables | 56 |
 | Constitutional articles | 7 (immutable) |
 | Ethical values | 7 |
 | Default governance policies | 4 |
-| Reasoning strategies | 5 |
+| Reasoning strategies | 9 |
+| Debate roles | 10 |
 | Built-in time patterns | 6 |
 | Prompt injection patterns | 13 |
 | Credential leak patterns | 12 |
 | Identity principles | 6 |
 | Identity boundaries | 5 |
 | Cognitive metrics tracked | 14 |
+| Creativity domains | 12 |
 
 ---
-
 
 ## Core Capabilities
 

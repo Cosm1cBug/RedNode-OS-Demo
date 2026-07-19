@@ -233,6 +233,28 @@ pub async fn periodic_reflection() -> Reflection {
         optimizations.push(format!("Disk usage high: {:.0}% — consider cleanup", res.disk_used_percent));
     }
 
+    // ── Security posture review ──
+    let immune_health = crate::immune::health_score().await;
+    if immune_health < 0.7 {
+        optimizations.push(format!("Security health degraded: {:.0}% — review active threats", immune_health * 100.0));
+    }
+    let active_threats = crate::immune::get_active_threats().await;
+    if !active_threats.is_empty() {
+        failures.push(format!("{} active security threats unresolved", active_threats.len()));
+    }
+
+    // ── Plugin health review ──
+    let plugin_count = crate::plugins::active_count().await;
+    if plugin_count > 0 {
+        learnings.push(format!("{} active plugins running", plugin_count));
+    }
+
+    // ── Infrastructure health review ──
+    let world_summary = crate::world_model::summary().await;
+    if !world_summary.is_empty() {
+        learnings.push(format!("Infrastructure: {}", world_summary));
+    }
+
     // Confidence calculation
     let success_rate = if completion_count + failure_count > 0 {
         completion_count as f32 / (completion_count + failure_count) as f32

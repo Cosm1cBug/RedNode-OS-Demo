@@ -135,6 +135,15 @@ pub struct ContextItem {
 
 /// The complete structured memory system
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A detected contradiction between memories
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Contradiction {
+    pub episode_a_id: String,
+    pub episode_b_id: String,
+    pub description: String,
+    pub detected_at: DateTime<Utc>,
+}
+
 pub struct StructuredMemory {
     pub episodes: VecDeque<Episode>,
     pub procedures: Vec<Procedure>,
@@ -142,6 +151,9 @@ pub struct StructuredMemory {
     pub semantic_count: u64,
     pub total_episodes: u64,
     pub total_recalls: u64,
+    pub contradictions: Vec<Contradiction>,
+    /// Memory entropy: 0.0 = highly redundant, 1.0 = maximally diverse
+    pub entropy: f32,
 }
 
 impl Default for StructuredMemory {
@@ -159,6 +171,8 @@ impl Default for StructuredMemory {
             semantic_count: 0,
             total_episodes: 0,
             total_recalls: 0,
+            contradictions: Vec::new(),
+            entropy: 0.0,
         }
     }
 }
@@ -335,6 +349,124 @@ pub async fn clear_working() {
     };
 }
 
+/// Detect contradictions: episodes with similar titles/categories but opposite outcomes
+pub async fn detect_contradictions() -> Vec<Contradiction> {
+    let mut mem = EPISODIC.write().await;
+    let mut new_contradictions = Vec::new();
+
+    let episodes: Vec<_> = mem.episodes.iter().cloned().collect();
+    for i in 0..episodes.len() {
+        for j in (i + 1)..episodes.len() {
+            let a = &episodes[i];
+            let b = &episodes[j];
+            // Same category, same participants, but different outcomes
+            if a.category == b.category
+                && a.outcome != b.outcome
+                && a.outcome != EpisodeOutcome::Ongoing
+                && b.outcome != EpisodeOutcome::Ongoing
+                && a.outcome != EpisodeOutcome::Unknown
+                && b.outcome != EpisodeOutcome::Unknown
+            {
+                // Check if titles are similar (share 2+ words)
+                let a_words: std::collections::HashSet<_> = a.title.to_lowercase().split_whitespace().collect();
+                let b_words: std::collections::HashSet<_> = b.title.to_lowercase().split_whitespace().collect();
+                let overlap = a_words.intersection(&b_words).count();
+                if overlap >= 2 {
+                    let already_found = mem.contradictions.iter()
+                        .any(|c| (c.episode_a_id == a.id && c.episode_b_id == b.id)
+                            || (c.episode_a_id == b.id && c.episode_b_id == a.id));
+                    if !already_found {
+                        let c = Contradiction {
+                            episode_a_id: a.id.clone(),
+                            episode_b_id: b.id.clone(),
+                            description: format!(
+                                "'{}' ({:?}) vs '{}' ({:?})",
+                                a.title, a.outcome, b.title, b.outcome
+                            ),
+                            detected_at: Utc::now(),
+                        };
+                        new_contradictions.push(c);
+                    }
+                }
+            }
+        }
+    }
+
+    mem.contradictions.extend(new_contradictions.clone());
+    // Keep last 50 contradictions
+    if mem.contradictions.len() > 50 {
+        mem.contradictions = mem.contradictions.split_off(mem.contradictions.len() - 50);
+    }
+
+    new_contradictions
+}
+
+/// Compute memory entropy — diversity of episode categories
+/// 0.0 = all episodes are the same category, 1.0 = maximally diverse
+pub async fn compute_entropy() -> f32 {
+    let mut mem = EPISODIC.write().await;
+    if mem.episodes.is_empty() {
+        mem.entropy = 0.0;
+        return 0.0;
+    }
+
+    let mut category_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for ep in &mem.episodes {
+        let key = format!("{:?}", ep.category);
+        *category_counts.entry(key).or_insert(0) += 1;
+    }
+
+    let total = mem.episodes.len() as f32;
+    let mut entropy = 0.0f32;
+    for count in category_counts.values() {
+        let p = *count as f32 / total;
+        if p > 0.0 {
+            entropy -= p * p.ln();
+        }
+    }
+    // Normalize by max possible entropy (ln of number of categories)
+    let max_entropy = (category_counts.len() as f32).ln().max(1.0);
+    let normalized = (entropy / max_entropy).clamp(0.0, 1.0);
+
+    mem.entropy = normalized;
+    normalized
+}
+
+/// Auto-index an episode — add tags based on goal keywords and capability domains
+pub async fn auto_index_episode(episode_id: &str) {
+    let goals = crate::goals::active().await;
+    let identity = crate::identity::get().await;
+
+    let mut mem = EPISODIC.write().await;
+    if let Some(ep) = mem.episodes.iter_mut().find(|e| e.id == episode_id) {
+        let narrative_lower = ep.narrative.to_lowercase();
+
+        // Tag with matching goal tags
+        for goal in &goals {
+            for tag in &goal.tags {
+                if narrative_lower.contains(&tag.to_lowercase()) && !ep.lessons.contains(tag) {
+                    ep.lessons.push(format!("[auto:goal:{}] {}", goal.title, tag));
+                }
+            }
+        }
+
+        // Tag with matching capability domains
+        for cap in &identity.capabilities {
+            if narrative_lower.contains(&cap.domain.to_lowercase()) {
+                let tag = format!("[auto:capability:{}]", cap.name);
+                if !ep.lessons.contains(&tag) {
+                    ep.lessons.push(tag);
+                }
+            }
+        }
+    }
+}
+
+/// Get detected contradictions
+pub async fn get_contradictions() -> Vec<Contradiction> {
+    EPISODIC.read().await.contradictions.clone()
+}
+
 /// Clean expired context items
 pub async fn tick() {
     let mut mem = EPISODIC.write().await;
@@ -355,6 +487,8 @@ pub async fn get_stats() -> serde_json::Value {
         "working_context_items": mem.working.context.len(),
         "total_episodes": mem.total_episodes,
         "total_recalls": mem.total_recalls,
+        "contradictions": mem.contradictions.len(),
+        "entropy": mem.entropy,
     })
 }
 

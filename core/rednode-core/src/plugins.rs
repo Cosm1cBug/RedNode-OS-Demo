@@ -80,11 +80,18 @@ pub struct InstalledPlugin {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum PluginStatus {
+    Developing,
+    Testing,
+    Sandboxing,
+    Verifying,
+    Approved,
     Active,
     Disabled,
+    Deprecated,
     Error,
     Installing,
     Uninstalling,
+    Removed,
 }
 
 /// The plugin store
@@ -196,6 +203,42 @@ pub async fn set_enabled(id: &str, enabled: bool) -> bool {
         return true;
     }
     false
+}
+
+/// Transition a plugin through its lifecycle
+pub async fn transition(id: &str, to: PluginStatus) -> Result<bool, String> {
+    let mut store = PLUGINS.write().await;
+    let plugin = store.plugins.iter_mut().find(|p| p.id == id)
+        .ok_or_else(|| "Plugin not found".to_string())?;
+
+    // Validate transition is legal
+    let allowed = match (&plugin.status, &to) {
+        (PluginStatus::Developing, PluginStatus::Testing) => true,
+        (PluginStatus::Testing, PluginStatus::Sandboxing) => true,
+        (PluginStatus::Testing, PluginStatus::Developing) => true, // back to dev
+        (PluginStatus::Sandboxing, PluginStatus::Verifying) => true,
+        (PluginStatus::Sandboxing, PluginStatus::Testing) => true, // back to test
+        (PluginStatus::Verifying, PluginStatus::Approved) => true,
+        (PluginStatus::Verifying, PluginStatus::Testing) => true, // fail verification
+        (PluginStatus::Approved, PluginStatus::Active) => true,
+        (PluginStatus::Active, PluginStatus::Disabled) => true,
+        (PluginStatus::Active, PluginStatus::Deprecated) => true,
+        (PluginStatus::Disabled, PluginStatus::Active) => true,
+        (PluginStatus::Deprecated, PluginStatus::Removed) => true,
+        (_, PluginStatus::Error) => true, // any state can error
+        _ => false,
+    };
+
+    if !allowed {
+        return Err(format!(
+            "Invalid transition: {:?} → {:?}",
+            plugin.status, to
+        ));
+    }
+
+    plugin.status = to;
+    plugin.updated_at = Utc::now();
+    Ok(true)
 }
 
 /// Uninstall a plugin

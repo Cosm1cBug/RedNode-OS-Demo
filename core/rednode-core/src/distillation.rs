@@ -63,6 +63,9 @@ pub enum DocumentCategory {
     Preference,
     TroubleshootingGuide,
     Architecture,
+    Textbook,
+    DecisionTree,
+    TrainingMaterial,
     Custom(String),
 }
 

@@ -41,6 +41,16 @@ pub struct UserGoal {
     pub target_date: Option<DateTime<Utc>>,
     pub contributions: Vec<Contribution>,
     pub tags: Vec<String>,
+    /// IDs of goals that must complete before this goal can proceed
+    pub depends_on: Vec<String>,
+    /// IDs of goals that potentially conflict with this one
+    pub conflicts_with: Vec<String>,
+    /// Risk score for pursuing this goal (0.0 safe, 1.0 risky)
+    pub risk_score: f32,
+    /// Estimated completion date based on current progress rate
+    pub estimated_completion: Option<DateTime<Utc>>,
+    /// Context inherited from a parent goal
+    pub inherited_context: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -118,6 +128,11 @@ pub async fn create(title: &str, description: &str, tags: Vec<String>, target_da
         target_date,
         contributions: Vec::new(),
         tags,
+        depends_on: Vec::new(),
+        conflicts_with: Vec::new(),
+        risk_score: 0.0,
+        estimated_completion: None,
+        inherited_context: None,
     };
 
     let mut goals = GOALS.write().await;
@@ -271,6 +286,72 @@ pub async fn active_count() -> usize {
         .count()
 }
 
+/// Add a dependency: goal_id depends on dependency_id
+pub async fn add_dependency(goal_id: &str, dependency_id: &str) {
+    let mut goals = GOALS.write().await;
+    if let Some(goal) = goals.iter_mut().find(|g| g.id == goal_id) {
+        if !goal.depends_on.contains(&dependency_id.to_string()) {
+            goal.depends_on.push(dependency_id.to_string());
+        }
+    }
+}
+
+/// Get goals whose dependencies are all completed (ready to work on)
+pub async fn get_ready_goals() -> Vec<UserGoal> {
+    let goals = GOALS.read().await;
+    goals.iter()
+        .filter(|g| g.status == GoalStatus::Active)
+        .filter(|g| {
+            g.depends_on.iter().all(|dep_id| {
+                goals.iter().any(|dg| dg.id == *dep_id && dg.status == GoalStatus::Completed)
+            }) || g.depends_on.is_empty()
+        })
+        .cloned()
+        .collect()
+}
+
+/// Detect conflicts between active goals (goals with overlapping but contradicting tags)
+pub async fn check_conflicts() -> Vec<(String, String, String)> {
+    let goals = GOALS.read().await;
+    let active: Vec<_> = goals.iter().filter(|g| g.status == GoalStatus::Active).collect();
+    let mut conflicts = Vec::new();
+
+    for i in 0..active.len() {
+        for j in (i + 1)..active.len() {
+            // Check explicit conflicts_with
+            if active[i].conflicts_with.contains(&active[j].id)
+                || active[j].conflicts_with.contains(&active[i].id)
+            {
+                conflicts.push((
+                    active[i].id.clone(),
+                    active[j].id.clone(),
+                    "Explicitly marked as conflicting".into(),
+                ));
+            }
+        }
+    }
+    conflicts
+}
+
+/// Update estimated completion based on current progress rate
+pub async fn update_predictions() {
+    let mut goals = GOALS.write().await;
+    let now = Utc::now();
+
+    for goal in goals.iter_mut() {
+        if goal.status != GoalStatus::Active || goal.progress <= 0.0 {
+            continue;
+        }
+        let elapsed_days = (now - goal.created_at).num_days().max(1) as f32;
+        let progress_per_day = goal.progress / elapsed_days;
+        if progress_per_day > 0.001 {
+            let remaining = 1.0 - goal.progress;
+            let days_remaining = (remaining / progress_per_day) as i64;
+            goal.estimated_completion = Some(now + chrono::Duration::days(days_remaining));
+        }
+    }
+}
+
 /// Persist goals to PostgreSQL
 async fn persist_goals(goals: &[UserGoal]) {
     if let Some(pool) = crate::memory::pool() {
@@ -360,9 +441,16 @@ mod tests {
             target_date: None,
             contributions: vec![],
             tags: vec!["test".into()],
+            depends_on: vec![],
+            conflicts_with: vec![],
+            risk_score: 0.0,
+            estimated_completion: None,
+            inherited_context: None,
         };
         assert_eq!(goal.status, GoalStatus::Active);
         assert_eq!(goal.progress, 0.0);
+        assert!(goal.depends_on.is_empty());
+        assert_eq!(goal.risk_score, 0.0);
     }
 
     #[test]
@@ -386,9 +474,15 @@ mod tests {
             target_date: None,
             contributions: vec![],
             tags: vec![],
+            depends_on: vec![],
+            conflicts_with: vec![],
+            risk_score: 0.1,
+            estimated_completion: None,
+            inherited_context: None,
         };
-        let json = serde_json::to_string(&goal).unwrap();
+        let json = serde_json::to_string(&goal).expect("serialize goal");
         assert!(json.contains("Serialize Test"));
         assert!(json.contains("Sub test"));
+        assert!(json.contains("risk_score"));
     }
 }

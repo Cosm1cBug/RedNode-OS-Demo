@@ -29,6 +29,35 @@ pub struct HardwareProfile {
     pub disks: Vec<DiskInfo>, pub network_interfaces: Vec<NetInterface>,
     pub architecture: String, pub os: String, pub uptime_secs: u64,
     pub last_profiled: DateTime<Utc>,
+    /// CPU/GPU temperature readings
+    pub thermal: ThermalProfile,
+    /// Hardware capability benchmark score (0.0–1.0)
+    pub benchmark_score: Option<f32>,
+}
+
+/// Thermal monitoring data
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThermalProfile {
+    pub cpu_temp_c: Option<f32>,
+    pub gpu_temp_c: Option<f32>,
+    pub throttling: bool,
+    pub last_reading: DateTime<Utc>,
+}
+
+impl Default for ThermalProfile {
+    fn default() -> Self {
+        Self { cpu_temp_c: None, gpu_temp_c: None, throttling: false, last_reading: Utc::now() }
+    }
+}
+
+/// A GPU time slot for multi-model scheduling
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuSlot {
+    pub model_name: String,
+    pub allocated_mb: u64,
+    pub priority: u32,
+    pub started_at: DateTime<Utc>,
+    pub estimated_end: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +81,8 @@ pub struct HalState {
     pub failover_targets: Vec<FailoverTarget>,
     pub failover_history: Vec<FailoverRecord>,
     pub total_failovers: u64,
+    /// GPU time-sharing schedule for multi-model inference
+    pub gpu_schedule: Vec<GpuSlot>,
 }
 
 impl Default for HalState {
@@ -67,8 +98,11 @@ impl Default for HalState {
                 gpu: None, disks: vec![], network_interfaces: vec![],
                 architecture: std::env::consts::ARCH.into(), os: std::env::consts::OS.into(),
                 uptime_secs: sysinfo::System::uptime(), last_profiled: Utc::now(),
+                thermal: ThermalProfile::default(),
+                benchmark_score: None,
             },
             failover_targets: Vec::new(), failover_history: Vec::new(), total_failovers: 0,
+            gpu_schedule: Vec::new(),
         }
     }
 }
@@ -96,6 +130,45 @@ pub async fn record_failover(from: &str, to: &str, reason: &str, services: Vec<S
     let mut state = HAL.write().await;
     state.failover_history.push(FailoverRecord { id: gen_id(), from_host: from.into(), to_host: to.into(), reason: reason.into(), services_migrated: services, timestamp: Utc::now(), success });
     state.total_failovers += 1;
+}
+
+/// Update thermal readings
+pub async fn update_thermal(cpu_temp: Option<f32>, gpu_temp: Option<f32>) {
+    let mut state = HAL.write().await;
+    state.local_profile.thermal.cpu_temp_c = cpu_temp;
+    state.local_profile.thermal.gpu_temp_c = gpu_temp;
+    state.local_profile.thermal.throttling = cpu_temp.map_or(false, |t| t > 85.0)
+        || gpu_temp.map_or(false, |t| t > 90.0);
+    state.local_profile.thermal.last_reading = Utc::now();
+}
+
+/// Allocate a GPU time slot for a model
+pub async fn allocate_gpu(model_name: &str, vram_mb: u64, priority: u32) {
+    let mut state = HAL.write().await;
+    state.gpu_schedule.push(GpuSlot {
+        model_name: model_name.into(), allocated_mb: vram_mb, priority,
+        started_at: Utc::now(), estimated_end: None,
+    });
+    // Sort by priority (highest first)
+    state.gpu_schedule.sort_by(|a, b| b.priority.cmp(&a.priority));
+}
+
+/// Release a GPU slot
+pub async fn release_gpu(model_name: &str) {
+    let mut state = HAL.write().await;
+    state.gpu_schedule.retain(|s| s.model_name != model_name);
+}
+
+/// Run a simple benchmark and store the score
+pub async fn run_benchmark() -> f32 {
+    let mut state = HAL.write().await;
+    // Simple heuristic benchmark: score based on CPU cores + RAM
+    let cpu_score = (state.local_profile.cpu_cores as f32 / 16.0).min(1.0);
+    let ram_score = (state.local_profile.ram_total_mb as f32 / 32768.0).min(1.0);
+    let gpu_score = if state.local_profile.gpu.is_some() { 0.3 } else { 0.0 };
+    let score = (cpu_score * 0.4 + ram_score * 0.3 + gpu_score).clamp(0.0, 1.0);
+    state.local_profile.benchmark_score = Some(score);
+    score
 }
 
 pub async fn get_cluster_view() -> serde_json::Value {

@@ -85,6 +85,16 @@ pub struct Discovery {
     pub discovered_at: DateTime<Utc>,
     pub ingested: bool,
     pub notified: bool,
+    /// Did this discovery lead to a real action?
+    pub impact: Option<DiscoveryImpact>,
+}
+
+/// Tracks whether a discovery had real-world impact
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveryImpact {
+    pub impact_type: String,
+    pub description: String,
+    pub tracked_at: DateTime<Utc>,
 }
 
 /// An exploration target — what to search next
@@ -208,6 +218,7 @@ pub async fn record_discovery(
         discovered_at: Utc::now(),
         ingested: false,
         notified: false,
+        impact: None,
     };
 
     // Keep last 100 discoveries
@@ -247,6 +258,26 @@ pub async fn mark_notified(discovery_id: &str) {
     if let Some(d) = state.discoveries.iter_mut().find(|d| d.id == discovery_id) {
         d.notified = true;
     }
+}
+
+/// Record that a discovery had real-world impact
+pub async fn record_impact(discovery_id: &str, impact_type: &str, description: &str) {
+    let mut state = CURIOSITY.write().await;
+    if let Some(d) = state.discoveries.iter_mut().find(|d| d.id == discovery_id) {
+        d.impact = Some(DiscoveryImpact {
+            impact_type: impact_type.into(),
+            description: description.into(),
+            tracked_at: Utc::now(),
+        });
+    }
+}
+
+/// Get discoveries that had real impact
+pub async fn get_impactful_discoveries() -> Vec<Discovery> {
+    CURIOSITY.read().await.discoveries.iter()
+        .filter(|d| d.impact.is_some())
+        .cloned()
+        .collect()
 }
 
 /// Build the exploration queue based on goals + configured topics
@@ -441,8 +472,9 @@ mod tests {
             discovered_at: Utc::now(),
             ingested: false,
             notified: false,
+            impact: None,
         };
-        let json = serde_json::to_string(&d).unwrap();
+        let json = serde_json::to_string(&d).expect("serialize discovery");
         assert!(json.contains("OpenSSH"));
         assert!(json.contains("cybersecurity"));
     }

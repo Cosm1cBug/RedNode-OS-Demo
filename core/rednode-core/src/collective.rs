@@ -35,6 +35,38 @@ pub struct PeerInstance {
     pub capabilities: Vec<String>, pub status: PeerStatus,
     pub last_seen: DateTime<Utc>, pub last_sync: Option<DateTime<Utc>>,
     pub trust_score: f32, pub version: String,
+    /// What this peer specializes in (subset of capabilities it's best at)
+    pub specializations: Vec<String>,
+}
+
+/// Policy controlling what knowledge to share vs keep local
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationPolicy {
+    /// Share episodic memories with peers?
+    pub share_episodes: bool,
+    /// Share distilled knowledge documents?
+    pub share_knowledge: bool,
+    /// Share goal progress?
+    pub share_goals: bool,
+    /// Share threat intelligence?
+    pub share_threats: bool,
+    /// Share capability registry?
+    pub share_capabilities: bool,
+    /// Categories of knowledge to NEVER share
+    pub deny_categories: Vec<String>,
+}
+
+impl Default for FederationPolicy {
+    fn default() -> Self {
+        Self {
+            share_episodes: false,
+            share_knowledge: true,
+            share_goals: false,
+            share_threats: true,
+            share_capabilities: true,
+            deny_categories: vec!["personal".into(), "credentials".into()],
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -54,6 +86,8 @@ pub struct CollectiveState {
     pub this_instance_id: String, pub peers: Vec<PeerInstance>,
     pub sync_history: Vec<SyncRecord>, pub delegations: Vec<DelegationRecord>,
     pub total_syncs: u64, pub total_delegations: u64,
+    /// Policy controlling knowledge sharing with peers
+    pub federation_policy: FederationPolicy,
 }
 
 impl Default for CollectiveState {
@@ -62,6 +96,7 @@ impl Default for CollectiveState {
             this_instance_id: format!("rednode_{}", gethostname::gethostname().to_string_lossy()),
             peers: Vec::new(), sync_history: Vec::new(), delegations: Vec::new(),
             total_syncs: 0, total_delegations: 0,
+            federation_policy: FederationPolicy::default(),
         }
     }
 }
@@ -70,7 +105,7 @@ fn gen_id() -> String { format!("peer_{}", chrono::Utc::now().timestamp_millis()
 
 pub async fn register_peer(name: &str, url: &str, role: PeerRole, capabilities: Vec<String>, version: &str) -> PeerInstance {
     let mut state = COLLECTIVE.write().await;
-    let peer = PeerInstance { id: gen_id(), name: name.into(), url: url.into(), role, capabilities, status: PeerStatus::Unknown, last_seen: Utc::now(), last_sync: None, trust_score: 0.5, version: version.into() };
+    let peer = PeerInstance { id: gen_id(), name: name.into(), url: url.into(), role, capabilities, status: PeerStatus::Unknown, last_seen: Utc::now(), last_sync: None, trust_score: 0.5, version: version.into(), specializations: Vec::new() };
     state.peers.push(peer.clone());
     tracing::info!(name = name, url = url, "Peer registered");
     peer

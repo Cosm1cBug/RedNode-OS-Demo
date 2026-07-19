@@ -23,6 +23,17 @@ pub struct ArchProposal {
     pub rationale: String, pub estimated_improvement: f32,
     pub risks: Vec<String>, pub status: ProposalStatus,
     pub sandbox_result: Option<String>, pub timestamp: DateTime<Utc>,
+    /// What kind of evolution this proposal represents
+    pub evolution_type: EvolutionTarget,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum EvolutionTarget {
+    Architecture,
+    Reasoning,
+    MemoryIndexing,
+    Policy,
+    Custom(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -42,7 +53,7 @@ fn gen_id() -> String { format!("arch_{}", chrono::Utc::now().timestamp_millis()
 
 pub async fn propose(title: &str, description: &str, current: &str, proposed: &str, rationale: &str, improvement: f32, risks: Vec<String>) -> ArchProposal {
     let mut state = ARCH.write().await;
-    let p = ArchProposal { id: gen_id(), title: title.into(), description: description.into(), current_design: current.into(), proposed_design: proposed.into(), rationale: rationale.into(), estimated_improvement: improvement, risks, status: ProposalStatus::Draft, sandbox_result: None, timestamp: Utc::now() };
+    let p = ArchProposal { id: gen_id(), title: title.into(), description: description.into(), current_design: current.into(), proposed_design: proposed.into(), rationale: rationale.into(), estimated_improvement: improvement, risks, status: ProposalStatus::Draft, sandbox_result: None, timestamp: Utc::now(), evolution_type: EvolutionTarget::Architecture };
     state.proposals.push(p.clone());
     state.total += 1;
     p

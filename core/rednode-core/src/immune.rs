@@ -90,6 +90,42 @@ pub struct ImmuneHealth {
 
 /// The complete immune system state
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Behavioral baseline — learned normal operating ranges
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BehavioralBaseline {
+    pub cpu_range: (f32, f32),
+    pub ram_range: (u64, u64),
+    pub network_connections_range: (u32, u32),
+    pub login_hour_range: (u32, u32),
+    pub samples: u64,
+    pub last_updated: DateTime<Utc>,
+}
+
+impl Default for BehavioralBaseline {
+    fn default() -> Self {
+        Self {
+            cpu_range: (0.0, 80.0),
+            ram_range: (0, 8192),
+            network_connections_range: (0, 200),
+            login_hour_range: (6, 23),
+            samples: 0,
+            last_updated: Utc::now(),
+        }
+    }
+}
+
+/// A known attack vector on the infrastructure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttackVector {
+    pub id: String,
+    pub name: String,
+    pub target: String,
+    pub severity: ThreatLevel,
+    pub description: String,
+    pub mitigated: bool,
+}
+
+/// The complete immune system state
 pub struct ImmuneState {
     pub health: ImmuneHealth,
     pub active_threats: Vec<Threat>,
@@ -98,6 +134,10 @@ pub struct ImmuneState {
     pub total_threats_mitigated: u64,
     pub prompt_injection_patterns: Vec<String>,
     pub credential_patterns: Vec<String>,
+    /// Learned behavioral baseline for anomaly detection
+    pub baseline: BehavioralBaseline,
+    /// Mapped attack surface
+    pub attack_surface: Vec<AttackVector>,
 }
 
 impl Default for ImmuneState {
@@ -117,6 +157,8 @@ impl Default for ImmuneState {
             total_threats_mitigated: 0,
             prompt_injection_patterns: default_injection_patterns(),
             credential_patterns: default_credential_patterns(),
+            baseline: BehavioralBaseline::default(),
+            attack_surface: Vec::new(),
         }
     }
 }
@@ -318,6 +360,67 @@ fn recalculate_health(state: &mut ImmuneState) {
     }).sum::<f32>();
 
     state.health.overall_score = (1.0 - threat_penalty).max(0.0);
+}
+
+/// Detect behavioral anomalies by comparing current metrics against baseline
+pub async fn detect_anomaly(cpu: f32, ram_mb: u64, connections: u32) -> Option<Threat> {
+    let state = IMMUNE.read().await;
+    let b = &state.baseline;
+
+    let mut anomalies = Vec::new();
+    if cpu > b.cpu_range.1 * 1.5 {
+        anomalies.push(format!("CPU {:.0}% exceeds baseline max {:.0}%", cpu, b.cpu_range.1));
+    }
+    if ram_mb > b.ram_range.1 * 2 {
+        anomalies.push(format!("RAM {}MB exceeds baseline max {}MB", ram_mb, b.ram_range.1));
+    }
+    if connections > b.network_connections_range.1 * 3 {
+        anomalies.push(format!("Network connections {} exceeds baseline max {}", connections, b.network_connections_range.1));
+    }
+
+    drop(state);
+
+    if anomalies.is_empty() {
+        return None;
+    }
+
+    let description = format!("Behavioral anomaly: {}", anomalies.join("; "));
+    Some(report_threat(
+        ThreatLevel::Warning,
+        ThreatCategory::ProcessAnomaly,
+        &description,
+        "behavioral_baseline",
+        serde_json::json!({"cpu": cpu, "ram_mb": ram_mb, "connections": connections}),
+    ).await)
+}
+
+/// Update the behavioral baseline with new observations
+pub async fn update_baseline(cpu: f32, ram_mb: u64, connections: u32) {
+    let mut state = IMMUNE.write().await;
+    let b = &mut state.baseline;
+    b.samples += 1;
+
+    // Exponentially adapt the baseline ranges
+    let alpha = 0.01; // slow adaptation
+    b.cpu_range.0 = b.cpu_range.0 * (1.0 - alpha as f32) + cpu.min(b.cpu_range.0) * alpha as f32;
+    b.cpu_range.1 = b.cpu_range.1 * (1.0 - alpha as f32) + cpu.max(b.cpu_range.1) * alpha as f32;
+    b.ram_range.1 = ((b.ram_range.1 as f64 * (1.0 - alpha) + ram_mb.max(b.ram_range.1) as f64 * alpha) as u64).max(1);
+    b.network_connections_range.1 = ((b.network_connections_range.1 as f64 * (1.0 - alpha) + connections.max(b.network_connections_range.1) as f64 * alpha) as u32).max(1);
+    b.last_updated = Utc::now();
+}
+
+/// Add a known attack vector to the attack surface map
+pub async fn add_attack_vector(name: &str, target: &str, severity: ThreatLevel, description: &str) {
+    let mut state = IMMUNE.write().await;
+    let id = format!("av_{}", chrono::Utc::now().timestamp_millis());
+    state.attack_surface.push(AttackVector {
+        id, name: name.into(), target: target.into(), severity, description: description.into(), mitigated: false,
+    });
+}
+
+/// Get the attack surface
+pub async fn get_attack_surface() -> Vec<AttackVector> {
+    IMMUNE.read().await.attack_surface.clone()
 }
 
 /// Get immune system status

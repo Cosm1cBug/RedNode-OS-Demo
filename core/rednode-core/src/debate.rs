@@ -57,6 +57,10 @@ pub enum DebateRole {
     Economy,
     Research,
     Governance,
+    DevilsAdvocate,
+    Historian,
+    Scientist,
+    Ethicist,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -151,6 +155,65 @@ pub async fn debate(request: DebateRequest) -> DebateResult {
         concerns: gov_check.warnings.clone(),
         approval: gov_check.allowed,
         confidence: 0.9,
+    });
+
+    // Devil's Advocate: argues against the proposal regardless
+    let devils_concerns: Vec<String> = vec![
+        "What if this fails in a way we haven't considered?".into(),
+        if action_lower.len() > 50 { "Complex action — higher chance of unforeseen side effects".into() }
+        else { "Even simple actions can have unexpected consequences".into() },
+    ];
+    perspectives.push(Perspective {
+        role: DebateRole::DevilsAdvocate,
+        position: "Arguing against to stress-test the proposal".into(),
+        arguments: vec!["Every proposal should survive rigorous challenge".into()],
+        concerns: devils_concerns,
+        approval: false, // Devil's advocate always votes no — that's the role
+        confidence: 0.6,
+    });
+
+    // Historian: checks if similar actions failed before
+    let similar_episodes = crate::episodic_memory::search_episodes(&request.proposed_action, 3).await;
+    let past_failures: Vec<_> = similar_episodes.iter()
+        .filter(|e| e.outcome == crate::episodic_memory::EpisodeOutcome::Failure)
+        .collect();
+    let historian_ok = past_failures.is_empty();
+    perspectives.push(Perspective {
+        role: DebateRole::Historian,
+        position: if historian_ok { "No similar past failures found".into() }
+            else { format!("Found {} similar past failures", past_failures.len()) },
+        arguments: if historian_ok { vec!["No historical precedent for failure".into()] }
+            else { past_failures.iter().map(|e| format!("Past failure: {}", e.title)).collect() },
+        concerns: if historian_ok { vec![] }
+            else { vec!["Similar actions have failed before — review lessons learned".into()] },
+        approval: historian_ok,
+        confidence: 0.75,
+    });
+
+    // Scientist: demands evidence and reproducibility
+    let has_evidence = !request.context.is_null() && request.context != serde_json::json!({});
+    perspectives.push(Perspective {
+        role: DebateRole::Scientist,
+        position: if has_evidence { "Supporting evidence provided".into() } else { "No supporting evidence — decision based on assumptions".into() },
+        arguments: vec!["Decisions should be evidence-based and reproducible".into()],
+        concerns: if has_evidence { vec![] } else { vec!["No empirical evidence for expected outcome".into()] },
+        approval: has_evidence,
+        confidence: if has_evidence { 0.8 } else { 0.4 },
+    });
+
+    // Ethicist: evaluates against ethics values
+    let ethics_eval = crate::ethics::evaluate(&request.proposed_action, "debate evaluation").await;
+    let ethics_ok = ethics_eval.recommendation == crate::ethics::EthicalRecommendation::Proceed
+        || ethics_eval.recommendation == crate::ethics::EthicalRecommendation::ProceedWithCaution;
+    perspectives.push(Perspective {
+        role: DebateRole::Ethicist,
+        position: format!("Ethics assessment: {:?}", ethics_eval.recommendation),
+        arguments: vec![ethics_eval.reasoning.clone()],
+        concerns: ethics_eval.values_considered.iter()
+            .filter_map(|v| v.concern.clone())
+            .collect(),
+        approval: ethics_ok,
+        confidence: 0.85,
     });
 
     // Calculate consensus

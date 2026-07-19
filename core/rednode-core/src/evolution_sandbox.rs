@@ -25,7 +25,16 @@ pub struct SandboxTest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ChangeType { NewTool, ToolModification, AgentModification, ArchitecturalChange, ConfigChange }
+pub enum ChangeType {
+    NewTool,
+    ToolModification,
+    AgentModification,
+    ArchitecturalChange,
+    ConfigChange,
+    ReasoningEvolution,
+    MemoryIndexEvolution,
+    PolicyEvolution,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SandboxPhase { pub name: String, pub status: TestResult, pub details: String, pub duration_ms: u64 }
