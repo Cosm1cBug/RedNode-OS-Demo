@@ -21,3 +21,5 @@ pub mod planner;
 pub mod predict;
 pub mod security;
 pub mod sentience;
+pub mod time_intel;
+pub mod world_model;

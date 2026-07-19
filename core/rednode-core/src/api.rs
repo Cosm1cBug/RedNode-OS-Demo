@@ -1,7 +1,7 @@
 use axum::{
     extract::{ws::{WebSocket, WebSocketUpgrade}, Path, Query},
     response::Response,
-    routing::{get, post},
+    routing::{get, post, delete},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.9.3",
+        "version": "0.11.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.9.3",
+                "version": "0.11.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -366,7 +366,7 @@ async fn evolve_tool_handler(Json(req): Json<EvolveToolReq>) -> Json<serde_json:
     ).await {
         Ok(tool) => Json(serde_json::json!({
             "ok": true,
-            "message": format!("🧬 Tool '{}' evolved successfully", tool.name),
+            "message": format!("Tool '{}' evolved successfully", tool.name),
             "tool": {
                 "name": tool.name,
                 "agent": tool.agent,
@@ -575,6 +575,432 @@ async fn goals_delete(Path(id): Path<String>) -> Json<serde_json::Value> {
     Json(serde_json::json!({"ok": true, "message": "Goal deactivated"}))
 }
 
+
+// ─── World Model API ───
+
+async fn world_full() -> Json<serde_json::Value> {
+    Json(crate::world_model::get_for_api().await)
+}
+
+async fn world_machines_list() -> Json<serde_json::Value> {
+    let machines = crate::world_model::get_machines().await;
+    Json(serde_json::json!({"ok": true, "count": machines.len(), "machines": machines}))
+}
+
+async fn world_machine_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::world_model::get_machine(&id).await {
+        Some(m) => Json(serde_json::json!({"ok": true, "machine": m})),
+        None => Json(serde_json::json!({"ok": false, "error": "Machine not found"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct UpsertMachineReq {
+    id: Option<String>,
+    name: String,
+    role: String,
+    #[serde(default)]
+    ip: Option<String>,
+    #[serde(default)]
+    mac: Option<String>,
+    #[serde(default)]
+    os: Option<String>,
+    #[serde(default)]
+    cpu: Option<String>,
+    #[serde(default)]
+    ram_gb: Option<u32>,
+    #[serde(default)]
+    disk_gb: Option<u32>,
+    #[serde(default)]
+    services: Vec<String>,
+    #[serde(default)]
+    vlan_id: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    notes: Option<String>,
+}
+
+fn parse_machine_role(s: &str) -> crate::world_model::MachineRole {
+    match s.to_lowercase().as_str() {
+        "server" => crate::world_model::MachineRole::Server,
+        "desktop" => crate::world_model::MachineRole::Desktop,
+        "nas" => crate::world_model::MachineRole::Nas,
+        "firewall" => crate::world_model::MachineRole::Firewall,
+        "router" => crate::world_model::MachineRole::Router,
+        "switch" => crate::world_model::MachineRole::Switch,
+        "raspberrypi" | "rpi" => crate::world_model::MachineRole::RaspberryPi,
+        "nvr" => crate::world_model::MachineRole::Nvr,
+        "iothub" => crate::world_model::MachineRole::IoTHub,
+        "workstation" => crate::world_model::MachineRole::Workstation,
+        other => crate::world_model::MachineRole::Other(other.to_string()),
+    }
+}
+
+async fn world_machine_upsert(Json(req): Json<UpsertMachineReq>) -> Json<serde_json::Value> {
+    let id = req.id.unwrap_or_else(|| format!("m_{}", chrono::Utc::now().timestamp_millis()));
+    let machine = crate::world_model::Machine {
+        id: id.clone(),
+        name: req.name.clone(),
+        role: parse_machine_role(&req.role),
+        ip: req.ip,
+        mac: req.mac,
+        os: req.os,
+        cpu: req.cpu,
+        ram_gb: req.ram_gb,
+        disk_gb: req.disk_gb,
+        services: req.services,
+        vlan_id: req.vlan_id,
+        last_seen: chrono::Utc::now(),
+        health: 1.0,
+        tags: req.tags,
+        notes: req.notes,
+    };
+    crate::world_model::upsert_machine(machine).await;
+    Json(serde_json::json!({"ok": true, "id": id, "name": req.name}))
+}
+
+async fn world_machine_delete(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let removed = crate::world_model::remove_machine(&id).await;
+    Json(serde_json::json!({"ok": removed, "id": id}))
+}
+
+async fn world_services_list() -> Json<serde_json::Value> {
+    let services = crate::world_model::get_services().await;
+    Json(serde_json::json!({"ok": true, "count": services.len(), "services": services}))
+}
+
+#[derive(Deserialize)]
+struct UpsertServiceReq {
+    id: Option<String>,
+    name: String,
+    service_type: String,
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    port: Option<u16>,
+    #[serde(default)]
+    host_machine_id: Option<String>,
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+}
+
+fn parse_service_type(s: &str) -> crate::world_model::ServiceType {
+    match s.to_lowercase().as_str() {
+        "database" | "db" => crate::world_model::ServiceType::Database,
+        "messagebroker" | "broker" | "nats" | "mqtt" => crate::world_model::ServiceType::MessageBroker,
+        "webapp" | "web" => crate::world_model::ServiceType::WebApp,
+        "api" => crate::world_model::ServiceType::Api,
+        "dns" => crate::world_model::ServiceType::Dns,
+        "dhcp" => crate::world_model::ServiceType::Dhcp,
+        "firewall" => crate::world_model::ServiceType::Firewall,
+        "vpn" => crate::world_model::ServiceType::VPN,
+        "filestorage" | "storage" | "nfs" | "smb" => crate::world_model::ServiceType::FileStorage,
+        "mediaserver" | "media" => crate::world_model::ServiceType::MediaServer,
+        "homeautomation" | "ha" => crate::world_model::ServiceType::HomeAutomation,
+        "monitoring" => crate::world_model::ServiceType::Monitoring,
+        "container" | "docker" | "podman" => crate::world_model::ServiceType::Container,
+        "llm" | "ollama" => crate::world_model::ServiceType::LLM,
+        other => crate::world_model::ServiceType::Custom(other.to_string()),
+    }
+}
+
+async fn world_service_upsert(Json(req): Json<UpsertServiceReq>) -> Json<serde_json::Value> {
+    let id = req.id.unwrap_or_else(|| format!("svc_{}", chrono::Utc::now().timestamp_millis()));
+    let service = crate::world_model::ServiceNode {
+        id: id.clone(),
+        name: req.name.clone(),
+        service_type: parse_service_type(&req.service_type),
+        url: req.url,
+        port: req.port,
+        host_machine_id: req.host_machine_id,
+        status: crate::world_model::ServiceStatus::Unknown,
+        last_checked: chrono::Utc::now(),
+        version: req.version,
+        tags: req.tags,
+    };
+    crate::world_model::upsert_service(service).await;
+    Json(serde_json::json!({"ok": true, "id": id, "name": req.name}))
+}
+
+async fn world_topology() -> Json<serde_json::Value> {
+    let vlans = crate::world_model::get_topology().await;
+    Json(serde_json::json!({"ok": true, "vlans": vlans}))
+}
+
+async fn world_dependencies(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let deps = crate::world_model::get_dependencies(&id).await;
+    Json(serde_json::json!({
+        "ok": true,
+        "entity_id": id,
+        "dependency_count": deps.len(),
+        "dependencies": deps,
+    }))
+}
+
+async fn world_impact(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let report = crate::world_model::impact_analysis(&id).await;
+    Json(serde_json::json!({
+        "ok": true,
+        "report": report,
+    }))
+}
+
+async fn world_diff() -> Json<serde_json::Value> {
+    match crate::world_model::get_diff().await {
+        Some(diff) => Json(serde_json::json!({"ok": true, "diff": diff})),
+        None => Json(serde_json::json!({"ok": false, "error": "No previous snapshot available"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct AddEdgeReq {
+    from_id: String,
+    to_id: String,
+    relation: String,
+    #[serde(default)]
+    metadata: Option<String>,
+}
+
+fn parse_edge_relation(s: &str) -> crate::world_model::EdgeRelation {
+    match s.to_lowercase().as_str() {
+        "dependson" | "depends_on" => crate::world_model::EdgeRelation::DependsOn,
+        "hosts" => crate::world_model::EdgeRelation::Hosts,
+        "runson" | "runs_on" => crate::world_model::EdgeRelation::RunsOn,
+        "connectedto" | "connected_to" => crate::world_model::EdgeRelation::ConnectedTo,
+        "monitors" => crate::world_model::EdgeRelation::Monitors,
+        "backsup" | "backs_up" => crate::world_model::EdgeRelation::BacksUp,
+        "routesthrough" | "routes_through" => crate::world_model::EdgeRelation::RoutesThrough,
+        "ownedby" | "owned_by" => crate::world_model::EdgeRelation::OwnedBy,
+        "partof" | "part_of" => crate::world_model::EdgeRelation::PartOf,
+        other => crate::world_model::EdgeRelation::Custom(other.to_string()),
+    }
+}
+
+async fn world_add_edge(Json(req): Json<AddEdgeReq>) -> Json<serde_json::Value> {
+    let relation = parse_edge_relation(&req.relation);
+    crate::world_model::add_edge(&req.from_id, &req.to_id, relation, req.metadata).await;
+    Json(serde_json::json!({"ok": true, "from": req.from_id, "to": req.to_id, "relation": req.relation}))
+}
+
+async fn world_scan() -> Json<serde_json::Value> {
+    // Trigger an async network scan (placeholder — actual scan logic lives in the
+    // infra-agent and gets reported back via NATS heartbeats / world_model::upsert_*)
+    crate::events::emit(serde_json::json!({
+        "type": "world_scan_requested",
+        "ts": chrono::Utc::now().to_rfc3339(),
+    }));
+    Json(serde_json::json!({"ok": true, "message": "Network scan requested"}))
+}
+
+async fn world_summary() -> Json<serde_json::Value> {
+    let summary = crate::world_model::summary().await;
+    Json(serde_json::json!({"ok": true, "summary": summary}))
+}
+
+
+// ─── Time Intelligence API ───
+
+async fn time_awareness() -> Json<serde_json::Value> {
+    Json(crate::time_intel::get_for_api().await)
+}
+
+async fn time_events_list() -> Json<serde_json::Value> {
+    let events = crate::time_intel::get_events().await;
+    Json(serde_json::json!({"ok": true, "count": events.len(), "events": events}))
+}
+
+#[derive(Deserialize)]
+struct CreateTimeEventReq {
+    name: String,
+    description: String,
+    when: String,
+    #[serde(default = "default_event_category")]
+    category: String,
+    #[serde(default)]
+    auto_execute: bool,
+    #[serde(default)]
+    action: Option<String>,
+}
+fn default_event_category() -> String { "custom".into() }
+
+fn parse_event_category(s: &str) -> crate::time_intel::EventCategory {
+    match s.to_lowercase().as_str() {
+        "maintenance" => crate::time_intel::EventCategory::Maintenance,
+        "backup" => crate::time_intel::EventCategory::Backup,
+        "security" => crate::time_intel::EventCategory::Security,
+        "personal" => crate::time_intel::EventCategory::Personal,
+        "monitoring" => crate::time_intel::EventCategory::Monitoring,
+        "cleanup" => crate::time_intel::EventCategory::Cleanup,
+        "update" => crate::time_intel::EventCategory::Update,
+        other => crate::time_intel::EventCategory::Custom(other.to_string()),
+    }
+}
+
+async fn time_event_create(Json(req): Json<CreateTimeEventReq>) -> Json<serde_json::Value> {
+    let when = match req.when.parse::<chrono::DateTime<chrono::Utc>>() {
+        Ok(dt) => dt,
+        Err(e) => return Json(serde_json::json!({"ok": false, "error": format!("Invalid datetime: {}", e)})),
+    };
+    let event = crate::time_intel::create_event(
+        &req.name,
+        &req.description,
+        when,
+        parse_event_category(&req.category),
+        req.auto_execute,
+        req.action,
+    ).await;
+    Json(serde_json::json!({"ok": true, "event": event}))
+}
+
+async fn time_event_delete(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let removed = crate::time_intel::remove_event(&id).await;
+    Json(serde_json::json!({"ok": removed, "id": id}))
+}
+
+async fn time_patterns_list() -> Json<serde_json::Value> {
+    let patterns = crate::time_intel::get_patterns().await;
+    Json(serde_json::json!({"ok": true, "count": patterns.len(), "patterns": patterns}))
+}
+
+#[derive(Deserialize)]
+struct CreatePatternReq {
+    name: String,
+    description: String,
+    schedule_type: String,
+    #[serde(default)]
+    seconds: Option<u64>,
+    #[serde(default)]
+    hour: Option<u32>,
+    #[serde(default)]
+    minute: Option<u32>,
+    #[serde(default)]
+    day_of_week: Option<String>,
+    #[serde(default)]
+    day_of_month: Option<u32>,
+    #[serde(default)]
+    nth: Option<u32>,
+    action: String,
+    #[serde(default = "default_event_category")]
+    category: String,
+    #[serde(default)]
+    auto_execute: bool,
+}
+
+fn parse_weekday(s: &str) -> chrono::Weekday {
+    match s.to_lowercase().as_str() {
+        "mon" | "monday" => chrono::Weekday::Mon,
+        "tue" | "tuesday" => chrono::Weekday::Tue,
+        "wed" | "wednesday" => chrono::Weekday::Wed,
+        "thu" | "thursday" => chrono::Weekday::Thu,
+        "fri" | "friday" => chrono::Weekday::Fri,
+        "sat" | "saturday" => chrono::Weekday::Sat,
+        _ => chrono::Weekday::Sun,
+    }
+}
+
+async fn time_pattern_create(Json(req): Json<CreatePatternReq>) -> Json<serde_json::Value> {
+    let schedule = match req.schedule_type.to_lowercase().as_str() {
+        "interval" => {
+            let secs = req.seconds.unwrap_or(3600);
+            crate::time_intel::Schedule::Interval { seconds: secs }
+        }
+        "daily" => {
+            crate::time_intel::Schedule::Daily {
+                hour: req.hour.unwrap_or(3),
+                minute: req.minute.unwrap_or(0),
+            }
+        }
+        "weekly" => {
+            let day = req.day_of_week.as_deref().map(parse_weekday).unwrap_or(chrono::Weekday::Sun);
+            crate::time_intel::Schedule::Weekly {
+                day,
+                hour: req.hour.unwrap_or(2),
+                minute: req.minute.unwrap_or(0),
+            }
+        }
+        "monthly" => {
+            crate::time_intel::Schedule::Monthly {
+                day_of_month: req.day_of_month.unwrap_or(1),
+                hour: req.hour.unwrap_or(4),
+                minute: req.minute.unwrap_or(0),
+            }
+        }
+        "nth_weekday" => {
+            let day = req.day_of_week.as_deref().map(parse_weekday).unwrap_or(chrono::Weekday::Tue);
+            crate::time_intel::Schedule::NthWeekday {
+                nth: req.nth.unwrap_or(2),
+                day,
+                hour: req.hour.unwrap_or(10),
+                minute: req.minute.unwrap_or(0),
+            }
+        }
+        _ => {
+            return Json(serde_json::json!({"ok": false, "error": "Invalid schedule_type. Use: interval, daily, weekly, monthly, nth_weekday"}));
+        }
+    };
+
+    let pattern = crate::time_intel::create_pattern(
+        &req.name,
+        &req.description,
+        schedule,
+        &req.action,
+        parse_event_category(&req.category),
+        req.auto_execute,
+    ).await;
+    Json(serde_json::json!({"ok": true, "pattern": pattern}))
+}
+
+async fn time_pattern_delete(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let removed = crate::time_intel::remove_pattern(&id).await;
+    Json(serde_json::json!({"ok": removed, "id": id}))
+}
+
+async fn time_deadlines_list() -> Json<serde_json::Value> {
+    let deadlines = crate::time_intel::get_deadlines().await;
+    Json(serde_json::json!({"ok": true, "count": deadlines.len(), "deadlines": deadlines}))
+}
+
+#[derive(Deserialize)]
+struct CreateDeadlineReq {
+    name: String,
+    description: String,
+    due: String,
+    #[serde(default = "default_event_category")]
+    category: String,
+    #[serde(default = "default_warning_days")]
+    warning_days: Vec<u32>,
+}
+fn default_warning_days() -> Vec<u32> { vec![30, 14, 7, 1] }
+
+async fn time_deadline_create(Json(req): Json<CreateDeadlineReq>) -> Json<serde_json::Value> {
+    let due = match req.due.parse::<chrono::DateTime<chrono::Utc>>() {
+        Ok(dt) => dt,
+        Err(e) => return Json(serde_json::json!({"ok": false, "error": format!("Invalid datetime: {}", e)})),
+    };
+    let deadline = crate::time_intel::create_deadline(
+        &req.name,
+        &req.description,
+        due,
+        parse_event_category(&req.category),
+        req.warning_days,
+    ).await;
+    Json(serde_json::json!({"ok": true, "deadline": deadline}))
+}
+
+async fn time_due_items() -> Json<serde_json::Value> {
+    let due = crate::time_intel::get_due_items().await;
+    Json(serde_json::json!({"ok": true, "count": due.len(), "due": due}))
+}
+
+async fn time_summary() -> Json<serde_json::Value> {
+    let summary = crate::time_intel::time_summary().await;
+    Json(serde_json::json!({"ok": true, "summary": summary}))
+}
+
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -622,6 +1048,27 @@ pub fn router() -> Router {
         .route("/goals/:id", get(goals_get).delete(goals_delete))
         .route("/goals/:id/subgoal", post(goals_add_subgoal))
         .route("/goals/:id/contribute", post(goals_contribute))
+        // World Model — infrastructure awareness
+        .route("/world", get(world_full))
+        .route("/world/summary", get(world_summary))
+        .route("/world/machines", get(world_machines_list).post(world_machine_upsert))
+        .route("/world/machines/:id", get(world_machine_get).delete(world_machine_delete))
+        .route("/world/services", get(world_services_list).post(world_service_upsert))
+        .route("/world/topology", get(world_topology))
+        .route("/world/dependencies/:id", get(world_dependencies))
+        .route("/world/impact/:id", get(world_impact))
+        .route("/world/diff", get(world_diff))
+        .route("/world/edges", post(world_add_edge))
+        .route("/world/scan", post(world_scan))
+        // Time Intelligence — time-aware scheduling
+        .route("/time", get(time_awareness))
+        .route("/time/summary", get(time_summary))
+        .route("/time/events", get(time_events_list).post(time_event_create))
+        .route("/time/events/:id", delete(time_event_delete))
+        .route("/time/patterns", get(time_patterns_list).post(time_pattern_create))
+        .route("/time/patterns/:id", delete(time_pattern_delete))
+        .route("/time/deadlines", get(time_deadlines_list).post(time_deadline_create))
+        .route("/time/due", get(time_due_items))
         // Auth middleware — checks Bearer token on all routes except /health and /events
         // Set REDNODE_API_TOKEN env var to enable. If unset, auth is disabled (dev mode).
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
