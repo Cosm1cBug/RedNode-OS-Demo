@@ -49,33 +49,44 @@ static PATTERNS: Lazy<Vec<PiiPattern>> = Lazy::new(|| vec![
         name: "credit_card",
         severity: "high",
         regex: Lazy::new(|| {
-            Regex::new(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b").unwrap()
+            Regex::new(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b")
+                .expect("PII regex 'credit_card' is invalid — this is a compile-time constant")
         }),
         redact_label: "[CREDIT_CARD_REDACTED]",
     },
     PiiPattern {
         name: "ssn",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"\b\d{3}-\d{2}-\d{4}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b\d{3}-\d{2}-\d{4}\b")
+                .expect("PII regex 'ssn' is invalid — this is a compile-time constant")
+        }),
         redact_label: "[SSN_REDACTED]",
     },
     PiiPattern {
         name: "aadhaar",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"\b\d{4}\s?\d{4}\s?\d{4}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b\d{4}\s?\d{4}\s?\d{4}\b")
+                .expect("PII regex 'aadhaar' is invalid — this is a compile-time constant")
+        }),
         redact_label: "[AADHAAR_REDACTED]",
     },
     PiiPattern {
         name: "passport",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"\b[A-Z]{1,2}\d{6,9}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b[A-Z]{1,2}\d{6,9}\b")
+                .expect("PII regex 'passport' is invalid — this is a compile-time constant")
+        }),
         redact_label: "[PASSPORT_REDACTED]",
     },
     PiiPattern {
         name: "bank_account_iban",
         severity: "high",
         regex: Lazy::new(|| {
-            Regex::new(r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b").unwrap()
+            Regex::new(r"\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b")
+                .expect("PII regex 'bank_account_iban' is invalid — this is a compile-time constant")
         }),
         redact_label: "[IBAN_REDACTED]",
     },
@@ -84,7 +95,8 @@ static PATTERNS: Lazy<Vec<PiiPattern>> = Lazy::new(|| vec![
         name: "email",
         severity: "medium",
         regex: Lazy::new(|| {
-            Regex::new(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b").unwrap()
+            Regex::new(r"\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b")
+                .expect("PII regex 'email' is invalid — this is a compile-time constant")
         }),
         redact_label: "[EMAIL_REDACTED]",
     },
@@ -92,21 +104,26 @@ static PATTERNS: Lazy<Vec<PiiPattern>> = Lazy::new(|| vec![
         name: "phone_international",
         severity: "medium",
         regex: Lazy::new(|| {
-            Regex::new(r"\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}").unwrap()
+            Regex::new(r"\+\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}")
+                .expect("PII regex 'phone_international' is invalid — this is a compile-time constant")
         }),
         redact_label: "[PHONE_REDACTED]",
     },
     PiiPattern {
         name: "phone_us",
         severity: "medium",
-        regex: Lazy::new(|| Regex::new(r"\b\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\b\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
+                .expect("PII regex 'phone_us' is invalid — this is a compile-time constant")
+        }),
         redact_label: "[PHONE_REDACTED]",
     },
     PiiPattern {
         name: "ip_address",
         severity: "medium",
         regex: Lazy::new(|| {
-            Regex::new(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b").unwrap()
+            Regex::new(r"\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b")
+                .expect("PII regex 'ip_address' is invalid — this is a compile-time constant")
         }),
         redact_label: "[IP_REDACTED]",
     },
@@ -115,7 +132,7 @@ static PATTERNS: Lazy<Vec<PiiPattern>> = Lazy::new(|| vec![
         severity: "medium",
         regex: Lazy::new(|| {
             Regex::new(r"\b(?:DOB|Date of Birth|Born)[:\s]*\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b")
-                .unwrap()
+                .expect("PII regex 'date_of_birth' is invalid — this is a compile-time constant")
         }),
         redact_label: "[DOB_REDACTED]",
     },
@@ -124,20 +141,27 @@ static PATTERNS: Lazy<Vec<PiiPattern>> = Lazy::new(|| vec![
         name: "api_key",
         severity: "high",
         regex: Lazy::new(|| {
-            Regex::new(r"\b(?:sk-|pk-|api[_-]?key[=:\s]+)[a-zA-Z0-9]{20,}\b").unwrap()
+            Regex::new(r"\b(?:sk-|pk-|api[_-]?key[=:\s]+)[a-zA-Z0-9]{20,}\b")
+                .expect("PII regex 'api_key' is invalid — this is a compile-time constant")
         }),
         redact_label: "[API_KEY_REDACTED]",
     },
     PiiPattern {
         name: "aws_key",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"\bAKIA[0-9A-Z]{16}\b").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"\bAKIA[0-9A-Z]{16}\b")
+                .expect("PII regex 'aws_key' is invalid — this is a compile-time constant")
+        }),
         redact_label: "[AWS_KEY_REDACTED]",
     },
     PiiPattern {
         name: "private_key",
         severity: "high",
-        regex: Lazy::new(|| Regex::new(r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----").unwrap()),
+        regex: Lazy::new(|| {
+            Regex::new(r"-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----")
+                .expect("PII regex 'private_key' is invalid — this is a compile-time constant")
+        }),
         redact_label: "[PRIVATE_KEY_REDACTED]",
     },
     PiiPattern {
@@ -145,7 +169,7 @@ static PATTERNS: Lazy<Vec<PiiPattern>> = Lazy::new(|| vec![
         severity: "medium",
         regex: Lazy::new(|| {
             Regex::new(r"\beyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\b")
-                .unwrap()
+                .expect("PII regex 'jwt_token' is invalid — this is a compile-time constant")
         }),
         redact_label: "[JWT_REDACTED]",
     },

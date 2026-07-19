@@ -56,6 +56,20 @@ pub async fn init() -> Result<()> {
             )
             .execute(&pool)
             .await;
+            // RAG documents table (pgvector embedding column is optional —
+            // if pgvector extension is not installed, the column is TEXT and
+            // vector search falls back to Qdrant or ILIKE)
+            let _ = sqlx::query(
+                r#"CREATE TABLE IF NOT EXISTS documents (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    source TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    embedding TEXT,
+                    created_at TIMESTAMPTZ DEFAULT now()
+                )"#,
+            )
+            .execute(&pool)
+            .await;
             POOL.set(Some(pool)).ok();
             Ok(())
         }
