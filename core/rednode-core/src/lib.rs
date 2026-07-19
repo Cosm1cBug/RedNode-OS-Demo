@@ -5,6 +5,8 @@ pub mod bus;
 pub mod config;
 pub mod consciousness;
 pub mod coordinator;
+pub mod curiosity;
+pub mod distillation;
 pub mod events;
 pub mod evolution;
 pub mod executor;

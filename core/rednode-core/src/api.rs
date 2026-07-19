@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.12.0",
+        "version": "0.13.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.12.0",
+                "version": "0.13.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1047,6 +1047,77 @@ async fn reflection_trigger() -> Json<serde_json::Value> {
 }
 
 
+
+// ─── Curiosity API ───
+
+async fn curiosity_status() -> Json<serde_json::Value> {
+    let state = crate::curiosity::get_state().await;
+    Json(serde_json::json!({"ok": true, "curiosity": state}))
+}
+
+#[derive(Deserialize)]
+struct DiscoveryQuery {
+    #[serde(default = "default_disc_limit")]
+    limit: usize,
+}
+fn default_disc_limit() -> usize { 20 }
+
+async fn curiosity_discoveries(Query(params): Query<DiscoveryQuery>) -> Json<serde_json::Value> {
+    let discoveries = crate::curiosity::get_discoveries(params.limit).await;
+    Json(serde_json::json!({"ok": true, "count": discoveries.len(), "discoveries": discoveries}))
+}
+
+async fn curiosity_config_update(Json(config): Json<crate::curiosity::CuriosityConfig>) -> Json<serde_json::Value> {
+    crate::curiosity::update_config(config).await;
+    Json(serde_json::json!({"ok": true, "message": "Curiosity config updated"}))
+}
+
+async fn curiosity_explore() -> Json<serde_json::Value> {
+    crate::curiosity::build_exploration_queue().await;
+    let state = crate::curiosity::get_state().await;
+    Json(serde_json::json!({
+        "ok": true,
+        "message": "Exploration triggered",
+        "queue_size": state.exploration_queue.len(),
+        "queue": state.exploration_queue,
+    }))
+}
+
+
+// ─── Distillation API ───
+
+async fn distillation_list() -> Json<serde_json::Value> {
+    let docs = crate::distillation::list_documents().await;
+    let stats = crate::distillation::get_stats().await;
+    Json(serde_json::json!({"ok": true, "count": docs.len(), "documents": docs, "stats": stats}))
+}
+
+async fn distillation_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::distillation::get_document(&id).await {
+        Some(doc) => Json(serde_json::json!({"ok": true, "document": doc})),
+        None => Json(serde_json::json!({"ok": false, "error": "Document not found"})),
+    }
+}
+
+async fn distillation_trigger() -> Json<serde_json::Value> {
+    let docs = crate::distillation::distill().await;
+    Json(serde_json::json!({
+        "ok": true,
+        "message": format!("{} documents distilled", docs.len()),
+        "new_documents": docs,
+    }))
+}
+
+async fn distillation_search(Query(params): Query<HashMap<String, String>>) -> Json<serde_json::Value> {
+    let q = params.get("q").cloned().unwrap_or_default();
+    if q.is_empty() {
+        return Json(serde_json::json!({"ok": false, "error": "Missing 'q' query parameter"}));
+    }
+    let results = crate::distillation::search(&q).await;
+    Json(serde_json::json!({"ok": true, "query": q, "count": results.len(), "results": results}))
+}
+
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -1122,6 +1193,16 @@ pub fn router() -> Router {
         .route("/reflection/today", get(reflection_today))
         .route("/reflection/history", get(reflection_history))
         .route("/reflection/trigger", post(reflection_trigger))
+        // Curiosity
+        .route("/curiosity", get(curiosity_status))
+        .route("/curiosity/discoveries", get(curiosity_discoveries))
+        .route("/curiosity/config", post(curiosity_config_update))
+        .route("/curiosity/explore", post(curiosity_explore))
+        // Distillation
+        .route("/distillation", get(distillation_list))
+        .route("/distillation/search", get(distillation_search))
+        .route("/distillation/trigger", post(distillation_trigger))
+        .route("/distillation/:id", get(distillation_get))
         // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())
