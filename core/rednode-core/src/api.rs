@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.13.0",
+        "version": "0.14.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.13.0",
+                "version": "0.14.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1118,6 +1118,181 @@ async fn distillation_search(Query(params): Query<HashMap<String, String>>) -> J
 }
 
 
+
+// ─── Economy API ───
+
+async fn economy_status() -> Json<serde_json::Value> {
+    let status = crate::economy::get_status().await;
+    Json(serde_json::json!({"ok": true, "economy": status}))
+}
+
+async fn economy_history() -> Json<serde_json::Value> {
+    let history = crate::economy::get_history().await;
+    Json(serde_json::json!({"ok": true, "count": history.len(), "history": history}))
+}
+
+async fn economy_set_budget(Json(budget): Json<crate::economy::Budget>) -> Json<serde_json::Value> {
+    crate::economy::set_budget(budget).await;
+    Json(serde_json::json!({"ok": true, "message": "Budget updated"}))
+}
+
+
+// ─── Immune System API ───
+
+async fn immune_status() -> Json<serde_json::Value> {
+    let state = crate::immune::get_status().await;
+    Json(serde_json::json!({
+        "ok": true,
+        "health": state.health,
+        "active_threats": state.active_threats.len(),
+        "total_detected": state.total_threats_detected,
+        "total_mitigated": state.total_threats_mitigated,
+    }))
+}
+
+async fn immune_threats() -> Json<serde_json::Value> {
+    let active = crate::immune::get_active_threats().await;
+    let recent = crate::immune::get_recent_threats(50).await;
+    Json(serde_json::json!({
+        "ok": true,
+        "active": active,
+        "recent": recent,
+    }))
+}
+
+async fn immune_scan() -> Json<serde_json::Value> {
+    // Trigger events for agents to perform security checks
+    crate::events::emit(serde_json::json!({
+        "type": "immune_scan_requested",
+        "ts": chrono::Utc::now().to_rfc3339(),
+    }));
+    Json(serde_json::json!({"ok": true, "message": "Full immune scan requested"}))
+}
+
+
+// ─── Governance API ───
+
+async fn governance_policies() -> Json<serde_json::Value> {
+    let policies = crate::governance::list_policies().await;
+    let stats = crate::governance::get_stats().await;
+    Json(serde_json::json!({"ok": true, "policies": policies, "stats": stats}))
+}
+
+#[derive(Deserialize)]
+struct CreatePolicyReq {
+    name: String,
+    description: String,
+    rule_type: String,
+    #[serde(default)]
+    tool: Option<String>,
+    #[serde(default)]
+    pattern: Option<String>,
+    #[serde(default)]
+    path: Option<String>,
+    #[serde(default)]
+    start_hour: Option<u32>,
+    #[serde(default)]
+    end_hour: Option<u32>,
+    #[serde(default)]
+    agent: Option<String>,
+    #[serde(default)]
+    max_per_hour: Option<u32>,
+    #[serde(default)]
+    condition: Option<String>,
+    enforcement: String,
+    #[serde(default = "default_scope")]
+    scope: String,
+}
+fn default_scope() -> String { "all".into() }
+
+fn parse_enforcement(s: &str) -> crate::governance::Enforcement {
+    match s.to_lowercase().as_str() {
+        "block" => crate::governance::Enforcement::Block,
+        "warn" => crate::governance::Enforcement::Warn,
+        "log" => crate::governance::Enforcement::Log,
+        "approve" => crate::governance::Enforcement::Approve,
+        _ => crate::governance::Enforcement::Warn,
+    }
+}
+
+fn parse_policy_scope(s: &str) -> crate::governance::PolicyScope {
+    match s.to_lowercase().as_str() {
+        "all" => crate::governance::PolicyScope::All,
+        "high_risk" | "highrisk" => crate::governance::PolicyScope::HighRisk,
+        other => {
+            if other.contains("agent:") {
+                crate::governance::PolicyScope::Agent(other.replace("agent:", ""))
+            } else if other.contains("tool:") {
+                crate::governance::PolicyScope::Tool(other.replace("tool:", ""))
+            } else {
+                crate::governance::PolicyScope::All
+            }
+        }
+    }
+}
+
+async fn governance_create_policy(Json(req): Json<CreatePolicyReq>) -> Json<serde_json::Value> {
+    let rule = match req.rule_type.as_str() {
+        "block_tool" => crate::governance::PolicyRule::BlockTool {
+            tool: req.tool.unwrap_or_default(),
+        },
+        "block_pattern" => crate::governance::PolicyRule::BlockToolPattern {
+            pattern: req.pattern.unwrap_or_default(),
+        },
+        "block_path" => crate::governance::PolicyRule::BlockPath {
+            path: req.path.unwrap_or_default(),
+        },
+        "block_time" => crate::governance::PolicyRule::BlockTimeRange {
+            start_hour: req.start_hour.unwrap_or(1),
+            end_hour: req.end_hour.unwrap_or(5),
+        },
+        "require_approval" => crate::governance::PolicyRule::RequireApproval {
+            agent: req.agent.unwrap_or_default(),
+        },
+        "rate_limit" => crate::governance::PolicyRule::RateLimit {
+            tool: req.tool.unwrap_or_default(),
+            max_per_hour: req.max_per_hour.unwrap_or(100),
+        },
+        _ => crate::governance::PolicyRule::Custom {
+            condition: req.condition.unwrap_or_default(),
+        },
+    };
+
+    let policy = crate::governance::create_policy(
+        &req.name,
+        &req.description,
+        rule,
+        parse_enforcement(&req.enforcement),
+        parse_policy_scope(&req.scope),
+    ).await;
+
+    Json(serde_json::json!({"ok": true, "policy": policy}))
+}
+
+async fn governance_delete_policy(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let removed = crate::governance::remove_policy(&id).await;
+    Json(serde_json::json!({"ok": removed, "id": id}))
+}
+
+async fn governance_violations() -> Json<serde_json::Value> {
+    let violations = crate::governance::get_violations(100).await;
+    Json(serde_json::json!({"ok": true, "count": violations.len(), "violations": violations}))
+}
+
+#[derive(Deserialize)]
+struct GovernanceCheckReq {
+    tool: String,
+    agent: String,
+    #[serde(default)]
+    args: serde_json::Value,
+}
+
+async fn governance_check(Json(req): Json<GovernanceCheckReq>) -> Json<serde_json::Value> {
+    let result = crate::governance::check(&req.tool, &req.agent, &req.args).await;
+    Json(serde_json::json!({"ok": true, "result": result}))
+}
+
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -1203,6 +1378,19 @@ pub fn router() -> Router {
         .route("/distillation/search", get(distillation_search))
         .route("/distillation/trigger", post(distillation_trigger))
         .route("/distillation/:id", get(distillation_get))
+        // Economy
+        .route("/economy", get(economy_status))
+        .route("/economy/history", get(economy_history))
+        .route("/economy/budget", post(economy_set_budget))
+        // Immune System
+        .route("/immune", get(immune_status))
+        .route("/immune/threats", get(immune_threats))
+        .route("/immune/scan", post(immune_scan))
+        // Governance
+        .route("/governance/policies", get(governance_policies).post(governance_create_policy))
+        .route("/governance/policies/:id", delete(governance_delete_policy))
+        .route("/governance/violations", get(governance_violations))
+        .route("/governance/check", post(governance_check))
         // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())
