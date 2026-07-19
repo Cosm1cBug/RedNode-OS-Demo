@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.24.0",
+        "version": "0.25.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.24.0",
+                "version": "0.25.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -1768,6 +1768,187 @@ async fn mission_control() -> Json<serde_json::Value> {
     }))
 }
 
+
+// ─── Attention API ───
+
+async fn attention_state() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "attention": crate::attention::get_stats().await}))
+}
+
+async fn attention_queue() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "queue": crate::attention::get_queue().await}))
+}
+
+#[derive(Deserialize)]
+struct SignalReq { source: String, category: String, description: String }
+
+async fn attention_signal(Json(req): Json<SignalReq>) -> Json<serde_json::Value> {
+    let cat = match req.category.as_str() { "security" => crate::attention::SignalCategory::SecurityAlert, "task" => crate::attention::SignalCategory::TaskRequest, "health" => crate::attention::SignalCategory::HealthAlert, "user" => crate::attention::SignalCategory::UserInput, "discovery" => crate::attention::SignalCategory::Discovery, _ => crate::attention::SignalCategory::SystemEvent };
+    let sig = crate::attention::submit_signal(&req.source, cat, &req.description, None).await;
+    Json(serde_json::json!({"ok": true, "signal": sig}))
+}
+
+// ─── Cognitive Load API ───
+
+async fn cognitive_load_state() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "cognitive_load": crate::cognitive_load::get_stats().await}))
+}
+
+// ─── Intent Engine API ───
+
+#[derive(Deserialize)]
+struct ClarifyReq { intent: String }
+
+async fn intent_clarify(Json(req): Json<ClarifyReq>) -> Json<serde_json::Value> {
+    let result = crate::intent_engine::clarify(&req.intent).await;
+    Json(serde_json::json!({"ok": true, "clarified": result}))
+}
+
+async fn intent_clarify_history() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "history": crate::intent_engine::get_history(20).await}))
+}
+
+// ─── Context Engine API ───
+
+async fn context_active() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "context": crate::context_engine::get_active().await, "stats": crate::context_engine::get_stats().await}))
+}
+
+// ─── Explainability API ───
+
+async fn explain_recent() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "explanations": crate::explainability::get_recent(20).await}))
+}
+
+async fn explain_decision(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::explainability::get_for_decision(&id).await {
+        Some(e) => Json(serde_json::json!({"ok": true, "explanation": e})),
+        None => Json(serde_json::json!({"ok": false, "error": "Not found"})),
+    }
+}
+
+// ─── Uncertainty API ───
+
+async fn uncertainty_recent() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "assessments": crate::uncertainty::get_recent(20).await}))
+}
+
+// ─── Value Estimator API ───
+
+async fn value_history() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "estimates": crate::value_estimator::get_history(20).await}))
+}
+
+// ─── Provenance API ───
+
+async fn provenance_recent() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "records": crate::provenance::get_recent(20).await}))
+}
+
+async fn provenance_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::provenance::get(&id).await {
+        Some(r) => Json(serde_json::json!({"ok": true, "provenance": r})),
+        None => Json(serde_json::json!({"ok": false, "error": "Not found"})),
+    }
+}
+
+// ─── Forgetting API ───
+
+async fn forgetting_stats() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "stats": crate::forgetting::get_stats().await}))
+}
+
+async fn forgetting_sweep() -> Json<serde_json::Value> {
+    let result = crate::forgetting::sweep().await;
+    Json(serde_json::json!({"ok": true, "sweep": result}))
+}
+
+// ─── Knowledge Lifecycle API ───
+
+async fn knowledge_lifecycle() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "lifecycle": crate::knowledge_lifecycle::get_stats().await}))
+}
+
+// ─── Memory Safety API ───
+
+async fn memory_safety_status() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "safety": crate::memory_safety::get_status().await}))
+}
+
+async fn memory_safety_validate() -> Json<serde_json::Value> {
+    let check = crate::memory_safety::validate().await;
+    Json(serde_json::json!({"ok": true, "check": check}))
+}
+
+// ─── Emotional State API ───
+
+async fn emotional_state() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "state": crate::emotional_state::get().await}))
+}
+
+// ─── Cognitive Metrics API ───
+
+async fn cognitive_metrics() -> Json<serde_json::Value> {
+    crate::cognitive_metrics::compute().await;
+    Json(serde_json::json!({"ok": true, "metrics": crate::cognitive_metrics::get().await}))
+}
+
+// ─── Model Orchestrator API ───
+
+async fn models_list() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "models": crate::model_orchestrator::get_models().await}))
+}
+
+// ─── Verification API ───
+
+async fn verify_history() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "history": crate::verification::get_history(20).await, "stats": crate::verification::get_stats().await}))
+}
+
+// ─── Experience Replay API ───
+
+async fn replay_history() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "history": crate::experience_replay::get_history(20).await, "stats": crate::experience_replay::get_stats().await}))
+}
+
+// ─── Evolution Sandbox API ───
+
+async fn sandbox_history() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "history": crate::evolution_sandbox::get_history(20).await, "stats": crate::evolution_sandbox::get_stats().await}))
+}
+
+// ─── Digital Legacy API ───
+
+async fn legacy_status() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "legacy": crate::digital_legacy::get_status().await}))
+}
+
+async fn legacy_export() -> Json<serde_json::Value> {
+    let pkg = crate::digital_legacy::export_legacy().await;
+    Json(serde_json::json!({"ok": true, "package_id": pkg.id, "version": pkg.version, "checksum": pkg.checksum}))
+}
+
+// ─── Adaptive Architecture API ───
+
+async fn architecture_current() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "architecture": crate::adaptive_arch::get_current().await}))
+}
+
+async fn architecture_proposals() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "proposals": crate::adaptive_arch::get_proposals().await}))
+}
+
+// ─── Collective Governance API ───
+
+async fn collective_votes() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "votes": crate::collective_governance::get_votes().await, "stats": crate::collective_governance::get_stats().await}))
+}
+
+async fn collective_election() -> Json<serde_json::Value> {
+    let election = crate::collective_governance::elect_leader().await;
+    Json(serde_json::json!({"ok": true, "election": election}))
+}
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -1820,13 +2001,35 @@ pub fn router() -> Router {
         .route("/ethics", get(ethics_values)).route("/ethics/evaluate", post(ethics_evaluate)).route("/ethics/dilemmas", get(ethics_dilemmas))
         .route("/creativity/brainstorm", post(creativity_brainstorm)).route("/creativity/ideas", get(creativity_ideas))
         .route("/science/experiments", get(science_experiments).post(science_create))
-        .route("/science/experiment/:id", get(science_experiment_get))
-        .route("/science/experiment/:id/result", post(science_record_result))
+        .route("/science/experiment/:id", get(science_experiment_get)).route("/science/experiment/:id/result", post(science_record_result))
         .route("/capabilities", get(capabilities_list)).route("/capabilities/search", get(capabilities_search))
         .route("/capabilities/:id", get(capabilities_get)).route("/capabilities/verify/:id", post(capabilities_verify))
         .route("/dreaming", get(dreaming_status)).route("/dreaming/start", post(dreaming_start)).route("/dreaming/history", get(dreaming_history))
         .route("/collective", get(collective_status)).route("/collective/peers", get(collective_peers).post(collective_register_peer))
         .route("/hal", get(hal_profile)).route("/hal/cluster", get(hal_cluster))
         .route("/mission-control", get(mission_control))
-        .layer(axum::middleware::from_fn(crate::auth::auth_middleware)).layer(TraceLayer::new_for_http()).layer(CorsLayer::permissive())
+        // Cognitive Architecture (v0.25-v0.34)
+        .route("/attention", get(attention_state)).route("/attention/queue", get(attention_queue)).route("/attention/signal", post(attention_signal))
+        .route("/cognitive-load", get(cognitive_load_state))
+        .route("/intent/clarify", post(intent_clarify)).route("/intent/clarify/history", get(intent_clarify_history))
+        .route("/context", get(context_active))
+        .route("/explain/recent", get(explain_recent)).route("/explain/:id", get(explain_decision))
+        .route("/uncertainty", get(uncertainty_recent))
+        .route("/value/history", get(value_history))
+        .route("/provenance/recent", get(provenance_recent)).route("/provenance/:id", get(provenance_get))
+        .route("/forgetting", get(forgetting_stats)).route("/forgetting/sweep", post(forgetting_sweep))
+        .route("/knowledge/lifecycle", get(knowledge_lifecycle))
+        .route("/memory/safety", get(memory_safety_status)).route("/memory/safety/validate", post(memory_safety_validate))
+        .route("/emotional-state", get(emotional_state))
+        .route("/cognitive-metrics", get(cognitive_metrics))
+        .route("/models", get(models_list))
+        .route("/verify/history", get(verify_history))
+        .route("/replay/history", get(replay_history))
+        .route("/sandbox/history", get(sandbox_history))
+        .route("/legacy", get(legacy_status)).route("/legacy/export", post(legacy_export))
+        .route("/architecture", get(architecture_current)).route("/architecture/proposals", get(architecture_proposals))
+        .route("/collective/votes", get(collective_votes)).route("/collective/election", post(collective_election))
+        .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
+        .layer(TraceLayer::new_for_http())
+        .layer(CorsLayer::permissive())
 }
