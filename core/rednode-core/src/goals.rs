@@ -328,6 +328,21 @@ pub async fn get_for_api() -> serde_json::Value {
     })
 }
 
+/// Create the goal_store table if it does not exist
+pub async fn init_table() {
+    if let Some(pool) = crate::memory::pool() {
+        let _ = sqlx::query(
+            "CREATE TABLE IF NOT EXISTS goal_store (\
+                id INTEGER PRIMARY KEY, \
+                goals JSONB NOT NULL, \
+                updated_at TIMESTAMPTZ DEFAULT NOW()\
+            )"
+        )
+        .execute(pool)
+        .await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

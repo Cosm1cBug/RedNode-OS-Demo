@@ -504,6 +504,21 @@ pub async fn summary() -> String {
     lines.join("\n")
 }
 
+/// Create the consciousness_state table if it does not exist
+pub async fn init_table() {
+    if let Some(pool) = crate::memory::pool() {
+        let _ = sqlx::query(
+            "CREATE TABLE IF NOT EXISTS consciousness_state (\
+                id INTEGER PRIMARY KEY, \
+                state JSONB NOT NULL, \
+                updated_at TIMESTAMPTZ DEFAULT NOW()\
+            )"
+        )
+        .execute(pool)
+        .await;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

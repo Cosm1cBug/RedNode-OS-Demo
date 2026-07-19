@@ -1,104 +1,107 @@
 # RedNode-OS Changelog
 
-## v0.24.0 — Mission Control + Documentation
+## v0.34.0 — Collective Governance
+- **Collective Governance**: Voting with quorum, leader election by trust, configurable consensus (simple majority, supermajority, unanimous, weighted-by-trust)
 
-- **Mission Control API**: Single endpoint aggregating consciousness, goals, world, time, security, economy, trust, collective, dreaming, and hardware into one response
-- Full documentation update reflecting all v0.10.0–v0.24.0 changes
-- 47 Rust modules, 120 API endpoints, 27 PostgreSQL tables
+## v0.33.0 — Digital Legacy + Adaptive Architecture
+- **Digital Legacy**: SHA-256 checksummed export/import of identity, goals, skills, knowledge, personality across upgrades
+- **Adaptive Architecture**: Propose and track architectural improvements with sandbox testing
+
+## v0.32.0 — Experience Replay + Evolution Sandbox
+- **Experience Replay**: Replay past episodes with alternative strategies to find better approaches
+- **Evolution Sandbox**: Clone → Test → Benchmark → Validate → Approve → Deploy for every self-modification
+
+## v0.31.0 — Model Orchestrator + Verification Engine
+- **Model Orchestrator**: Select best local model per task type (planning, reasoning, coding, embeddings)
+- **Verification Engine**: Independently validate task outcomes, track false positive rate
+
+## v0.30.0 — Emotional State + Cognitive Metrics
+- **Operational Emotional State**: confidence/stress/curiosity/satisfaction/alertness/fatigue/engagement
+- **Cognitive Metrics**: 14 intelligence metrics — decision quality, planning accuracy, autonomy score, learning rate, hallucination rate, etc.
+
+## v0.29.0 — Forgetting + Knowledge Lifecycle + Memory Safety
+- **Forgetting Engine**: Configurable retention, importance-based archival, sweep statistics
+- **Knowledge Lifecycle**: Created → Verified → Updated → Deprecated → Archived → Deleted
+- **Memory Safety**: Integrity validation of consciousness, goals, identity, constitution
+
+## v0.28.0 — Value Estimator + Provenance Engine
+- **Value Estimator**: Score actions by benefit/risk/cost/time/learning/goal contribution
+- **Provenance Engine**: Track origin, reliability, verification status of every knowledge item
+
+## v0.27.0 — Explainability + Uncertainty Engine
+- **Explainability Engine**: Record why decisions were made, alternatives considered, evidence used
+- **Uncertainty Engine**: Confidence scoring → Proceed/DoubleCheck/AskUser/Defer/Abort
+
+## v0.26.0 — Intent Engine + Context Engine
+- **Intent Engine**: Convert vague objectives into specific intents with domain detection
+- **Context Engine**: Activate only task-relevant information from all memory systems
+
+## v0.25.0 — Attention Engine + Cognitive Load Manager
+- **Attention Engine**: Score signals by urgency/importance/goal/security/confidence/novelty
+- **Cognitive Load Manager**: Intelligence scheduling, LLM throttling, capacity-based task deferral
+
+## v0.24.0 — Mission Control + Documentation
+- **Mission Control API**: Single endpoint aggregating all system state
+- Full documentation update
 
 ## v0.23.0 — Collective Intelligence + Hardware Abstraction
-
-- **Collective Intelligence**: Multi-instance collaboration — peer discovery, knowledge sync, task delegation, trust-based routing
-- **Hardware Abstraction Layer**: Hardware profiling, failover targets, cluster-wide view, state migration support
+- **Collective Intelligence**: Multi-instance collaboration, peer discovery, knowledge sync, task delegation
+- **Hardware Abstraction Layer**: Hardware profiling, failover targets, cluster-wide view
 
 ## v0.22.0 — Capability Registry + Dreaming
-
-- **Capability Registry**: Self-aware capability tracking with version, confidence, benchmarks, staleness detection
-- **Dreaming/Offline Consolidation**: Background optimization during idle — memory consolidation, knowledge compression, hypothesis generation
+- **Capability Registry**: Self-aware capability tracking with version, confidence, benchmarks, staleness
+- **Dreaming/Offline Consolidation**: Background optimization during idle — memory, knowledge, hypotheses
 
 ## v0.21.0 — Creativity Engine + Scientific Method
-
-- **Creativity Engine**: Domain-specific divergent brainstorming separate from analytical reasoning
-- **Scientific Method Engine**: Observe → Hypothesis → Experiment → Measure → Analyze → Conclude → Store pipeline
+- **Creativity Engine**: Domain-specific divergent brainstorming separate from analysis
+- **Scientific Method Engine**: Observe → Hypothesis → Experiment → Measure → Analyze → Conclude
 
 ## v0.20.0 — Trust Engine + Ethics & Values
-
-- **Trust Engine**: Dynamic trust scores per information source with EMA tracking and trend detection
-- **Ethics & Values Layer**: 7 core values guiding ambiguous decisions — privacy, safety, transparency, reversibility, minimality, explainability, data ownership
+- **Trust Engine**: Dynamic trust scores per information source with EMA and trend detection
+- **Ethics & Values**: 7 core values guiding ambiguous decisions
 
 ## v0.19.0 — Simulation Engine + Multi-Agent Debate
-
-- **Simulation Engine**: Simulate plan execution, deployments, security responses, code changes with predicted outcomes and failure modes
-- **Multi-Agent Debate**: Planner → Critic → Security → Economy → Governance consensus before high-impact decisions
+- **Simulation Engine**: Simulate plan execution, deployments, security responses with predicted outcomes
+- **Multi-Agent Debate**: Planner → Critic → Security → Economy → Governance consensus
 
 ## v0.18.0 — Meta-Reasoning + Episodic Memory
-
-- **Meta-Reasoning Engine**: Evaluates reasoning quality — strategy fitness, plan efficiency, tool selection scoring, improvement suggestions
-- **Episodic Memory**: Separates experiences/skills/working context — distinct recall for "what happened" vs "how to" vs "what am I doing now"
+- **Meta-Reasoning**: Evaluate reasoning quality, recommend better strategies
+- **Episodic Memory**: Separate experiences/skills/working context with recall tracking
 
 ## v0.17.0 — Identity Engine + Constitutional Layer
-
-- **Identity Engine**: Purpose, principles, boundaries, self-model, capability map — the stable anchor preventing evolution drift
-- **Constitutional Layer**: 7 immutable articles (preserve user control, never conceal, never falsify, prefer reversible, protect privacy, require approval for destructive ops, protect constitutional integrity) with multi-step amendment process
+- **Identity Engine**: Purpose, principles, boundaries, self-model, capability map
+- **Constitutional Layer**: 7 immutable articles with multi-step amendment process
 
 ## v0.16.0 — Digital Twin
-
-- **Digital Twin**: "What if" simulation against world model — machine/service offline, power outage, VLAN removal, blast radius analysis, recovery sequences
+- **Digital Twin**: "What if" simulation — machine/service offline, power outage, blast radius
 
 ## v0.15.0 — Plugin Ecosystem + Multi-Agent Society
-
-- **Plugin Ecosystem**: Installable capability packages with manifest format, permission checks, CRUD
-- **Multi-Agent Society**: agent.ts rewrite with reputation (EMA), confidence, peer review, work queues, metrics heartbeat
+- **Plugin Ecosystem**: Installable capability packages with permission checks
+- **Multi-Agent Society**: agent.ts rewrite with reputation, confidence, peer review, work queues
 
 ## v0.14.0 — Economy + Immune System + Governance
-
-- **Internal Economy**: Per-task CPU/RAM/GPU/API cost tracking, daily budgets, per-task caps
-- **Digital Immune System**: Prompt injection detection (13 patterns), credential leak scanning (12 patterns), agent trust scoring
-- **Governance Layer**: Policy engine with Block/Warn/Log/Approve enforcement, rate limiting, time-range blocking
+- **Internal Economy**: Per-task cost tracking, daily budgets, per-task caps
+- **Digital Immune System**: Prompt injection (13 patterns), credential leak (12 patterns), agent trust
+- **Governance Layer**: Policy engine with Block/Warn/Log/Approve enforcement
 
 ## v0.13.0 — Curiosity Engine + Knowledge Distillation
-
-- **Curiosity Engine**: Bounded autonomous exploration with configurable topics, sources, daily limits, novelty threshold
-- **Knowledge Distillation**: Compresses experience into runbooks, playbooks, best practices, troubleshooting guides
+- **Curiosity Engine**: Bounded autonomous exploration with configurable topics and sources
+- **Knowledge Distillation**: Compress experience into runbooks, playbooks, best practices
 
 ## v0.12.0 — Personality Engine + Reflection System
-
-- **Personality Engine**: Tunable communication style (depth, verbosity, formality, proactivity, humor) injected into LLM prompts
-- **Reflection System**: Task/periodic/daily self-assessment feeding learnings back into consciousness and suggesting automations
+- **Personality Engine**: Tunable communication style injected into LLM prompts
+- **Reflection System**: Task/periodic/daily self-assessment with automation suggestions
 
 ## v0.11.0 — World Model + Time Intelligence
-
-- **World Model**: Infrastructure graph — machines, services, VLANs, containers, cameras, IoT with dependency/impact analysis, snapshots, diffs
-- **Time Intelligence**: Unified scheduler with Daily/Weekly/Monthly/NthWeekday/Interval schedules, deadlines, IST timezone, Patch Tuesday
+- **World Model**: Infrastructure graph with dependency/impact analysis, snapshots, diffs
+- **Time Intelligence**: Unified scheduler with Daily/Weekly/Monthly/NthWeekday, deadlines, IST
 
 ## v0.10.0 — Digital Consciousness + Goal Engine
-
-- **Digital Consciousness**: Persistent mind state with focus tracking, awareness indicators, 10-second tick loop, PostgreSQL persistence
-- **Goal Engine**: Long-term objectives with sub-goals, auto-detected contributions, progress tracking
+- **Digital Consciousness**: Persistent mind state, 10-second awareness loop, PostgreSQL persistence
+- **Goal Engine**: Long-term objectives with sub-goals, auto-detected contributions
 
 ## v0.9.3 — Config Management + Dashboard UI
-
-- Web-based configuration (config.rs + config-loader.ts + setup wizard + settings page)
-- API endpoints for config integrated into CNS
-- ROADMAP.md rewritten
-
-## v0.9.2 — Config Architecture
-
-- config.rs: serve config via API
-- config-loader.ts: agents fetch from CNS
-- NATS broadcast on config change
-
-## v0.9.1 — Agent Bug Fixes + Voice + ISO
-
-- Fixed 37 commented-out consts, dangling text, broken try/catch across agents
-- Voice systemd services (STT, TTS, wake word)
-- Live ISO profile (DHCP, auto-login, SSH)
-- Headless branding (Plymouth, TTY banner)
-- GUI/voice toggles, DHCP networking
+- Web-based configuration, setup wizard, settings page
 
 ## v0.9.0 — Tool Expansion + Self-Evolution
-
-- 359 tools across 18 agents (up from 164)
-- Self-evolution engine (evolution.rs)
-- Dynamic planner loads tools from tools.json at runtime
-- helpers.ts for agent handler implementations
+- 359 tools across 18 agents, self-evolution engine, dynamic planner

@@ -44,17 +44,23 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 │  IDENTITY: Purpose • Principles • Boundaries • Constitution (7 Articles)    │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  CONSCIOUSNESS: Mind State • Focus • Awareness • Goals • Reflection         │
+│  ATTENTION: Signal Scoring • Priority Queue • Cognitive Load Management     │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  COGNITION: Meta-Reasoning • Debate • Simulation • Creativity • Scientific  │
+│  Intent Clarification • Context Activation • Explainability • Uncertainty   │
+│  Value Estimation • Model Orchestration • Verification • Experience Replay  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  MEMORY: Episodic (experiences) • Procedural (skills) • Semantic (facts)    │
 │          Working (context) • World Model (infrastructure) • Knowledge Graph  │
+│          Provenance • Lifecycle • Forgetting • Safety • Legacy              │
+├──────────────────────────────────────────────────────────────────────────────┤
+│  EMOTIONAL STATE: Confidence • Stress • Curiosity • Satisfaction • Fatigue  │
+│  COGNITIVE METRICS: Decision Quality • Autonomy • Learning Rate • 14 total  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  INTERFACES: Web • Mobile • CLI • Voice • Signal • API • Kiosk • WebSocket  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  CNS (Rust — Axum + Tokio — port 8787)                                      │
-│  47 Modules • 120 API Endpoints • LLM Planner • GOAP Fallback               │
-│  Sentience Engine • Sandboxed Executor • Event Bus • Auth                    │
+│  67 Modules • 150 API Endpoints • LLM Planner • GOAP Fallback               │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  18 AGENTS via NATS: System • Security • Coding • Research • Automation      │
 │  Network • Infra (Pi-hole) • Storage (TrueNAS) • Surveillance (Frigate)      │
@@ -65,13 +71,42 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 │  Economy (budgets) • PII Detection • Sandbox (firejail/seccomp)              │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  EVOLUTION: Self-Evolution • Capability Registry • Plugin Ecosystem          │
-│  Curiosity • Knowledge Distillation • Dreaming/Consolidation                 │
+│  Curiosity • Knowledge Distillation • Dreaming • Evolution Sandbox           │
+│  Adaptive Architecture • Digital Legacy                                      │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  DISTRIBUTED: Collective Intelligence • HAL • Digital Twin • Failover        │
+│  Collective Governance (voting, leader election, consensus)                   │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  OS: NixOS 24.11 • PostgreSQL 16 • Qdrant • NATS • Ollama (local LLM)       │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Stats (v0.34.0)
+
+| Metric | Value |
+|---|---|
+| Rust modules | 67 |
+| Rust source files | 69 |
+| Rust LOC | ~22,000 |
+| API endpoints | 150 |
+| Agents | 18 |
+| Tools | 359 (236 low, 100 medium, 23 high risk) |
+| PostgreSQL tables | 53 |
+| Constitutional articles | 7 (immutable) |
+| Ethical values | 7 |
+| Default governance policies | 4 |
+| Reasoning strategies | 5 |
+| Built-in time patterns | 6 |
+| Prompt injection patterns | 13 |
+| Credential leak patterns | 12 |
+| Identity principles | 6 |
+| Identity boundaries | 5 |
+| Cognitive metrics tracked | 14 |
+
+---
+
 
 ## Core Capabilities
 
@@ -80,14 +115,25 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 - **Constitutional Layer** — 7 immutable articles, multi-step amendment
 - **Ethics & Values** — guides choices when no explicit rule exists
 - **Personality Engine** — tunable communication style
+- **Emotional State** — operational indicators (confidence, stress, curiosity, satisfaction, fatigue)
 
 ### Thinking (How It Reasons)
 - **Digital Consciousness** — persistent mind state, 10-second awareness loop
+- **Attention Engine** — signal scoring, priority queue, focus management
+- **Cognitive Load Manager** — intelligence scheduling, LLM throttling
+- **Intent Engine** — vague-to-specific intent clarification
+- **Context Engine** — task-relevant information activation
 - **Meta-Reasoning** — evaluates and improves its own reasoning
 - **Multi-Agent Debate** — multi-perspective evaluation before acting
 - **Simulation Engine** — predicts outcomes before committing
 - **Creativity Engine** — divergent brainstorming separate from analysis
 - **Scientific Method** — structured research pipeline
+- **Value Estimator** — scores actions by benefit/risk/cost/learning/goal
+- **Explainability Engine** — records why every decision was made
+- **Uncertainty Engine** — confidence scoring, knows when to ask
+- **Model Orchestrator** — selects best local model per task type
+- **Verification Engine** — independently validates task outcomes
+- **Experience Replay** — replays past situations to find better strategies
 
 ### Remembering (What It Knows)
 - **Episodic Memory** — experiences with emotional context
@@ -96,6 +142,11 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 - **Working Memory** — volatile task context
 - **World Model** — infrastructure graph with dependency analysis
 - **Knowledge Distillation** — compresses experience into wisdom
+- **Provenance Engine** — tracks origin and reliability of every fact
+- **Knowledge Lifecycle** — Created → Verified → Updated → Deprecated → Archived
+- **Forgetting Engine** — prevents uncontrolled memory growth
+- **Memory Safety** — integrity validation with checksums
+- **Digital Legacy** — inheritable state across upgrades
 
 ### Acting (What It Does)
 - **18 Specialized Agents** — 359 risk-tagged tools
@@ -112,15 +163,19 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 - **Economy** — resource budgets preventing runaway consumption
 - **Sandboxed Execution** — firejail/seccomp for every tool
 - **SHA-256 Audit Chain** — tamper-evident logging
+- **Evolution Sandbox** — tests self-modifications before applying
 
 ### Growing (How It Evolves)
 - **Reflection System** — task/periodic/daily self-assessment
 - **Curiosity Engine** — bounded autonomous exploration
 - **Capability Registry** — self-aware skill tracking with staleness detection
 - **Dreaming** — idle-time memory consolidation and hypothesis generation
+- **Cognitive Metrics** — 14 intelligence metrics tracked over time
+- **Adaptive Architecture** — proposes structural improvements
 
 ### Scaling (How It Distributes)
 - **Collective Intelligence** — multi-instance collaboration
+- **Collective Governance** — voting, leader election, consensus methods
 - **Hardware Abstraction Layer** — failover and state migration
 - **Digital Twin** — infrastructure simulation before changes
 
@@ -135,27 +190,6 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 - **PII detection** — automatic redaction in logs and outputs
 - **Prompt injection defense** — 13 patterns checked on every LLM input
 - **Credential leak scanning** — 12 patterns checked on every output
-
----
-
-## Stats (v0.24.0)
-
-| Metric | Value |
-|---|---|
-| Rust modules | 47 |
-| API endpoints | 120 |
-| Agents | 18 |
-| Tools | 359 (236 low, 100 medium, 23 high risk) |
-| PostgreSQL tables | 27 |
-| Constitutional articles | 7 (immutable) |
-| Ethical values | 7 |
-| Default governance policies | 4 |
-| Reasoning strategies | 5 |
-| Built-in time patterns | 6 |
-| Prompt injection patterns | 13 |
-| Credential leak patterns | 12 |
-| Identity principles | 6 |
-| Identity boundaries | 5 |
 
 ---
 
