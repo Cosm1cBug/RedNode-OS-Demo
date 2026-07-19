@@ -489,6 +489,92 @@ async fn config_setup_status() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "setup_complete": crate::config::is_setup_complete() }))
 }
 
+
+// ─── Consciousness API ───
+
+async fn consciousness_status() -> Json<serde_json::Value> {
+    let mind = crate::consciousness::get_mind().await;
+    Json(serde_json::to_value(&mind).unwrap_or_default())
+}
+
+async fn consciousness_summary() -> Json<serde_json::Value> {
+    let summary = crate::consciousness::summary().await;
+    Json(serde_json::json!({"ok": true, "summary": summary}))
+}
+
+// ─── Goals API ───
+
+async fn goals_list() -> Json<serde_json::Value> {
+    Json(crate::goals::get_for_api().await)
+}
+
+async fn goals_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::goals::get(&id).await {
+        Some(goal) => Json(serde_json::json!({"ok": true, "goal": goal})),
+        None => Json(serde_json::json!({"ok": false, "error": "Goal not found"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct CreateGoalReq {
+    title: String,
+    description: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    target_date: Option<String>,
+}
+
+async fn goals_create(Json(req): Json<CreateGoalReq>) -> Json<serde_json::Value> {
+    let target = req.target_date.and_then(|d| d.parse::<chrono::DateTime<chrono::Utc>>().ok());
+    let goal = crate::goals::create(&req.title, &req.description, req.tags, target).await;
+    Json(serde_json::json!({"ok": true, "goal": goal}))
+}
+
+#[derive(Deserialize)]
+struct AddSubGoalReq {
+    title: String,
+    description: String,
+}
+
+async fn goals_add_subgoal(
+    Path(id): Path<String>,
+    Json(req): Json<AddSubGoalReq>,
+) -> Json<serde_json::Value> {
+    match crate::goals::add_sub_goal(&id, &req.title, &req.description).await {
+        Some(sub) => Json(serde_json::json!({"ok": true, "sub_goal": sub})),
+        None => Json(serde_json::json!({"ok": false, "error": "Goal not found"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct ContributeReq {
+    task_description: String,
+    #[serde(default)]
+    sub_goal_id: Option<String>,
+    #[serde(default = "default_impact")]
+    impact: f32,
+}
+fn default_impact() -> f32 { 0.5 }
+
+async fn goals_contribute(
+    Path(id): Path<String>,
+    Json(req): Json<ContributeReq>,
+) -> Json<serde_json::Value> {
+    crate::goals::contribute(
+        &id,
+        &req.task_description,
+        req.sub_goal_id.as_deref(),
+        req.impact,
+        false,
+    ).await;
+    Json(serde_json::json!({"ok": true, "message": "Contribution recorded"}))
+}
+
+async fn goals_delete(Path(id): Path<String>) -> Json<serde_json::Value> {
+    crate::goals::set_status(&id, crate::goals::GoalStatus::Abandoned).await;
+    Json(serde_json::json!({"ok": true, "message": "Goal deactivated"}))
+}
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -528,6 +614,14 @@ pub fn router() -> Router {
         .route("/config/secret", post(config_set_secret))
         .route("/config/:service", get(config_get_service).post(config_update_service))
         .route("/config/test/:service", post(config_test_service))
+        // Consciousness — state of mind
+        .route("/consciousness", get(consciousness_status))
+        .route("/consciousness/summary", get(consciousness_summary))
+        // Goals — long-term objectives
+        .route("/goals", get(goals_list).post(goals_create))
+        .route("/goals/:id", get(goals_get).delete(goals_delete))
+        .route("/goals/:id/subgoal", post(goals_add_subgoal))
+        .route("/goals/:id/contribute", post(goals_contribute))
         // Auth middleware — checks Bearer token on all routes except /health and /events
         // Set REDNODE_API_TOKEN env var to enable. If unset, auth is disabled (dev mode).
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
