@@ -52,6 +52,7 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 │  COGNITION: Meta-Reasoning • Debate • Simulation • Creativity • Scientific  │
 │  Intent Clarification • Context Activation • Explainability • Uncertainty   │
 │  Value Estimation • Model Orchestration • Verification • Experience Replay  │
+│  Mental Models • Confidence Calibration • Cognitive Benchmark Suite            │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  MEMORY: Episodic (experiences) • Procedural (skills) • Semantic (facts)    │
 │          Working (context) • World Model (infrastructure) • Knowledge Graph  │
@@ -65,7 +66,7 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 │  INTERFACES: Web • Mobile • CLI • Voice • Signal • API • Kiosk • WebSocket  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  CNS (Rust — Axum + Tokio — port 8787)                                      │
-│  70 Modules • 159 API Endpoints • LLM Planner • GOAP Fallback               │
+│  72 Modules • 170 API Endpoints • LLM Planner • GOAP Fallback               │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  18 AGENTS via NATS: System • Security • Coding • Research • Automation      │
 │  Network • Infra (Pi-hole) • Storage (TrueNAS) • Surveillance (Frigate)      │
@@ -88,17 +89,17 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 
 ---
 
-## Stats (v0.36.0)
+## Stats (v0.38.0)
 
 | Metric | Value |
 |---|---|
-| Rust modules | 70 |
-| Rust source files | 72 |
-| Rust LOC | ~25,000 |
-| API endpoints | 159 |
+| Rust modules | 72 |
+| Rust source files | 74 |
+| Rust LOC | ~26,000 |
+| API endpoints | 170 |
 | Agents | 18 |
 | Tools | 359 (236 low, 100 medium, 23 high risk) |
-| PostgreSQL tables | 56 |
+| PostgreSQL tables | 58 |
 | Constitutional articles | 7 (immutable) |
 | Ethical values | 7 |
 | Default governance policies | 4 |
@@ -534,4 +535,4 @@ MIT — © 2026 RedNode
 
 ---
 
-*RedNode-OS v0.36.0 — 70 modules, 159 endpoints, 359 tools, 18 agents, ~25,000 lines of Rust — The computer becomes the intelligence.*
+*RedNode-OS v0.38.0 — 72 modules, 170 endpoints, 359 tools, 18 agents, ~26,000 lines of Rust — The computer becomes the intelligence.*

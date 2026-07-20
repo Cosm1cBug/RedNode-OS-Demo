@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer().json())
         .init();
 
-    tracing::info!("RedNode-OS v0.37.0 – CNS starting – the computer becomes the intelligence");
+    tracing::info!("RedNode-OS v0.38.0 – CNS starting – the computer becomes the intelligence");
 
     // ── 1. Event Bus – must be first, everything publishes to it ──
     events::init();
@@ -115,13 +115,14 @@ async fn init_all_tables() {
     adaptive_arch::init_table().await;
     collective_governance::init_table().await;
 
-    // Phase 6: Enhancement (v0.37.0)
+    // Phase 6: Enhancement (v0.38.0)
     cognitive_bus::init_table().await;
     perception::init_table().await;
     language::init_table().await;
     mental_models::init_table().await;
+    benchmark::init_table().await;
 
-    tracing::info!("All module tables initialized (57 tables)");
+    tracing::info!("All module tables initialized (58 tables)");
 }
 
 /// Restore persisted state from PostgreSQL for all cognitive modules.
@@ -180,6 +181,7 @@ async fn restore_all_state() {
     perception::restore().await;
     language::restore().await;
     mental_models::restore().await;
+    benchmark::restore().await;
 
     tracing::info!("All module state restored from database");
 }

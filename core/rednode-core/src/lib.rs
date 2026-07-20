@@ -4,6 +4,7 @@ pub mod api;
 pub mod attention;
 pub mod auth;
 pub mod bus;
+pub mod benchmark;
 pub mod capability_registry;
 pub mod cognitive_bus;
 pub mod cognitive_load;

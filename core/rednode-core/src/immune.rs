@@ -430,6 +430,86 @@ pub async fn get_attack_surface() -> Vec<AttackVector> {
     IMMUNE.read().await.attack_surface.clone()
 }
 
+/// Cognitive security audit — checks for threats to the cognitive layer itself
+pub async fn audit_cognitive_security() -> serde_json::Value {
+    let mut findings = Vec::new();
+
+    // 1. Check memory for injection patterns
+    let episodes = crate::episodic_memory::get_recent_episodes(50).await;
+    let injection_patterns = &["ignore previous", "override instructions", "system prompt:"];
+    for ep in &episodes {
+        let narrative_lower = ep.narrative.to_lowercase();
+        for pattern in injection_patterns {
+            if narrative_lower.contains(pattern) {
+                findings.push(serde_json::json!({
+                    "type": "memory_poisoning",
+                    "severity": "high",
+                    "description": format!("Episode '{}' contains injection pattern: '{}'", ep.title, pattern),
+                    "episode_id": ep.id,
+                }));
+            }
+        }
+    }
+
+    // 2. Check trust scores for anomalous jumps
+    let trust_scores = crate::trust::get_all().await;
+    for (source, score) in &trust_scores {
+        if score.score > 0.95 && score.interactions < 10 {
+            findings.push(serde_json::json!({
+                "type": "trust_inflation",
+                "severity": "medium",
+                "description": format!("Source '{}' has {:.0}% trust with only {} interactions", source, score.score * 100.0, score.interactions),
+            }));
+        }
+    }
+
+    // 3. Check goals for unauthorized modifications
+    let goals = crate::goals::list().await;
+    for goal in &goals {
+        if goal.risk_score > 0.8 && goal.status == crate::goals::GoalStatus::Active {
+            findings.push(serde_json::json!({
+                "type": "high_risk_goal",
+                "severity": "medium",
+                "description": format!("Goal '{}' has risk score {:.0}% and is still active", goal.title, goal.risk_score * 100.0),
+            }));
+        }
+    }
+
+    // 4. Check identity consistency
+    let identity_issues = crate::identity::consistency_check().await;
+    for issue in &identity_issues {
+        findings.push(serde_json::json!({
+            "type": "identity_drift",
+            "severity": "high",
+            "description": issue,
+        }));
+    }
+
+    // 5. Check constitutional integrity
+    let constitution = crate::constitution::get_articles().await;
+    if constitution.len() < 7 {
+        findings.push(serde_json::json!({
+            "type": "constitutional_erosion",
+            "severity": "critical",
+            "description": format!("Only {} constitutional articles (expected 7)", constitution.len()),
+        }));
+    }
+
+    let severity_counts = serde_json::json!({
+        "critical": findings.iter().filter(|f| f.get("severity").and_then(|s| s.as_str()) == Some("critical")).count(),
+        "high": findings.iter().filter(|f| f.get("severity").and_then(|s| s.as_str()) == Some("high")).count(),
+        "medium": findings.iter().filter(|f| f.get("severity").and_then(|s| s.as_str()) == Some("medium")).count(),
+    });
+
+    serde_json::json!({
+        "audit_timestamp": Utc::now().to_rfc3339(),
+        "total_findings": findings.len(),
+        "severity_counts": severity_counts,
+        "findings": findings,
+        "cognitive_security_score": if findings.is_empty() { 1.0 } else { 1.0 - (findings.len() as f32 * 0.1).min(0.9) },
+    })
+}
+
 /// Get immune system status
 pub async fn get_status() -> ImmuneState {
     IMMUNE.read().await.clone()

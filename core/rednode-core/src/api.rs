@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.37.0",
+        "version": "0.38.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.37.0",
+                "version": "0.38.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -2077,6 +2077,41 @@ async fn meta_learn() -> Json<serde_json::Value> {
     Json(serde_json::json!({"ok": true, "meta_learning": crate::meta_reasoning::meta_learn().await}))
 }
 
+// ─── Benchmark API ───
+
+async fn benchmark_run() -> Json<serde_json::Value> {
+    let result = crate::benchmark::run().await;
+    Json(serde_json::json!({"ok": true, "result": result}))
+}
+
+async fn benchmark_results() -> Json<serde_json::Value> {
+    let results = crate::benchmark::get_results(10).await;
+    let stats = crate::benchmark::get_stats().await;
+    Json(serde_json::json!({"ok": true, "results": results, "stats": stats}))
+}
+
+async fn benchmark_compare() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "comparison": crate::benchmark::compare().await}))
+}
+
+async fn benchmark_set_baseline() -> Json<serde_json::Value> {
+    let ok = crate::benchmark::set_baseline().await;
+    Json(serde_json::json!({"ok": ok, "message": if ok { "Baseline set" } else { "No runs to set as baseline" }}))
+}
+
+async fn cognitive_security_audit() -> Json<serde_json::Value> {
+    let report = crate::immune::audit_cognitive_security().await;
+    Json(serde_json::json!({"ok": true, "audit": report}))
+}
+
+#[derive(Deserialize)]
+struct ReplayDecisionReq { intent: String }
+
+async fn replay_decision(Json(req): Json<ReplayDecisionReq>) -> Json<serde_json::Value> {
+    let replay = crate::experience_replay::replay_decision(&req.intent).await;
+    Json(serde_json::json!({"ok": true, "replay": replay}))
+}
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -2168,6 +2203,13 @@ pub fn router() -> Router {
         .route("/cognitive-health", get(cognitive_health))
         .route("/calibration", get(calibration_stats))
         .route("/meta-learn", get(meta_learn))
+        // Benchmark + Production Readiness (v0.38.0)
+        .route("/benchmark/run", post(benchmark_run))
+        .route("/benchmark/results", get(benchmark_results))
+        .route("/benchmark/compare", get(benchmark_compare))
+        .route("/benchmark/baseline", post(benchmark_set_baseline))
+        .route("/cognitive-security-audit", get(cognitive_security_audit))
+        .route("/replay/decision", post(replay_decision))
         // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())

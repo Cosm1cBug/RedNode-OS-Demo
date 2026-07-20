@@ -2,7 +2,7 @@
 
 > *The computer does not contain intelligence. The computer becomes the intelligence.*
 >
-> **Current State": v0.36.0 — 70 Rust modules, 159 API endpoints, 18 agents, 359 tools, 56 PostgreSQL tables, full cognitive architecture with consciousness, identity, constitution, perception, cognitive bus, language engine, attention, meta-reasoning (9 strategies), multi-agent debate (10 roles), simulation, collective intelligence, and 20 deepened cognitive subsystems
+> **Current State**: v0.38.0 — 72 Rust modules, 170 API endpoints, 18 agents, 359 tools, 58 PostgreSQL tables, cognitive benchmark suite, mental models, multi-speed cognitive clock, confidence calibration, decision replay, cognitive security audit, 5 specification documents
 >
 > **Target**: v1.0 — Production deployment on real hardware
 
@@ -91,7 +91,7 @@
 - [x] **Adaptive Architecture** — proposes structural improvements
 - [x] **Collective Governance** — voting, leader election, consensus
 
-## Phase 6 – Enhancement (v0.35.0) ✅ Complete
+## Phase 6 – Enhancement (v0.35.0-v0.36.0) ✅ Complete
 
 - [x] **Cognitive Bus** — 23 typed events connecting all modules (loose coupling)
 - [x] **Perception Layer** — 10 input modalities normalized into observations
@@ -117,7 +117,32 @@
 - [x] **Curiosity depth** — discovery impact tracking
 - [x] **Collective depth** — peer specialization, federation policy
 
-## Phase 7 – Production (v1.0) 🔜
+## Phase 7 — Cognitive Depth (v0.37.0) ✅ Complete
+
+- [x] **Mental Models** — internal theories with evidence and prediction validation
+- [x] **Counterfactual Thinking** — causal "what if" analysis
+- [x] **Self-Explanation** — modules explain WHY they made decisions
+- [x] **Confidence Calibration** — predicted vs actual outcome tracking
+- [x] **Cognitive Health Report** — aggregated health score with trends
+- [x] **Emergent Skill Inference** — discover capabilities from combinations
+- [x] **Planning Horizons** — goals spanning Hours to Years
+- [x] **Self-Question Generation** — consciousness introspective queries
+- [x] **Meta-Learning** — optimize the learning process itself
+- [x] **Multi-Speed Cognitive Clock** — Fast(2s)/Medium(10s)/Slow(5min)/Background(1h)
+
+## Phase 8 — Production Readiness (v0.38.0) ✅ Complete
+
+- [x] **Cognitive Benchmark Suite** — 8 scenarios, baseline comparison, cross-release tracking
+- [x] **Decision Replay Engine** — reconstruct full thought chains
+- [x] **Cognitive Security Audit** — check memory/trust/goal/identity poisoning
+- [x] **Digital Legacy expansion** — architecture decisions, lessons learned
+- [x] **Cognitive API Specification** — module interfaces defined
+- [x] **Architecture Specification** — lifecycle, dependencies, hierarchy
+- [x] **Testing Framework** — test cognition as software
+- [x] **Developer SDK** — extension points for plugins
+- [x] **Maturity Model** — 10-level cognitive maturity scale
+
+## Phase 9 — Deployment (v1.0) 🔜
 
 - [ ] Deploy on real hardware (homelab)
 - [ ] End-to-end integration testing across all 67 modules
@@ -142,7 +167,7 @@
 - [ ] Stress testing dreaming/consolidation cycles
 - [ ] Plugin SDK documentation and first community plugin
 
-## Phase 7 – Beyond v1.0
+## Phase 10 — Beyond v1.0
 
 - [ ] Multi-model intelligence (swap between LLMs per task type)
 - [ ] Vision system (camera feed analysis beyond Frigate)
@@ -154,4 +179,4 @@
 
 ---
 
-*RedNode-OS v0.36.0 — 70 modules, 159 endpoints, 359 tools, 18 agents, ~24,000 lines of Rust — The computer becomes the intelligence.*
+*RedNode-OS v0.38.0 — 72 modules, 170 endpoints, 359 tools, 18 agents, ~26,000 lines of Rust — The computer becomes the intelligence.*
