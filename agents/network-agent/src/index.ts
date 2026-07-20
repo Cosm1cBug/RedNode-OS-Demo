@@ -1,6 +1,15 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
 import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
+// ─── Input sanitization for shell safety ───
+function sanitizeHost(input: string): string {
+  // Allow only hostname/IP characters
+  return input.replace(/[^a-zA-Z0-9.\-:]/g, "").substring(0, 253);
+}
+function sanitizeDomain(input: string): string {
+  return input.replace(/[^a-zA-Z0-9.\-]/g, "").substring(0, 253);
+}
+
 const PIHOLE_URL = process.env.PIHOLE_URL || "http://10.0.50.2";
 const TOOLS = [
   "dns.check",
@@ -89,7 +98,7 @@ class NetworkAgent extends RedNodeAgent {
             piholeOk = true;
             piholeStats = await resp.json();
           }
-        } catch {}
+        } catch (_e) { /* non-critical */ }
 
         // Also check external DNS resolution via the Rust executor
         const digResult = await this.callTool("shell.run_safe", {
@@ -338,7 +347,7 @@ class NetworkAgent extends RedNodeAgent {
                 try {
                   const { execSync } = await import("child_process");
                   const count = args.count || 4;
-                  const out = execSync(`ping -c ${count} -W 3 ${host} 2>&1`, { encoding: "utf-8", timeout: 15000 });
+                  const out = execSync(`ping -c ${count} -W 3 ${sanitizeHost(host)} 2>&1`, { encoding: "utf-8", timeout: 15000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: true, output: `Ping to ${host} failed: ${e.message}`, tool }; }
       }
@@ -348,7 +357,7 @@ class NetworkAgent extends RedNodeAgent {
                 if (!host) return { ok: false, error: "Missing 'host' to traceroute" };
                 try {
                   const { execSync } = await import("child_process");
-                  const out = execSync(`traceroute -m 20 -w 2 ${host} 2>&1 || tracepath ${host} 2>&1`, { encoding: "utf-8", timeout: 30000 });
+                  const out = execSync(`traceroute -m 20 -w 2 ${sanitizeHost(host)} 2>&1 || tracepath ${sanitizeHost(host)} 2>&1`, { encoding: "utf-8", timeout: 30000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }
@@ -359,7 +368,7 @@ class NetworkAgent extends RedNodeAgent {
                 try {
                   const { execSync } = await import("child_process");
                   const rtype = args.type || "A";
-                  const out = execSync(`dig ${domain} ${rtype} +short 2>/dev/null || nslookup ${domain} 2>&1`, { encoding: "utf-8", timeout: 10000 });
+                  const out = execSync(`dig ${sanitizeDomain(domain)} ${sanitizeDomain(rtype)} +short 2>/dev/null || nslookup ${sanitizeDomain(domain)} 2>&1`, { encoding: "utf-8", timeout: 10000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }
@@ -369,7 +378,7 @@ class NetworkAgent extends RedNodeAgent {
                 if (!domain) return { ok: false, error: "Missing 'domain'" };
                 try {
                   const { execSync } = await import("child_process");
-                  const out = execSync(`whois ${domain} 2>&1 | head -60`, { encoding: "utf-8", timeout: 15000 });
+                  const out = execSync(`whois ${sanitizeDomain(domain)} 2>&1 | head -60`, { encoding: "utf-8", timeout: 15000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }
@@ -443,7 +452,7 @@ class NetworkAgent extends RedNodeAgent {
                 if (!host) return { ok: false, error: "Missing 'host'" };
                 try {
                   const { execSync } = await import("child_process");
-                  const out = execSync(`mtr -r -c 5 ${host} 2>&1 || traceroute ${host} 2>&1`, { encoding: "utf-8", timeout: 30000 });
+                  const out = execSync(`mtr -r -c 5 ${sanitizeHost(host)} 2>&1 || traceroute ${sanitizeHost(host)} 2>&1`, { encoding: "utf-8", timeout: 30000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }

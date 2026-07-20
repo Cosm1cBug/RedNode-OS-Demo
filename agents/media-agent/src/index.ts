@@ -193,7 +193,7 @@ class MediaAgent extends RedNodeAgent {
                 if (!file) return { ok: false, error: "Missing 'file' path" };
                 try {
                   const { execSync } = await import("child_process");
-                  const out = execSync(\`ffprobe -v quiet -print_format json -show_format -show_streams "\${file}" 2>/dev/null || echo 'ffprobe not available'\`, { encoding: "utf-8", timeout: 10000 });
+                  const out = execSync(`ffprobe -v quiet -print_format json -show_format -show_streams "${file}" 2>/dev/null || echo 'ffprobe not available'`, { encoding: "utf-8", timeout: 10000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }

@@ -12,23 +12,29 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer().json())
         .init();
 
-    tracing::info!("RedNode-OS v0.38.0 – CNS starting – the computer becomes the intelligence");
+    tracing::info!("RedNode-OS v0.39.0 – CNS starting – the computer becomes the intelligence");
 
     // ── 1. Event Bus – must be first, everything publishes to it ──
     events::init();
 
     // ── 2. Memory – Postgres / Qdrant / Kuzu ──
-    let _ = memory::init().await;
+    if let Err(e) = memory::init().await {
+        tracing::error!("Memory initialization failed: {} — running in degraded mode", e);
+    }
     memory::init_vector_graph().await;
 
     // ── 3. Initialize all module tables (auto-create on fresh DB) ──
     init_all_tables().await;
 
     // ── 4. Bus – NATS – Central Nervous System ──
-    let _ = bus::connect().await;
+    if let Err(e) = bus::connect().await {
+        tracing::error!("NATS bus connection failed: {} — running in local-only mode", e);
+    }
 
     // ── 5. Tool Executor NATS service – firejail/bubblewrap + seccomp + audit log ──
-    let _ = executor::start_nats_executor().await;
+    if let Err(e) = executor::start_nats_executor().await {
+        tracing::error!("Executor initialization failed: {} — tool execution unavailable", e);
+    }
 
     // ── 6. Sentience Engine – self-aware loop ──
     if std::env::var("REDNODE_SENTIENCE").unwrap_or_else(|_| "on".into()) != "off" {
@@ -115,14 +121,13 @@ async fn init_all_tables() {
     adaptive_arch::init_table().await;
     collective_governance::init_table().await;
 
-    // Phase 6: Enhancement (v0.38.0)
+    // Phase 6: Enhancement (v0.39.0)
     cognitive_bus::init_table().await;
     perception::init_table().await;
     language::init_table().await;
     mental_models::init_table().await;
-    benchmark::init_table().await;
 
-    tracing::info!("All module tables initialized (58 tables)");
+    tracing::info!("All module tables initialized (57 tables)");
 }
 
 /// Restore persisted state from PostgreSQL for all cognitive modules.
@@ -181,7 +186,6 @@ async fn restore_all_state() {
     perception::restore().await;
     language::restore().await;
     mental_models::restore().await;
-    benchmark::restore().await;
 
     tracing::info!("All module state restored from database");
 }

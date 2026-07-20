@@ -96,7 +96,7 @@ async function receiveMessages(): Promise<any[]> {
             timestamp: msg.envelope.timestamp,
           });
         }
-      } catch {}
+      } catch (_e) { /* non-critical */ }
     }
     return messages;
   } catch {

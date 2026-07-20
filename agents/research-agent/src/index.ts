@@ -205,7 +205,7 @@ async function deepResearch(topic: string): Promise<{
         content: `Deep Research Report: ${topic}\n\n${report}\n\nSources:\n${uniqueSources.map((s) => `- ${s.title}: ${s.url}`).join("\n")}`,
       }),
     });
-  } catch {}
+  } catch (_e) { /* non-critical */ }
 
   return {
     report,
@@ -418,7 +418,7 @@ class ResearchAgent extends RedNodeAgent {
             });
             const sData = (await resp.json()) as any;
             summary = sData.message?.content || "";
-          } catch {}
+          } catch (_e) { /* non-critical */ }
 
           let output = `📰 News: ${topic}\n\n`;
           if (summary) output += `Summary:\n${summary}\n\n`;
@@ -564,7 +564,7 @@ class ResearchAgent extends RedNodeAgent {
         const query = args.query || args.topic || "";
                 if (!query) return { ok: false, error: "Missing 'query' topic" };
                 try {
-                  const res = await fetch(\`http://export.arxiv.org/api/query?search_query=all:\${encodeURIComponent(query)}&max_results=5\`);
+                  const res = await fetch(`http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(query)}&max_results=5`);
                   const xml = await res.text();
                   return { ok: true, output: xml.substring(0, 3000), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
@@ -574,7 +574,7 @@ class ResearchAgent extends RedNodeAgent {
         const query = args.query || args.topic || "";
                 if (!query) return { ok: false, error: "Missing 'query' topic" };
                 try {
-                  const res = await fetch(\`https://en.wikipedia.org/api/rest_v1/page/summary/\${encodeURIComponent(query)}\`);
+                  const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
                   const data = await res.json() as any;
                   return { ok: true, output: data.extract || "No article found", tool, title: data.title };
                 } catch (e: any) { return { ok: false, error: e.message }; }

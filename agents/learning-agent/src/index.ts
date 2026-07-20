@@ -425,7 +425,7 @@ class LearningAgent extends RedNodeAgent {
         };
       }
       case "learn.benchmark": {
-        const prompt = "Generate a JSON plan for: check system health"; const start = Date.now(); const result = await llm(prompt, "You are RedNode planner. Output valid JSON."); const elapsed = Date.now() - start; let isJson = false; try { JSON.parse(result); isJson = true; } catch {} return { ok: true, output: `LLM Benchmark: ${elapsed}ms, JSON valid: ${isJson}, length: ${result.length}`, tool };  // LLM benchmark suite
+        const prompt = "Generate a JSON plan for: check system health"; const start = Date.now(); const result = await llm(prompt, "You are RedNode planner. Output valid JSON."); const elapsed = Date.now() - start; let isJson = false; try { JSON.parse(result); isJson = true; } catch (_e) { /* non-critical */ } return { ok: true, output: `LLM Benchmark: ${elapsed}ms, JSON valid: ${isJson}, length: ${result.length}`, tool };  // LLM benchmark suite
       }
 
       case "learn.train_data": {

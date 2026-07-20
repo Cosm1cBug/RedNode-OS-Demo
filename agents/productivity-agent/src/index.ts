@@ -54,7 +54,7 @@ async function ingestToRAG(source: string, content: string) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ source, content }),
     });
-  } catch {}
+  } catch (_e) { /* non-critical */ }
 }
 
 // ─── Tasks — JSON file ───
@@ -73,7 +73,7 @@ function loadTasks(): Task[] {
   try {
     if (fs.existsSync(TASKS_FILE))
       return JSON.parse(fs.readFileSync(TASKS_FILE, "utf-8"));
-  } catch {}
+  } catch (_e) { /* non-critical */ }
   return [];
 }
 
@@ -100,7 +100,7 @@ function loadBookmarks(): Bookmark[] {
   try {
     if (fs.existsSync(BOOKMARKS_FILE))
       return JSON.parse(fs.readFileSync(BOOKMARKS_FILE, "utf-8"));
-  } catch {}
+  } catch (_e) { /* non-critical */ }
   return [];
 }
 

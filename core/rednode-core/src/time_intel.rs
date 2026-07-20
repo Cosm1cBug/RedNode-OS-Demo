@@ -32,7 +32,7 @@
 //   POST   /time/deadlines             — create a deadline
 //   GET    /time/due                   — events/patterns due right now
 
-use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, Timelike, Utc, Weekday};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, TimeZone, Timelike, Utc, Weekday};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;

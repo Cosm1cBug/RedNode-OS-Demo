@@ -77,7 +77,7 @@ async function getPackages(): Promise<
             manager: "dpkg",
           });
       }
-    } catch {}
+    } catch (_e) { /* non-critical */ }
     // rpm
     if (pkgs.length === 0) {
       try {
@@ -94,7 +94,7 @@ async function getPackages(): Promise<
               manager: "rpm",
             });
         }
-      } catch {}
+      } catch (_e) { /* non-critical */ }
     }
     // snap
     try {
@@ -111,7 +111,7 @@ async function getPackages(): Promise<
             manager: "snap",
           });
       }
-    } catch {}
+    } catch (_e) { /* non-critical */ }
     // flatpak
     try {
       const { stdout } = await execAsync(
@@ -127,7 +127,7 @@ async function getPackages(): Promise<
             manager: "flatpak",
           });
       }
-    } catch {}
+    } catch (_e) { /* non-critical */ }
   }
 
   if (PLATFORM === "darwin") {
@@ -146,7 +146,7 @@ async function getPackages(): Promise<
             manager: "brew",
           });
       }
-    } catch {}
+    } catch (_e) { /* non-critical */ }
   }
 
   if (PLATFORM === "win32") {
@@ -166,7 +166,7 @@ async function getPackages(): Promise<
             manager: "winget",
           });
       }
-    } catch {}
+    } catch (_e) { /* non-critical */ }
     // winget
     try {
       const { stdout } = await execAsync(
@@ -178,7 +178,7 @@ async function getPackages(): Promise<
         if (parts[0] && parts[1])
           pkgs.push({ name: parts[0], version: parts[1], manager: "winget" });
       }
-    } catch {}
+    } catch (_e) { /* non-critical */ }
   }
 
   return pkgs;
@@ -220,7 +220,7 @@ async function getOpenPorts(): Promise<{ port: number; process: string }[]> {
           ports.push({ port: parseInt(match[1]), process: `PID:${match[2]}` });
       }
     }
-  } catch {}
+  } catch (_e) { /* non-critical */ }
 
   return ports;
 }
@@ -266,7 +266,7 @@ async function getServices(): Promise<{ name: string; status: string }[]> {
         if (s.Name) services.push({ name: s.Name, status: "running" });
       }
     }
-  } catch {}
+  } catch (_e) { /* non-critical */ }
 
   return services;
 }
@@ -306,7 +306,7 @@ async function getOsVersion(): Promise<string> {
       const { stdout } = await execAsync("ver", { timeout: 3000 });
       return stdout.trim();
     }
-  } catch {}
+  } catch (_e) { /* non-critical */ }
   return `${PLATFORM} ${os.release()}`;
 }
 

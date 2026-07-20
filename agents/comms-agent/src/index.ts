@@ -409,7 +409,7 @@ class CommsAgent extends RedNodeAgent {
                 parts.push(`  [${e.severity}] ${e.summary}`);
               }
             }
-          } catch {}
+          } catch (_e) { /* non-critical */ }
 
           // Approvals
           try {
@@ -419,7 +419,7 @@ class CommsAgent extends RedNodeAgent {
             if (pending.length > 0) {
               parts.push(`⏳ ${pending.length} pending approvals`);
             }
-          } catch {}
+          } catch (_e) { /* non-critical */ }
 
           // Email summary
           try {
@@ -430,7 +430,7 @@ class CommsAgent extends RedNodeAgent {
                 parts.push(`  ${e.from_name || e.from}: ${e.subject}`);
               }
             }
-          } catch {}
+          } catch (_e) { /* non-critical */ }
 
           // Calendar
           try {
@@ -443,7 +443,7 @@ class CommsAgent extends RedNodeAgent {
                 );
               }
             }
-          } catch {}
+          } catch (_e) { /* non-critical */ }
 
           if (parts.length === 0) {
             parts.push("All clear — no notifications");
@@ -574,7 +574,7 @@ async function checkUpcomingEvents() {
               },
             }),
           });
-        } catch {}
+        } catch (_e) { /* non-critical */ }
 
         // Emit to event bus for real-time dashboard
         try {
@@ -586,7 +586,7 @@ async function checkUpcomingEvents() {
               session_id: "calendar-awareness",
             }),
           });
-        } catch {}
+        } catch (_e) { /* non-critical */ }
       }
     }
 

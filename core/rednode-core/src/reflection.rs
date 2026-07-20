@@ -21,7 +21,7 @@
 //   GET  /reflection/history   — past daily summaries
 //   POST /reflection/trigger   — force a reflection now
 
-use chrono::{DateTime, Utc, Datelike};
+use chrono::{DateTime, Utc, Datelike, Timelike};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::Arc;

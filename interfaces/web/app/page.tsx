@@ -129,7 +129,7 @@ export default function Page() {
           <Active />
         </div>
         <footer style={{marginTop:14, fontSize:11, color:'var(--text-muted)', textAlign:'center', letterSpacing:'0.02em'}}>
-          14 Agents · 105 Tools · Rust CNS · Local LLM · Zero Cloud · {time}
+          18 Agents · 359 Tools · Rust CNS · Local LLM · Zero Cloud · {time}
         </footer>
       </main>
     </div>

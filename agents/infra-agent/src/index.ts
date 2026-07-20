@@ -244,16 +244,16 @@ class InfraAgent extends RedNodeAgent {
                 if (!client) return { ok: false, error: "Missing 'client' IP" };
                 const url = process.env.PIHOLE_URL || "http://10.0.50.2";
                 try {
-                  const res = await fetch(\`\${url}/admin/api.php?getQuerySources&client=\${client}\`);
+                  const res = await fetch(`${url}/admin/api.php?getQuerySources&client=${client}`);
                   const data = await res.json();
                   return { ok: true, output: JSON.stringify(data, null, 2), tool };
-                } catch (e: any) { return { ok: false, error: \`Pi-hole API error: \${e.message}\` }; }
+                } catch (e: any) { return { ok: false, error: `Pi-hole API error: ${e.message}` }; }
       }
 
       case "pihole.dns_history": {
         const url = process.env.PIHOLE_URL || "http://10.0.50.2";
                 try {
-                  const res = await fetch(\`\${url}/admin/api.php?overTimeData10mins\`);
+                  const res = await fetch(`${url}/admin/api.php?overTimeData10mins`);
                   const data = await res.json();
                   return { ok: true, output: JSON.stringify(data, null, 2), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
@@ -281,7 +281,7 @@ class InfraAgent extends RedNodeAgent {
                 try {
                   const { execSync } = await import("child_process");
                   const n = args.lines || 50;
-                  const out = execSync(\`docker logs --tail \${n} \${container} 2>&1\`, { encoding: "utf-8", timeout: 10000 });
+                  const out = execSync(`docker logs --tail ${n} ${container} 2>&1`, { encoding: "utf-8", timeout: 10000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }
@@ -318,7 +318,7 @@ class InfraAgent extends RedNodeAgent {
           raw: {},
         }),
       });
-    } catch {}
+    } catch (_e) { /* non-critical */ }
   }
 }
 

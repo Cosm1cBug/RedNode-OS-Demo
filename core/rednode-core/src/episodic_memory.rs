@@ -133,8 +133,6 @@ pub struct ContextItem {
     pub ttl_secs: Option<u64>,
 }
 
-/// The complete structured memory system
-#[derive(Debug, Clone, Serialize, Deserialize)]
 /// A detected contradiction between memories
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Contradiction {
@@ -144,6 +142,8 @@ pub struct Contradiction {
     pub detected_at: DateTime<Utc>,
 }
 
+/// The complete structured memory system
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StructuredMemory {
     pub episodes: VecDeque<Episode>,
     pub procedures: Vec<Procedure>,

@@ -125,7 +125,7 @@ class SystemAgent extends RedNodeAgent {
                   raw: { line: u },
                 }),
               });
-            } catch {}
+            } catch (_e) { /* non-critical */ }
           }
         } else {
           enriched += `✅ All containers healthy\n`;

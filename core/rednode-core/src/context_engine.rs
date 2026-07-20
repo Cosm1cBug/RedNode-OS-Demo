@@ -76,7 +76,7 @@ pub async fn activate_for_intent(intent: &str) -> ActiveContext {
 
     // Gather relevant episodes
     let episodes = crate::episodic_memory::search_episodes(intent, 5).await;
-    let relevant_episodes: Vec<String> = episodes.iter().map(|e| format!("[{}] {}", e.category, e.title)).take(5).collect();
+    let relevant_episodes: Vec<String> = episodes.iter().map(|e| format!("[{:?}] {}", e.category, e.title)).take(5).collect();
 
     // Gather relevant procedures
     let procedures = crate::episodic_memory::search_procedures(intent).await;

@@ -64,7 +64,11 @@ pub async fn update_from_system() {
 
     // Record snapshot
     if state.history.len() > 288 { state.history.remove(0); } // 288 = 24h at 5min intervals
-    state.history.push(EmotionalSnapshot { timestamp: Utc::now(), confidence: state.confidence, stress: state.stress, satisfaction: state.satisfaction });
+    // Copy values before pushing to avoid borrow checker conflict
+    let snap_conf = state.confidence;
+    let snap_stress = state.stress;
+    let snap_sat = state.satisfaction;
+    state.history.push(EmotionalSnapshot { timestamp: Utc::now(), confidence: snap_conf, stress: snap_stress, satisfaction: snap_sat });
 }
 
 pub async fn get() -> EmotionalState { EMOTIONAL.read().await.clone() }

@@ -1,6 +1,21 @@
 import { RedNodeAgent } from "../../shared/src/agent.js";
 import { sh, api, llm, cns, pihole, truenas, frigate, ha } from "../../shared/src/helpers.js";
 
+// ─── Input sanitization for shell safety ───
+function sanitizeShellArg(input: string): string {
+  // Remove shell metacharacters to prevent injection
+  return input.replace(/[;&|`$(){}!<>\\]/g, "").replace(/\.\./g, "").trim().substring(0, 500);
+}
+
+function sanitizePath(input: string): string {
+  // Normalize path, reject traversal
+  const clean = input.replace(/\.\./g, "").replace(/[;&|`$(){}!<>\\]/g, "").trim();
+  if (clean.startsWith("/etc/shadow") || clean.startsWith("/root") || clean.includes(".ssh/")) {
+    return "."; // safe fallback
+  }
+  return clean || ".";
+}
+
 const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 const MODEL =
   process.env.REDNODE_CODE_MODEL ||
@@ -354,7 +369,9 @@ Return ONLY the refactored code with brief comments explaining changes.`,
                 if (!query) return { ok: false, error: "Missing 'query' pattern" };
                 try {
                   const { execSync } = await import("child_process");
-                  const out = execSync(\`grep -rn "\${query}" \${dir} --include="*.ts" --include="*.rs" --include="*.py" --include="*.nix" 2>/dev/null | head -30\`, { encoding: "utf-8", timeout: 10000 });
+                  const safeQuery = sanitizeShellArg(query);
+                  const safeDir = sanitizePath(dir);
+                  const out = execSync(`grep -rn "${safeQuery}" ${safeDir} --include="*.ts" --include="*.rs" --include="*.py" --include="*.nix" 2>/dev/null | head -30`, { encoding: "utf-8", timeout: 10000 });
                   return { ok: true, output: out.trim() || "No matches found", tool };
                 } catch (e: any) { return { ok: true, output: "No matches found", tool }; }
       }
@@ -375,7 +392,7 @@ Return ONLY the refactored code with brief comments explaining changes.`,
         const dir = args.dir || args.path || ".";
                 try {
                   const { execSync } = await import("child_process");
-                  const out = execSync(\`grep -rn "TODO\|FIXME\|HACK\|XXX" \${dir} --include="*.ts" --include="*.rs" --include="*.py" 2>/dev/null | head -30\`, { encoding: "utf-8", timeout: 10000 });
+                  const out = execSync(`grep -rn "TODO\|FIXME\|HACK\|XXX" ${sanitizePath(dir)} --include="*.ts" --include="*.rs" --include="*.py" 2>/dev/null | head -30`, { encoding: "utf-8", timeout: 10000 });
                   return { ok: true, output: out.trim() || "No TODOs found", tool };
                 } catch (e: any) { return { ok: true, output: "No TODOs found", tool }; }
       }
@@ -396,7 +413,7 @@ Return ONLY the refactored code with brief comments explaining changes.`,
         try {
                   const { execSync } = await import("child_process");
                   const n = args.count || 10;
-                  const out = execSync(\`git log --oneline -\${n} 2>&1\`, { encoding: "utf-8", timeout: 5000 });
+                  const out = execSync(`git log --oneline -${n} 2>&1`, { encoding: "utf-8", timeout: 5000 });
                   return { ok: true, output: out.trim(), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }
@@ -414,7 +431,7 @@ Return ONLY the refactored code with brief comments explaining changes.`,
       }
 
       case "git.commit": {
-        const msg = args.message || args.msg || ""; if (!msg) return { ok: false, error: "Missing commit message" }; const r = await sh(`git add -A && git commit -m "${msg.replace(/"/g, '\\"')}" 2>&1`); return { ok: r.ok, output: r.output, tool };
+        const msg = args.message || args.msg || ""; if (!msg) return { ok: false, error: "Missing commit message" }; const r = await sh(`git commit -a -m "${sanitizeShellArg(msg).replace(/"/g, '\\"')}" 2>&1`); return { ok: r.ok, output: r.output, tool };
       }
 
       case "git.push": {

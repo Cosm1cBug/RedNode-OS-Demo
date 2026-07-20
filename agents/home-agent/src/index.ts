@@ -254,7 +254,7 @@ class HomeAgent extends RedNodeAgent {
                 const haUrl = process.env.HOMEASSISTANT_URL || "http://localhost:8123";
                 const haToken = process.env.HOMEASSISTANT_TOKEN || "";
                 try {
-                  const res = await fetch(\`\${haUrl}/api/states/\${entity}\`, { headers: { Authorization: \`Bearer \${haToken}\` } });
+                  const res = await fetch(`${haUrl}/api/states/${entity}`, { headers: { Authorization: `Bearer ${haToken}` } });
                   const data = await res.json();
                   return { ok: true, output: JSON.stringify(data, null, 2), tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
@@ -272,10 +272,10 @@ class HomeAgent extends RedNodeAgent {
         const haUrl = process.env.HOMEASSISTANT_URL || "http://localhost:8123";
                 const haToken = process.env.HOMEASSISTANT_TOKEN || "";
                 try {
-                  const res = await fetch(\`\${haUrl}/api/states\`, { headers: { Authorization: \`Bearer \${haToken}\` } });
+                  const res = await fetch(`${haUrl}/api/states`, { headers: { Authorization: `Bearer ${haToken}` } });
                   const states = await res.json() as any[];
                   const batteries = states.filter((s: any) => s.attributes?.device_class === "battery" || s.entity_id.includes("battery"));
-                  const lines = batteries.map((b: any) => \`\${b.attributes?.friendly_name || b.entity_id}: \${b.state}%\`);
+                  const lines = batteries.map((b: any) => `${b.attributes?.friendly_name || b.entity_id}: ${b.state}%`);
                   return { ok: true, output: lines.length ? lines.join("\n") : "No battery devices found", tool };
                 } catch (e: any) { return { ok: false, error: e.message }; }
       }

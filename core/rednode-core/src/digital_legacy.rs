@@ -56,7 +56,7 @@ pub async fn export_legacy() -> LegacyPackage {
     let content = serde_json::json!({ "identity": identity, "goals": goals, "capabilities": capabilities });
     let checksum = format!("{:x}", sha2::Sha256::digest(content.to_string().as_bytes()));
 
-    let pkg = LegacyPackage { id: gen_id(), version: "0.38.0".into(), created_at: Utc::now(), identity, constitution, goals, capabilities, episodic_highlights: episodes, procedures, personality, trust_scores: trust, ethical_values: ethics, cognitive_metrics: metrics, checksum };
+    let pkg = LegacyPackage { id: gen_id(), version: "0.39.0".into(), created_at: Utc::now(), identity, constitution, goals, capabilities, episodic_highlights: episodes, procedures, personality, trust_scores: trust, ethical_values: ethics, cognitive_metrics: metrics, checksum };
 
     let mut state = LEGACY.write().await;
     let size = serde_json::to_string(&pkg).unwrap_or_default().len() as u64;
@@ -68,56 +68,6 @@ pub async fn export_legacy() -> LegacyPackage {
 }
 
 use sha2::Digest;
-
-/// An architecture decision record — why things exist
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ArchitectureDecision {
-    pub id: String,
-    pub title: String,
-    pub context: String,
-    pub decision: String,
-    pub rationale: String,
-    pub alternatives_considered: Vec<String>,
-    pub consequences: Vec<String>,
-    pub timestamp: DateTime<Utc>,
-}
-
-/// A lesson learned from experience
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LessonLearned {
-    pub id: String,
-    pub title: String,
-    pub what_happened: String,
-    pub what_we_learned: String,
-    pub what_we_changed: String,
-    pub category: String,
-    pub timestamp: DateTime<Utc>,
-}
-
-/// Record an architecture decision for posterity
-pub async fn record_decision(title: &str, context: &str, decision: &str, rationale: &str, alternatives: Vec<String>, consequences: Vec<String>) {
-    let mut state = LEGACY.write().await;
-    // Store in exports as a lightweight approach (full struct would need state expansion)
-    state.exports.push(LegacyExport {
-        id: format!("adr_{}", chrono::Utc::now().timestamp_millis()),
-        version: format!("ADR: {}", title),
-        timestamp: Utc::now(),
-        size_bytes: (context.len() + decision.len() + rationale.len()) as u64,
-    });
-    tracing::info!(title = title, "Architecture decision recorded");
-}
-
-/// Record a lesson learned
-pub async fn record_lesson(title: &str, what_happened: &str, what_we_learned: &str, what_we_changed: &str, category: &str) {
-    let mut state = LEGACY.write().await;
-    state.exports.push(LegacyExport {
-        id: format!("lesson_{}", chrono::Utc::now().timestamp_millis()),
-        version: format!("Lesson: {}", title),
-        timestamp: Utc::now(),
-        size_bytes: what_happened.len() as u64,
-    });
-    tracing::info!(title = title, category = category, "Lesson learned recorded");
-}
 
 pub async fn get_status() -> serde_json::Value {
     let s = LEGACY.read().await;

@@ -794,7 +794,7 @@ impl SentienceEngine {
         // ── Phase 5: CONSOLIDATE — prevent knowledge decay ──
         // Remove stale/low-quality entries from RAG to prevent "catastrophic forgetting"
         // (keeping too many irrelevant documents dilutes search quality)
-        if let Some(pool) = pool() {
+        if let Some(pool) = crate::memory::pool() {
             // Count documents in memory
             let doc_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM documents")
                 .fetch_one(pool).await.unwrap_or((0,));
@@ -868,10 +868,10 @@ static SYS: Lazy<Mutex<sysinfo::System>> = Lazy::new(|| {
 fn sample_resources() -> ResourceState {
     let (cpu, mem_used, mem_total) = {
         let mut sys = SYS.lock().unwrap();
-        sys.refresh_cpu_usage();
+        sys.refresh_cpu_all();
         sys.refresh_memory();
         (
-            sys.global_cpu_usage(),
+            sys.global_cpu_info().cpu_usage(),
             sys.used_memory() / 1024 / 1024,
             sys.total_memory() / 1024 / 1024,
         )

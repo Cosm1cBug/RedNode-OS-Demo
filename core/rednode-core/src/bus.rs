@@ -27,6 +27,12 @@ pub fn get_client() -> Option<async_nats::Client> {
     NATS_CLIENT.get()?.clone()
 }
 
+/// Get the NATS connection (async version for callers that expect a Result).
+/// Returns the stored client or an error if NATS is not connected.
+pub async fn get_connection() -> anyhow::Result<async_nats::Client> {
+    get_client().ok_or_else(|| anyhow::anyhow!("NATS not connected"))
+}
+
 pub async fn publish(subject: &str, payload: serde_json::Value) -> Result<()> {
     if let Some(nc) = get_client() {
         nc.publish(subject.to_string(), serde_json::to_vec(&payload)?.into())

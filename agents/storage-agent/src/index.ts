@@ -368,7 +368,7 @@ class StorageAgent extends RedNodeAgent {
           raw: {},
         }),
       });
-    } catch {}
+    } catch (_e) { /* non-critical */ }
   }
 }
 

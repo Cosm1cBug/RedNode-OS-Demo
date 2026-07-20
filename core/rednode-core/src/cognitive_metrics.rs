@@ -88,7 +88,11 @@ pub async fn compute() {
 
     m.last_computed = Utc::now();
     if m.history.len() > 288 { m.history.remove(0); }
-    m.history.push(MetricSnapshot { timestamp: Utc::now(), decision_quality: m.decision_quality, autonomy_score: m.autonomy_score, learning_rate: m.learning_rate });
+    // Copy values before pushing to avoid borrow checker conflict
+    let snap_dq = m.decision_quality;
+    let snap_as = m.autonomy_score;
+    let snap_lr = m.learning_rate;
+    m.history.push(MetricSnapshot { timestamp: Utc::now(), decision_quality: snap_dq, autonomy_score: snap_as, learning_rate: snap_lr });
 }
 
 pub async fn get() -> CognitiveMetricsState { METRICS.read().await.clone() }

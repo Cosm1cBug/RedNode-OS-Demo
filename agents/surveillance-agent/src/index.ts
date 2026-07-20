@@ -411,7 +411,7 @@ class SurveillanceAgent extends RedNodeAgent {
       case "cam.live_url": {
         const cam = args.camera || args.name || "";
                 const frigateUrl = process.env.FRIGATE_URL || "http://localhost:5000";
-                return { ok: true, output: \`RTSP: rtsp://\${cam}:554/stream1\nHTTP: \${frigateUrl}/api/\${cam}/latest.jpg\`, tool };
+                return { ok: true, output: `RTSP: rtsp://${cam}:554/stream1\nHTTP: ${frigateUrl}/api/${cam}/latest.jpg`, tool };
       }
 
       case "cam.recording_list": {
@@ -457,10 +457,10 @@ class SurveillanceAgent extends RedNodeAgent {
       case "cam.health_check": {
         const frigateUrl = process.env.FRIGATE_URL || "http://localhost:5000";
                 try {
-                  const res = await fetch(\`\${frigateUrl}/api/stats\`);
+                  const res = await fetch(`${frigateUrl}/api/stats`);
                   const data = await res.json() as any;
-                  const cams = Object.entries(data.cameras || {}).map(([n, c]: [string, any]) => \`\${n}: \${c.camera_fps > 0 ? "✅ online" : "❌ offline"} (fps: \${c.camera_fps})\`);
-                  return { ok: true, output: \`Camera Health:\n\${cams.join("\n")}\`, tool };
+                  const cams = Object.entries(data.cameras || {}).map(([n, c]: [string, any]) => `${n}: ${c.camera_fps > 0 ? "✅ online" : "❌ offline"} (fps: ${c.camera_fps})`);
+                  return { ok: true, output: `Camera Health:\n${cams.join("\n")}`, tool };
                 } catch (e: any) { return { ok: true, output: "Frigate not reachable", tool }; }
       }
 

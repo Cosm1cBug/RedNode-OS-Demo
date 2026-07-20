@@ -20,7 +20,7 @@
     # RedNode Core – Rust – CNS + Sentience Engine + Tool Executor
     rednode-core = pkgs.rustPlatform.buildRustPackage {
       pname = "rednode-core";
-      version = "0.38.0";
+      version = "0.39.0";
       src = ../../core/rednode-core;
       cargoLock = {
         lockFile = ../../core/rednode-core/Cargo.lock;
@@ -40,7 +40,7 @@
     # This means the source code is ALREADY ON DISK after install — no git clone needed
     rednode-source = pkgs.stdenv.mkDerivation {
       pname = "rednode-source";
-      version = "0.38.0";
+      version = "0.39.0";
       src = pkgs.lib.cleanSource ../..;  # entire repo root
       phases = [ "unpackPhase" "installPhase" ];
       installPhase = ''

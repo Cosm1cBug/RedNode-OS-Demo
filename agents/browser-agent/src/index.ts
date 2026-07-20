@@ -398,7 +398,7 @@ class BrowserAgent extends RedNodeAgent {
                   stdout.trim().substring(0, 10000),
                 );
               }
-            } catch {}
+            } catch (_e) { /* non-critical */ }
           }
 
           return {
@@ -435,7 +435,7 @@ class BrowserAgent extends RedNodeAgent {
                 try {
                   const absolute = new URL(href, url).toString();
                   links.push({ text: text.substring(0, 100), href: absolute });
-                } catch {}
+                } catch (_e) { /* non-critical */ }
               }
             });
 
@@ -555,7 +555,7 @@ class BrowserAgent extends RedNodeAgent {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source, content }),
       });
-    } catch {}
+    } catch (_e) { /* non-critical */ }
   }
 }
 
