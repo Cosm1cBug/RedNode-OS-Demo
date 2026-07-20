@@ -365,6 +365,62 @@ pub async fn tick() {
         mind.today_learned.clear();
     }
 
+    // ── Pull from attention queue (Problem 2 fix: consciousness READS, not pushed to) ──
+    // Process the highest-priority signal from the attention engine
+    drop(mind); // Release write lock before calling other modules
+    if let Some(signal) = crate::attention::next_signal().await {
+        let mut mind = MIND.write().await;
+        // If signal is higher priority than current focus, shift attention
+        if signal.composite_priority > 0.5 && !mind.active_tasks.is_empty() {
+            mind.focus.description = format!("Attention: {}", signal.description);
+        }
+        // Record as a learning if it's a discovery or goal progress
+        if matches!(signal.category,
+            crate::attention::SignalCategory::Discovery |
+            crate::attention::SignalCategory::GoalProgress
+        ) {
+            mind.today_learned.push(Learning {
+                content: signal.description.clone(),
+                source: signal.source.clone(),
+                learned_at: now,
+                category: format!("{:?}", signal.category),
+            });
+        }
+        drop(mind);
+    }
+
+    // ── Pull cognitive bus events (consciousness subscribes to what matters) ──
+    let recent_events = crate::cognitive_bus::get_recent(5).await;
+    let mut mind = MIND.write().await;
+    for event in &recent_events {
+        // Only process events since last tick
+        if event.timestamp <= mind.last_tick {
+            continue;
+        }
+        match event.event_type {
+            crate::cognitive_bus::CognitiveEventType::ThreatDetected => {
+                mind.awareness.urgency = (mind.awareness.urgency + 0.1).min(1.0);
+            }
+            crate::cognitive_bus::CognitiveEventType::GoalCompleted => {
+                mind.awareness.confidence = (mind.awareness.confidence + 0.02).min(1.0);
+            }
+            crate::cognitive_bus::CognitiveEventType::TaskFailed => {
+                mind.awareness.confidence = (mind.awareness.confidence - 0.01).max(0.1);
+            }
+            crate::cognitive_bus::CognitiveEventType::ReflectionCompleted => {
+                if let Some(summary) = event.data.get("summary").and_then(|v| v.as_str()) {
+                    mind.today_learned.push(Learning {
+                        content: summary.to_string(),
+                        source: "reflection".into(),
+                        learned_at: event.timestamp,
+                        category: "reflection".into(),
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+
     // Calculate awareness level
     // High when: active tasks, recent failures, high urgency
     // Low when: idle, everything healthy, night time

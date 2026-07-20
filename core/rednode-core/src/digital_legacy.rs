@@ -56,7 +56,7 @@ pub async fn export_legacy() -> LegacyPackage {
     let content = serde_json::json!({ "identity": identity, "goals": goals, "capabilities": capabilities });
     let checksum = format!("{:x}", sha2::Sha256::digest(content.to_string().as_bytes()));
 
-    let pkg = LegacyPackage { id: gen_id(), version: "0.35.0".into(), created_at: Utc::now(), identity, constitution, goals, capabilities, episodic_highlights: episodes, procedures, personality, trust_scores: trust, ethical_values: ethics, cognitive_metrics: metrics, checksum };
+    let pkg = LegacyPackage { id: gen_id(), version: "0.36.0".into(), created_at: Utc::now(), identity, constitution, goals, capabilities, episodic_highlights: episodes, procedures, personality, trust_scores: trust, ethical_values: ethics, cognitive_metrics: metrics, checksum };
 
     let mut state = LEGACY.write().await;
     let size = serde_json::to_string(&pkg).unwrap_or_default().len() as u64;

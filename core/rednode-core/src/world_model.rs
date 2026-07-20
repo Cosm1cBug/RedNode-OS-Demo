@@ -801,6 +801,61 @@ pub async fn expensive_threatened_entities() -> Vec<(ServiceCost, ThreatMapping)
     results
 }
 
+/// Predict the future state of infrastructure based on current health trends
+pub async fn predict_state(days_ahead: u32) -> serde_json::Value {
+    let world = WORLD.read().await;
+    let mut predictions = Vec::new();
+
+    for machine in &world.machines {
+        // Project health based on current health and staleness
+        let age_hours = (Utc::now() - machine.last_seen).num_hours() as f32;
+        let projected_health = (machine.health - age_hours * 0.001 * days_ahead as f32).max(0.0);
+
+        if projected_health < 0.5 {
+            predictions.push(serde_json::json!({
+                "entity": machine.name,
+                "type": "machine",
+                "current_health": machine.health,
+                "projected_health": projected_health,
+                "days_ahead": days_ahead,
+                "risk": if projected_health < 0.2 { "critical" } else { "warning" },
+            }));
+        }
+    }
+
+    // Predict service issues from stale checks
+    for service in &world.services {
+        let hours_since_check = (Utc::now() - service.last_checked).num_hours();
+        if hours_since_check > 24 * days_ahead as i64 {
+            predictions.push(serde_json::json!({
+                "entity": service.name,
+                "type": "service",
+                "status": format!("{:?}", service.status),
+                "hours_unchecked": hours_since_check,
+                "risk": "unknown_state",
+            }));
+        }
+    }
+
+    // Economic projection
+    let monthly_cost: f64 = world.economic_layer.iter().map(|s| s.cost_per_month).sum();
+    let projected_cost = monthly_cost * days_ahead as f64 / 30.0;
+
+    serde_json::json!({
+        "days_ahead": days_ahead,
+        "at_risk_entities": predictions.len(),
+        "predictions": predictions,
+        "projected_cost": projected_cost,
+        "active_threats": world.threat_layer.iter().filter(|t| !t.mitigated).count(),
+    })
+}
+
+/// Get a versioned snapshot — the world model tracks a logical version
+pub async fn get_version() -> u64 {
+    let world = WORLD.read().await;
+    world.snapshot_history.len() as u64
+}
+
 // ─── Snapshots & Diffs ───
 
 /// Take a snapshot of the current state (for later diff)

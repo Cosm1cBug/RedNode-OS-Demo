@@ -385,8 +385,27 @@ pub async fn get_self_model() -> SelfModel {
     IDENTITY.read().await.self_model.clone()
 }
 
-/// Update identity (non-immutable fields only)
+/// Update identity (non-immutable fields only).
+/// Identity changes are gated through constitution check (Problem 6 fix).
 pub async fn update(patch: IdentityPatch) -> Result<(), String> {
+    // Gate 1: Constitutional check — identity changes must not violate articles
+    let patch_desc = serde_json::to_string(&patch).unwrap_or_default();
+    let const_check = crate::constitution::check(
+        "identity_update",
+        &serde_json::json!({"patch": patch_desc}),
+        "Modifying identity profile",
+    ).await;
+    if !const_check.allowed {
+        return Err("Identity change blocked by constitution".into());
+    }
+
+    // Gate 2: Consistency check — don't allow changes if identity is already inconsistent
+    let issues = consistency_check().await;
+    if !issues.is_empty() {
+        tracing::warn!(issues = ?issues, "Identity already inconsistent — fix issues before modifying");
+        // Allow the change but log the warning (don't block — they might be fixing the inconsistency)
+    }
+
     let mut id = IDENTITY.write().await;
 
     if let Some(ref mission) = patch.mission {
@@ -412,6 +431,13 @@ pub async fn update(patch: IdentityPatch) -> Result<(), String> {
     id.last_modified = Utc::now();
 
     tracing::info!(version = id.version, "Identity updated");
+
+    // Emit to cognitive bus (identity changes are high-importance events)
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::IdentityChanged,
+        "identity",
+        serde_json::json!({"version": id.version}),
+    ).await;
 
     crate::events::emit(serde_json::json!({
         "type": "identity_updated",

@@ -304,6 +304,31 @@ pub async fn evolve_tool(
     // Generate handler code
     let handler_code = generate_handler_code(&tool);
     validate_handler_code(&handler_code)?;
+
+    // ── Learning Pipeline (Problem 8 fix): Propose → Sandbox → Approve → Deploy ──
+
+    // Step 1: Constitution check — does this tool violate any articles?
+    let const_check = crate::constitution::check_evolution(name, description).await;
+    if !const_check.allowed {
+        bail!("Tool evolution blocked by constitution: {} violation(s)", const_check.violations.len());
+    }
+
+    // Step 2: Sandbox test — does this tool pass all safety checks?
+    let sandbox_result = crate::evolution_sandbox::test_proposal(
+        &format!("New tool: {} ({})", name, description),
+        crate::evolution_sandbox::ChangeType::NewTool,
+    ).await;
+    if sandbox_result.overall_result == crate::evolution_sandbox::TestResult::Fail {
+        bail!("Tool evolution failed sandbox testing");
+    }
+
+    // Step 3: Budget check — can we afford this?
+    let budget_check = crate::economy::check_budget(30000, 3).await;
+    if !budget_check.allowed {
+        bail!("Tool evolution blocked by budget: {}", budget_check.reason);
+    }
+
+    // All gates passed — proceed with deployment
     
     // Register in tools.json
     register_tool(project_root, &tool)?;
@@ -358,6 +383,13 @@ pub async fn evolve_tool(
         "🧬 Tool evolved: {} — {} can now use it. Reload signal sent.",
         tool.name, tool.agent
     );
+
+    // Emit to cognitive bus
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::EvolutionProposed,
+        "evolution",
+        serde_json::json!({"tool": tool.name, "agent": tool.agent, "status": "deployed"}),
+    ).await;
     
     Ok(tool)
 }

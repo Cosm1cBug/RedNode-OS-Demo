@@ -36,6 +36,10 @@ pub struct TrustScore {
     pub last_interaction: Option<DateTime<Utc>>,
     pub trend: TrustTrend,
     pub notes: Vec<String>,
+    /// Why does this source have this score? (explainable trust)
+    pub explanation: Option<String>,
+    /// Trust inherited from a peer instance
+    pub inherited_from: Option<String>,
     /// Multi-axis trust breakdown
     pub axes: TrustAxes,
     /// Federated trust from collective peers (if available)
@@ -98,6 +102,8 @@ impl Default for TrustState {
                 trend: TrustTrend::New, notes: vec![],
                 axes: TrustAxes { technical: score, behavioral: score, security: score, historical: score },
                 community_trust: None,
+                explanation: Some(format!("Default trust for {}", name)),
+                inherited_from: None,
             });
         }
         Self { scores, total_interactions: 0 }
@@ -116,6 +122,7 @@ pub async fn record_interaction(source: &str, category: SourceCategory, accurate
         accurate_count: 0, inaccurate_count: 0, last_interaction: None,
         trend: TrustTrend::New, notes: vec![],
         axes: TrustAxes::default(), community_trust: None,
+        explanation: None, inherited_from: None,
     });
     entry.interactions += 1;
     if accurate { entry.accurate_count += 1; } else { entry.inaccurate_count += 1; }
@@ -132,6 +139,15 @@ pub async fn record_interaction(source: &str, category: SourceCategory, accurate
         else { TrustTrend::Stable };
 
     state.total_interactions += 1;
+
+    // Emit trust change to cognitive bus
+    let new_score = entry.score;
+    drop(state);
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::TrustChanged,
+        "trust",
+        serde_json::json!({"source": source, "score": new_score, "accurate": accurate}),
+    ).await;
 }
 
 /// Manually set trust score

@@ -602,6 +602,18 @@ pub async fn ingest_document(source: &str, content: &str) -> Result<String> {
     // ── Step 5: Extract entities and build knowledge graph ──
     extract_and_store_entities(source, content);
 
+    // ── Step 6: Record provenance (who/where/when/confidence) ──
+    crate::provenance::record(
+        &doc_id.to_string(),
+        &content.chars().take(200).collect::<String>(),
+        source,
+        "document_ingestion",
+        0.8,
+    ).await;
+
+    // ── Step 7: Emit to cognitive bus ──
+    crate::cognitive_bus::emit_memory_stored("document", &doc_id.to_string(), source).await;
+
     Ok(doc_id.to_string())
 }
 

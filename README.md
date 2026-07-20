@@ -88,13 +88,13 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 
 ---
 
-## Stats (v0.35.0)
+## Stats (v0.36.0)
 
 | Metric | Value |
 |---|---|
 | Rust modules | 70 |
 | Rust source files | 72 |
-| Rust LOC | ~24,000 |
+| Rust LOC | ~25,000 |
 | API endpoints | 159 |
 | Agents | 18 |
 | Tools | 359 (236 low, 100 medium, 23 high risk) |
@@ -534,4 +534,4 @@ MIT — © 2026 RedNode
 
 ---
 
-*RedNode-OS v0.35.0 — 70 modules, 159 endpoints, 359 tools, 18 agents, ~24,000 lines of Rust — The computer becomes the intelligence.*
+*RedNode-OS v0.36.0 — 70 modules, 159 endpoints, 359 tools, 18 agents, ~25,000 lines of Rust — The computer becomes the intelligence.*

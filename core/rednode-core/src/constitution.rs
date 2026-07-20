@@ -46,6 +46,8 @@ pub struct Article {
     pub check_fn: CheckType,
     pub adopted_at: DateTime<Utc>,
     pub violations: u64,
+    /// Content hash for integrity verification
+    pub content_hash: String,
 }
 
 /// How this article is checked
@@ -122,7 +124,7 @@ impl Default for ConstitutionState {
             violations: VecDeque::with_capacity(500),
             amendments: Vec::new(),
             total_checks: 0,
-            total_violations: 0,
+            total_violations: 0, content_hash: String::new(),
             total_blocks: 0,
         }
     }
@@ -138,7 +140,7 @@ fn default_articles() -> Vec<Article> {
             rationale: "Autonomy exists to serve the owner, not to replace them.".into(),
             check_fn: CheckType::SystemLevel,
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         },
         Article {
             id: "art_2".into(),
@@ -148,7 +150,7 @@ fn default_articles() -> Vec<Article> {
             rationale: "Trust requires transparency. Hidden actions erode the foundation of the system.".into(),
             check_fn: CheckType::SystemLevel,
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         },
         Article {
             id: "art_3".into(),
@@ -158,7 +160,7 @@ fn default_articles() -> Vec<Article> {
             rationale: "Decisions made on false data lead to cascading failures.".into(),
             check_fn: CheckType::SystemLevel,
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         },
         Article {
             id: "art_4".into(),
@@ -176,7 +178,7 @@ fn default_articles() -> Vec<Article> {
                 ],
             },
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         },
         Article {
             id: "art_5".into(),
@@ -194,7 +196,7 @@ fn default_articles() -> Vec<Article> {
                 ],
             },
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         },
         Article {
             id: "art_6".into(),
@@ -212,7 +214,7 @@ fn default_articles() -> Vec<Article> {
                 ],
             },
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         },
         Article {
             id: "art_7".into(),
@@ -222,7 +224,7 @@ fn default_articles() -> Vec<Article> {
             rationale: "The constitution must be self-protecting to remain meaningful.".into(),
             check_fn: CheckType::SystemLevel,
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         },
     ]
 }
@@ -381,7 +383,7 @@ pub async fn confirm_amendment(amendment_id: &str, code: &str) -> Result<(), Str
             rationale: amendment.rationale.clone(),
             check_fn: CheckType::Semantic { principle: amendment.proposed_text.clone() },
             adopted_at: Utc::now(),
-            violations: 0,
+            violations: 0, content_hash: String::new(),
         });
     }
 

@@ -257,6 +257,41 @@ pub async fn debate(request: DebateRequest) -> DebateResult {
 
     tracing::info!(consensus = ?consensus, confidence = avg_confidence, "Debate concluded");
 
+    // Emit to cognitive bus
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::DebateCompleted,
+        "debate",
+        serde_json::json!({
+            "topic": result.topic,
+            "consensus": format!("{:?}", consensus),
+            "confidence": avg_confidence,
+            "decision": result.final_decision,
+        }),
+    ).await;
+
+    // Store debate outcome as episodic memory (Problem 9: debates become knowledge)
+    crate::episodic_memory::record_episode(
+        &format!("Debate: {}", result.topic),
+        &result.final_decision,
+        crate::episodic_memory::EpisodeCategory::Interaction,
+        result.perspectives.iter().map(|p| format!("{:?}", p.role)).collect(),
+        vec![result.final_decision.clone()],
+        if consensus == Consensus::Unanimous || consensus == Consensus::Majority {
+            crate::episodic_memory::EpisodeOutcome::Success
+        } else {
+            crate::episodic_memory::EpisodeOutcome::PartialSuccess
+        },
+        vec![format!("Consensus: {:?}, Confidence: {:.0}%", consensus, avg_confidence * 100.0)],
+        avg_confidence,
+    ).await;
+
+    // Feed debate summary to distillation for knowledge extraction
+    crate::distillation::add_input(
+        "debate",
+        &result.final_decision,
+        &format!("Debate on '{}' with {:?} consensus", result.topic, consensus),
+    ).await;
+
     crate::events::emit(serde_json::json!({
         "type": "debate_concluded",
         "consensus": format!("{:?}", consensus),

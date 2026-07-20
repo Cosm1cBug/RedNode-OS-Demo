@@ -53,6 +53,8 @@ pub struct Policy {
     pub enabled: bool,
     pub created_at: DateTime<Utc>,
     pub violation_count: u64,
+    /// Policy version — incremented on every modification
+    pub version: u32,
 }
 
 /// What the policy matches against
@@ -152,7 +154,7 @@ fn default_policies() -> Vec<Policy> {
             scope: PolicyScope::All,
             enabled: true,
             created_at: Utc::now(),
-            violation_count: 0,
+            violation_count: 0, version: 1,
         },
         Policy {
             id: "pol_no_shell_overnight".into(),
@@ -163,7 +165,7 @@ fn default_policies() -> Vec<Policy> {
             scope: PolicyScope::Tool("shell.run_safe".into()),
             enabled: false, // Disabled by default — user can enable
             created_at: Utc::now(),
-            violation_count: 0,
+            violation_count: 0, version: 1,
         },
         Policy {
             id: "pol_firewall_alert".into(),
@@ -174,7 +176,7 @@ fn default_policies() -> Vec<Policy> {
             scope: PolicyScope::All,
             enabled: true,
             created_at: Utc::now(),
-            violation_count: 0,
+            violation_count: 0, version: 1,
         },
         Policy {
             id: "pol_rate_limit_llm".into(),
@@ -185,7 +187,7 @@ fn default_policies() -> Vec<Policy> {
             scope: PolicyScope::All,
             enabled: true,
             created_at: Utc::now(),
-            violation_count: 0,
+            violation_count: 0, version: 1,
         },
     ]
 }
@@ -346,7 +348,7 @@ pub async fn create_policy(
         scope,
         enabled: true,
         created_at: Utc::now(),
-        violation_count: 0,
+        violation_count: 0, version: 1,
     };
 
     let mut state = GOVERNANCE.write().await;
@@ -489,7 +491,7 @@ mod tests {
             scope: PolicyScope::All,
             enabled: true,
             created_at: Utc::now(),
-            violation_count: 0,
+            violation_count: 0, version: 1,
         };
         let json = serde_json::to_string(&p).unwrap();
         assert!(json.contains("Test Policy"));

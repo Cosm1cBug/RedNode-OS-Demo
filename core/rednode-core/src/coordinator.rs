@@ -51,6 +51,28 @@ pub async fn coordinate(
 
     let execution_start = std::time::Instant::now();
 
+    // ── Pre-execution: Activate context for this intent ──
+    crate::context_engine::activate_for_intent(intent).await;
+
+    // ── Pre-execution: Check cognitive capacity ──
+    if !crate::cognitive_load::can_accept(0.5, false).await {
+        tracing::warn!(intent, "Cognitive load too high — deferring");
+        return (
+            vec![],
+            vec![json!({"status": "deferred", "error": "Cognitive load capacity exceeded"})],
+        );
+    }
+
+    // ── Pre-execution: Constitutional check ──
+    let const_check = crate::constitution::check("coordinator", &json!({"intent": intent}), intent).await;
+    if !const_check.allowed {
+        tracing::warn!(intent, "Constitutional violation — blocking");
+        return (
+            vec![],
+            vec![json!({"status": "constitutional_violation", "violations": const_check.violations.len()})],
+        );
+    }
+
     let steps = plan(intent).await;
 
     // ── Circuit Breaker: cap plan size ──
@@ -261,6 +283,55 @@ pub async fn coordinate(
     // Sort by original step index to maintain order in response
     all_indexed_results.sort_by_key(|(i, _)| *i);
     let results: Vec<serde_json::Value> = all_indexed_results.into_iter().map(|(_, r)| r).collect();
+
+    // ── Post-execution: Wire verification, reflection, economy, provenance ──
+    let total_duration_ms = execution_start.elapsed().as_millis() as u64;
+    for r in &results {
+        let tool = r.get("tool").and_then(|v| v.as_str()).unwrap_or("-");
+        let agent = r.get("agent").and_then(|v| v.as_str()).unwrap_or("-");
+        let status = r.get("status").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let success = status == "executed" || status == "executed_local";
+        let task_id = format!("{}_{}", tool, chrono::Utc::now().timestamp_millis());
+
+        // Verification: independently validate the result
+        if let Some(result_val) = r.get("result") {
+            crate::verification::verify(&task_id, tool, agent, success, result_val).await;
+        }
+
+        // Reflection: quick task reflection
+        crate::reflection::reflect_on_task(
+            &format!("{} via {}", tool, agent),
+            agent,
+            success,
+            total_duration_ms,
+            if success { None } else { r.get("error").and_then(|v| v.as_str()) },
+        ).await;
+
+        // Economy: record resource cost
+        crate::economy::record_cost(&task_id, tool, agent, total_duration_ms, 0, 0, 1).await;
+
+        // Immune: update agent trust
+        crate::immune::update_agent_trust(agent, success).await;
+
+        // Goal auto-detection
+        if success {
+            crate::goals::auto_detect_contribution(
+                &format!("{} via {}", tool, agent),
+                agent,
+            ).await;
+        }
+
+        // Cognitive bus: emit task event
+        crate::cognitive_bus::emit_task_completed(&task_id, agent, tool, total_duration_ms, success).await;
+
+        // Consciousness: track in mind state
+        if success {
+            crate::consciousness::task_completed(&task_id, tool, agent, total_duration_ms).await;
+        } else {
+            let err = r.get("error").and_then(|v| v.as_str()).unwrap_or("unknown");
+            crate::consciousness::task_failed(&task_id, tool, agent, err).await;
+        }
+    }
 
     let plan_json: Vec<serde_json::Value> = steps
         .into_iter()

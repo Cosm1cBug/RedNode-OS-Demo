@@ -220,6 +220,19 @@ pub async fn record_episode(
     mem.episodes.push_back(episode.clone());
     mem.total_episodes += 1;
 
+    let episode_id = episode.id.clone();
+    drop(mem);
+
+    // Auto-index the episode with goal tags and capability domains
+    auto_index_episode(&episode_id).await;
+
+    // Emit to cognitive bus
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::EpisodeRecorded,
+        "episodic_memory",
+        serde_json::json!({"id": episode_id, "title": title, "category": format!("{:?}", episode.category)}),
+    ).await;
+
     tracing::info!(title = title, category = ?episode.category, "Episode recorded");
     episode
 }

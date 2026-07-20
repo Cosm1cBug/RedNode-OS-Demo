@@ -141,11 +141,11 @@ pub async fn create(title: &str, description: &str, tags: Vec<String>, target_da
     // Persist
     persist_goals(&goals).await;
 
-    // Log to consciousness
-    crate::consciousness::learned(
-        &format!("New goal created: {}", title),
-        "goal_engine",
+    // Emit to cognitive bus (replaces direct consciousness push)
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::GoalUpdated,
         "goals",
+        serde_json::json!({"action": "created", "goal_id": goal.id, "title": title}),
     ).await;
 
     crate::events::emit(serde_json::json!({
@@ -219,6 +219,11 @@ pub async fn contribute(goal_id: &str, task_description: &str, sub_goal_id: Opti
         if goal.progress >= 1.0 {
             goal.status = GoalStatus::Completed;
             tracing::info!(goal = goal.title, "🎯 Goal completed!");
+            crate::cognitive_bus::emit(
+                crate::cognitive_bus::CognitiveEventType::GoalCompleted,
+                "goals",
+                serde_json::json!({"goal_id": goal.id, "title": goal.title}),
+            ).await;
             crate::events::emit(serde_json::json!({
                 "type": "goal_completed",
                 "goal_id": goal.id,

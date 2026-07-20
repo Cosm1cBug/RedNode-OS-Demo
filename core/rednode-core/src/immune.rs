@@ -250,6 +250,13 @@ pub async fn report_threat(
         "Immune system: threat detected"
     );
 
+    // Emit to cognitive bus
+    crate::cognitive_bus::emit_threat_detected(
+        &format!("{:?}", level),
+        &format!("{:?}", category),
+        description,
+    ).await;
+
     // Emit event for dashboard/notifications
     crate::events::emit(serde_json::json!({
         "type": "threat_detected",

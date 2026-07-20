@@ -302,10 +302,10 @@ pub async fn tick() {
     if should_distill {
         let new_docs = distill().await;
         if !new_docs.is_empty() {
-            crate::consciousness::learned(
-                &format!("{} new knowledge documents distilled", new_docs.len()),
+            crate::cognitive_bus::emit(
+                crate::cognitive_bus::CognitiveEventType::MemoryStored,
                 "distillation",
-                "knowledge",
+                serde_json::json!({"action": "distilled", "count": new_docs.len()}),
             ).await;
         }
     }

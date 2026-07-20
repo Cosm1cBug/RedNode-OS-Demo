@@ -52,6 +52,15 @@ pub enum ReflectionPeriod {
     SixHour,
     Daily,
     OnDemand,
+    /// Domain-specific reflection scopes (Problem 7: expand reflection)
+    Planning,
+    Security,
+    Memory,
+    Goals,
+    Architecture,
+    Economy,
+    Plugins,
+    Infrastructure,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -290,7 +299,12 @@ pub async fn periodic_reflection() -> Reflection {
 
     // Feed back into consciousness
     drop(store);
-    crate::consciousness::learned(&summary, "reflection_system", "reflection").await;
+    // Emit to cognitive bus (replaces direct consciousness push)
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::ReflectionCompleted,
+        "reflection",
+        serde_json::json!({"period": "six_hour", "summary": summary}),
+    ).await;
 
     tracing::info!(summary = %summary, "Periodic reflection complete");
 
@@ -382,7 +396,12 @@ pub async fn daily_summary() -> Reflection {
     drop(store);
 
     // Feed into consciousness
-    crate::consciousness::learned(&summary, "reflection_system", "daily_summary").await;
+    // Emit to cognitive bus (replaces direct consciousness push)
+    crate::cognitive_bus::emit(
+        crate::cognitive_bus::CognitiveEventType::ReflectionCompleted,
+        "reflection",
+        serde_json::json!({"period": "daily", "summary": summary}),
+    ).await;
 
     tracing::info!(summary = %summary, "Daily reflection complete");
 
