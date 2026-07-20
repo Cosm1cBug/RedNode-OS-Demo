@@ -2,7 +2,7 @@
 
 > *The computer does not contain intelligence. The computer becomes the intelligence.*
 >
-> **Current State**: v0.38.0 — 72 Rust modules, 170 API endpoints, 18 agents, 359 tools, 58 PostgreSQL tables, cognitive benchmark suite, mental models, multi-speed cognitive clock, confidence calibration, decision replay, cognitive security audit, 5 specification documents
+> **Current State**: v0.39.0 — 71 Rust modules, 164 API endpoints, 18 agents, 359 tools, 57 PostgreSQL tables, stabilized build, full agent audit, safety hardening
 >
 > **Target**: v1.0 — Production deployment on real hardware
 
@@ -179,4 +179,4 @@
 
 ---
 
-*RedNode-OS v0.38.0 — 72 modules, 170 endpoints, 359 tools, 18 agents, ~26,000 lines of Rust — The computer becomes the intelligence.*
+*RedNode-OS v0.39.0 — 71 modules, 164 endpoints, 359 tools, 18 agents, ~26,000 lines of Rust — The computer becomes the intelligence.*

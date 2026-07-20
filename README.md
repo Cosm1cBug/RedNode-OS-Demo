@@ -66,7 +66,7 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 │  INTERFACES: Web • Mobile • CLI • Voice • Signal • API • Kiosk • WebSocket  │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  CNS (Rust — Axum + Tokio — port 8787)                                      │
-│  72 Modules • 170 API Endpoints • LLM Planner • GOAP Fallback               │
+│  71 Modules • 164 API Endpoints • LLM Planner • GOAP Fallback               │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │  18 AGENTS via NATS: System • Security • Coding • Research • Automation      │
 │  Network • Infra (Pi-hole) • Storage (TrueNAS) • Surveillance (Frigate)      │
@@ -89,17 +89,17 @@ Human Intent → Constitution Check → Ethics Evaluation → Debate
 
 ---
 
-## Stats (v0.38.0)
+## Stats (v0.39.0)
 
 | Metric | Value |
 |---|---|
-| Rust modules | 72 |
-| Rust source files | 74 |
-| Rust LOC | ~26,000 |
-| API endpoints | 170 |
+| Rust modules | 71 |
+| Rust source files | 73 |
+| Rust LOC | ~25,300 |
+| API endpoints | 164 |
 | Agents | 18 |
 | Tools | 359 (236 low, 100 medium, 23 high risk) |
-| PostgreSQL tables | 58 |
+| PostgreSQL tables | 57 |
 | Constitutional articles | 7 (immutable) |
 | Ethical values | 7 |
 | Default governance policies | 4 |
@@ -535,4 +535,4 @@ MIT — © 2026 RedNode
 
 ---
 
-*RedNode-OS v0.38.0 — 72 modules, 170 endpoints, 359 tools, 18 agents, ~26,000 lines of Rust — The computer becomes the intelligence.*
+*RedNode-OS v0.39.0 — 71 modules, 164 endpoints, 359 tools, 18 agents, ~25,300 lines of Rust — The computer becomes the intelligence.*
