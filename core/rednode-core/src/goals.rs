@@ -51,6 +51,18 @@ pub struct UserGoal {
     pub estimated_completion: Option<DateTime<Utc>>,
     /// Context inherited from a parent goal
     pub inherited_context: Option<String>,
+    /// Planning horizon — how far ahead this goal looks
+    pub horizon: PlanningHorizon,
+}
+
+/// How far ahead a goal plans
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PlanningHorizon {
+    Hours,
+    Days,
+    Weeks,
+    Months,
+    Years,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -133,6 +145,7 @@ pub async fn create(title: &str, description: &str, tags: Vec<String>, target_da
         risk_score: 0.0,
         estimated_completion: None,
         inherited_context: None,
+        horizon: PlanningHorizon::Days,
     };
 
     let mut goals = GOALS.write().await;
@@ -451,7 +464,7 @@ mod tests {
             risk_score: 0.0,
             estimated_completion: None,
             inherited_context: None,
-        };
+        horizon: PlanningHorizon::Days, };
         assert_eq!(goal.status, GoalStatus::Active);
         assert_eq!(goal.progress, 0.0);
         assert!(goal.depends_on.is_empty());
@@ -484,7 +497,7 @@ mod tests {
             risk_score: 0.1,
             estimated_completion: None,
             inherited_context: None,
-        };
+        horizon: PlanningHorizon::Days, };
         let json = serde_json::to_string(&goal).expect("serialize goal");
         assert!(json.contains("Serialize Test"));
         assert!(json.contains("Sub test"));

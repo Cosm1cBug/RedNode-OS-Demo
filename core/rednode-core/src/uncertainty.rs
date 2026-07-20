@@ -33,15 +33,42 @@ pub struct UncertaintySource { pub factor: String, pub impact: f32, pub reducibl
 pub enum UncertaintyAction { Proceed, DoubleCheck, AskUser, Defer, Abort }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A record tracking predicted confidence vs actual outcome
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CalibrationRecord {
+    pub predicted_confidence: f32,
+    pub actual_success: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Aggregated calibration statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CalibrationStats {
+    pub total_predictions: u64,
+    pub calibration_error: f32,
+    pub overconfidence_rate: f32,
+    pub underconfidence_rate: f32,
+}
+
 pub struct UncertaintyState {
     pub assessments: VecDeque<UncertaintyAssessment>,
     pub total: u64,
     pub ask_threshold: f32,
     pub abort_threshold: f32,
+    /// Calibration tracking: predicted confidence vs actual outcome
+    pub calibration_records: VecDeque<CalibrationRecord>,
+    pub calibration: CalibrationStats,
 }
 
 impl Default for UncertaintyState {
-    fn default() -> Self { Self { assessments: VecDeque::with_capacity(100), total: 0, ask_threshold: 0.4, abort_threshold: 0.2 } }
+    fn default() -> Self {
+        Self {
+            assessments: VecDeque::with_capacity(100), total: 0,
+            ask_threshold: 0.4, abort_threshold: 0.2,
+            calibration_records: VecDeque::with_capacity(500),
+            calibration: CalibrationStats { total_predictions: 0, calibration_error: 0.0, overconfidence_rate: 0.0, underconfidence_rate: 0.0 },
+        }
+    }
 }
 
 fn gen_id() -> String { format!("unc_{}", chrono::Utc::now().timestamp_millis()) }
@@ -71,6 +98,38 @@ pub async fn assess(action: &str, data_confidence: f32, model_confidence: f32, s
 
 pub async fn get_recent(limit: usize) -> Vec<UncertaintyAssessment> { UNCERTAINTY.read().await.assessments.iter().rev().take(limit).cloned().collect() }
 pub async fn should_ask_user(confidence: f32) -> bool { UNCERTAINTY.read().await.ask_threshold > confidence }
+
+/// Record a calibration data point — predicted confidence vs actual outcome
+pub async fn record_calibration(predicted_confidence: f32, actual_success: bool) {
+    let mut state = UNCERTAINTY.write().await;
+    if state.calibration_records.len() >= 500 { state.calibration_records.pop_front(); }
+    state.calibration_records.push_back(CalibrationRecord {
+        predicted_confidence, actual_success, timestamp: Utc::now(),
+    });
+    state.calibration.total_predictions += 1;
+
+    // Recompute calibration stats from last 100 records
+    let recent: Vec<_> = state.calibration_records.iter().rev().take(100).collect();
+    if !recent.is_empty() {
+        let mut total_error = 0.0f32;
+        let mut overconfident = 0u64;
+        let mut underconfident = 0u64;
+        for r in &recent {
+            let actual = if r.actual_success { 1.0 } else { 0.0 };
+            total_error += (r.predicted_confidence - actual).abs();
+            if r.predicted_confidence > 0.7 && !r.actual_success { overconfident += 1; }
+            if r.predicted_confidence < 0.3 && r.actual_success { underconfident += 1; }
+        }
+        state.calibration.calibration_error = total_error / recent.len() as f32;
+        state.calibration.overconfidence_rate = overconfident as f32 / recent.len() as f32;
+        state.calibration.underconfidence_rate = underconfident as f32 / recent.len() as f32;
+    }
+}
+
+/// Get calibration stats
+pub async fn get_calibration() -> CalibrationStats {
+    UNCERTAINTY.read().await.calibration.clone()
+}
 
 pub async fn persist() { let s = UNCERTAINTY.read().await.clone(); if let Some(pool) = crate::memory::pool() { let json = match serde_json::to_value(&s) { Ok(v) => v, Err(_) => return }; let _ = sqlx::query("INSERT INTO uncertainty_store (id, state, updated_at) VALUES (1, $1, NOW()) ON CONFLICT (id) DO UPDATE SET state = $1, updated_at = NOW()").bind(&json).execute(pool).await; } }
 pub async fn restore() { if let Some(pool) = crate::memory::pool() { let row: Option<(serde_json::Value,)> = sqlx::query_as("SELECT state FROM uncertainty_store WHERE id = 1").fetch_optional(pool).await.unwrap_or(None); if let Some((json,)) = row { if let Ok(r) = serde_json::from_value::<UncertaintyState>(json) { let mut s = UNCERTAINTY.write().await; *s = r; } } } }

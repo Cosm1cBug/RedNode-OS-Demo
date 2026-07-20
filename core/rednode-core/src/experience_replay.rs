@@ -27,10 +27,29 @@ pub struct ReplayResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlternativeReplay { pub strategy: String, pub predicted_outcome: String, pub estimated_success: f32, pub trade_offs: Vec<String> }
 
+/// A counterfactual analysis — "what would have happened if..."
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ReplayState { pub replays: VecDeque<ReplayResult>, pub total: u64, pub improvements_found: u64 }
+pub struct CounterfactualAnalysis {
+    pub episode_id: String,
+    pub actual_action: String,
+    pub actual_outcome: String,
+    pub alternative_action: String,
+    pub counterfactual_outcome: String,
+    pub causal_factors: Vec<String>,
+    pub learning: String,
+    pub confidence: f32,
+    pub timestamp: DateTime<Utc>,
+}
 
-impl Default for ReplayState { fn default() -> Self { Self { replays: VecDeque::with_capacity(50), total: 0, improvements_found: 0 } } }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReplayState {
+    pub replays: VecDeque<ReplayResult>,
+    pub counterfactuals: VecDeque<CounterfactualAnalysis>,
+    pub total: u64,
+    pub improvements_found: u64,
+}
+
+impl Default for ReplayState { fn default() -> Self { Self { replays: VecDeque::with_capacity(50), counterfactuals: VecDeque::with_capacity(50), total: 0, improvements_found: 0 } } }
 
 fn gen_id() -> String { format!("rpl_{}", chrono::Utc::now().timestamp_millis()) }
 
@@ -71,6 +90,55 @@ pub async fn replay_episode(episode_id: &str) -> Option<ReplayResult> {
     if improvement { state.improvements_found += 1; }
 
     Some(result)
+}
+
+/// Counterfactual analysis: "What would have happened if we chose differently?"
+pub async fn counterfactual(episode_id: &str, alternative_action: &str) -> Option<CounterfactualAnalysis> {
+    let episode = crate::episodic_memory::search_episodes(episode_id, 1).await.into_iter().next()?;
+
+    let actual_outcome = format!("{:?}", episode.outcome);
+    let counterfactual_outcome = if episode.outcome == crate::episodic_memory::EpisodeOutcome::Success {
+        "Likely similar success, but with different trade-offs".into()
+    } else {
+        "Alternative approach may have avoided the failure".into()
+    };
+
+    let causal_factors = vec![
+        format!("Original actions: {}", episode.actions_taken.join(", ")),
+        format!("Alternative: {}", alternative_action),
+        format!("Category: {:?}", episode.category),
+    ];
+
+    let learning = if episode.outcome == crate::episodic_memory::EpisodeOutcome::Failure {
+        format!("When '{}' fails, consider '{}' as alternative", episode.title, alternative_action)
+    } else {
+        format!("Original approach succeeded — '{}' is a backup option", alternative_action)
+    };
+
+    let analysis = CounterfactualAnalysis {
+        episode_id: episode_id.into(),
+        actual_action: episode.actions_taken.first().cloned().unwrap_or_default(),
+        actual_outcome,
+        alternative_action: alternative_action.into(),
+        counterfactual_outcome,
+        causal_factors,
+        learning: learning.clone(),
+        confidence: 0.5,
+        timestamp: Utc::now(),
+    };
+
+    let mut state = REPLAY.write().await;
+    if state.counterfactuals.len() >= 50 { state.counterfactuals.pop_front(); }
+    state.counterfactuals.push_back(analysis.clone());
+
+    // Feed learning to distillation
+    crate::distillation::add_input("counterfactual", &learning, &format!("Counterfactual analysis of episode {}", episode_id)).await;
+
+    Some(analysis)
+}
+
+pub async fn get_counterfactuals(limit: usize) -> Vec<CounterfactualAnalysis> {
+    REPLAY.read().await.counterfactuals.iter().rev().take(limit).cloned().collect()
 }
 
 pub async fn get_history(limit: usize) -> Vec<ReplayResult> { REPLAY.read().await.replays.iter().rev().take(limit).cloned().collect() }

@@ -60,6 +60,40 @@ pub async fn get_recent(limit: usize) -> Vec<Explanation> {
     EXPLAIN.read().await.explanations.iter().rev().take(limit).cloned().collect()
 }
 
+/// Self-explanation: why did the planner choose this strategy?
+pub async fn explain_strategy_choice(strategy: &str, intent_class: &str, success_rate: f32, alternatives: &[(&str, f32)]) {
+    let alts: Vec<Alternative> = alternatives.iter()
+        .map(|(name, rate)| Alternative {
+            action: name.to_string(),
+            reason_rejected: format!("Lower success rate ({:.0}%)", rate * 100.0),
+            estimated_score: *rate,
+        })
+        .collect();
+
+    record(
+        &format!("strategy_{}", chrono::Utc::now().timestamp_millis()),
+        &format!("Selected '{}' for '{}'", strategy, intent_class),
+        &format!("Chosen because {:.0}% success rate is highest for this intent class", success_rate * 100.0),
+        alts,
+        vec![Evidence { source: "meta_reasoning".into(), content: format!("Historical success rate: {:.0}%", success_rate * 100.0), trust_score: 0.9 }],
+        success_rate,
+        vec![format!("Assumes past performance predicts future results for '{}' intents", intent_class)],
+    ).await;
+}
+
+/// Self-explanation: why was this memory retrieved?
+pub async fn explain_memory_retrieval(query: &str, result_count: usize, method: &str) {
+    record(
+        &format!("retrieval_{}", chrono::Utc::now().timestamp_millis()),
+        &format!("Retrieved {} results for '{}'", result_count, query),
+        &format!("Used {} search method", method),
+        vec![],
+        vec![Evidence { source: "memory".into(), content: format!("Query: '{}', Method: {}", query, method), trust_score: 0.8 }],
+        0.7,
+        vec!["Assumes query terms match relevant documents".into()],
+    ).await;
+}
+
 pub async fn persist() { let s = EXPLAIN.read().await.clone(); if let Some(pool) = crate::memory::pool() { let json = match serde_json::to_value(&s) { Ok(v) => v, Err(_) => return }; let _ = sqlx::query("INSERT INTO explainability_store (id, state, updated_at) VALUES (1, $1, NOW()) ON CONFLICT (id) DO UPDATE SET state = $1, updated_at = NOW()").bind(&json).execute(pool).await; } }
 pub async fn restore() { if let Some(pool) = crate::memory::pool() { let row: Option<(serde_json::Value,)> = sqlx::query_as("SELECT state FROM explainability_store WHERE id = 1").fetch_optional(pool).await.unwrap_or(None); if let Some((json,)) = row { if let Ok(r) = serde_json::from_value::<ExplainState>(json) { let mut s = EXPLAIN.write().await; *s = r; } } } }
 pub async fn init_table() { if let Some(pool) = crate::memory::pool() { let _ = sqlx::query("CREATE TABLE IF NOT EXISTS explainability_store (id INTEGER PRIMARY KEY, state JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())").execute(pool).await; } }

@@ -319,6 +319,41 @@ pub async fn benchmark_strategies() -> serde_json::Value {
     })
 }
 
+/// Meta-learning: analyze which learning methods produce the best outcomes
+/// and recommend adjustments to the learning process itself.
+pub async fn meta_learn() -> serde_json::Value {
+    let state = META.read().await;
+
+    // Analyze which strategies improve over time vs stagnate
+    let mut improving: Vec<String> = Vec::new();
+    let mut stagnating: Vec<String> = Vec::new();
+
+    for s in &state.strategies {
+        if s.times_used < 5 { continue; }
+        // Simple heuristic: if recent success rate > overall, strategy is improving
+        if s.success_rate > 0.7 { improving.push(s.name.clone()); }
+        else if s.success_rate < 0.5 && s.times_used > 10 { stagnating.push(s.name.clone()); }
+    }
+
+    // Analyze which reflection types produce actionable insights
+    let reflection_stats = crate::reflection::get_stats().await;
+
+    let recommendations = vec![
+        if !stagnating.is_empty() { Some(format!("Consider retiring stagnating strategies: {}", stagnating.join(", "))) } else { None },
+        if improving.len() > 2 { Some("Multiple strategies performing well — consider hybrid approaches".into()) } else { None },
+        Some("Run benchmark_strategies() during next dream cycle for detailed comparison".into()),
+    ];
+
+    serde_json::json!({
+        "improving_strategies": improving,
+        "stagnating_strategies": stagnating,
+        "recommendations": recommendations.into_iter().flatten().collect::<Vec<String>>(),
+        "reflection_stats": reflection_stats,
+        "total_analyses": state.total_analyses,
+        "avg_quality": state.avg_reasoning_quality,
+    })
+}
+
 pub async fn get_stats() -> serde_json::Value {
     let state = META.read().await;
     serde_json::json!({

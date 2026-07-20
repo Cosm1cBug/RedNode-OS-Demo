@@ -32,7 +32,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "ok": true,
         "node": "rednode-cns",
-        "version": "0.36.0",
+        "version": "0.37.0",
         "uptime_secs": uptime
     }))
 }
@@ -93,7 +93,7 @@ async fn handle_ws(mut socket: WebSocket) {
             serde_json::json!({
                 "type": "hello",
                 "node": "rednode-cns",
-                "version": "0.36.0",
+                "version": "0.37.0",
                 "ts": chrono::Utc::now().to_rfc3339()
             })
             .to_string(),
@@ -2042,6 +2042,41 @@ async fn language_stats() -> Json<serde_json::Value> {
 }
 
 
+// ─── Mental Models API ───
+
+async fn mental_models_list() -> Json<serde_json::Value> {
+    let models = crate::mental_models::list().await;
+    let stats = crate::mental_models::get_stats().await;
+    Json(serde_json::json!({"ok": true, "models": models, "stats": stats}))
+}
+
+async fn mental_models_get(Path(id): Path<String>) -> Json<serde_json::Value> {
+    match crate::mental_models::get(&id).await {
+        Some(m) => Json(serde_json::json!({"ok": true, "model": m})),
+        None => Json(serde_json::json!({"ok": false, "error": "Model not found"})),
+    }
+}
+
+#[derive(Deserialize)]
+struct CreateModelReq { title: String, domain: String, belief: String }
+
+async fn mental_models_create(Json(req): Json<CreateModelReq>) -> Json<serde_json::Value> {
+    let model = crate::mental_models::create(&req.title, &req.domain, &req.belief).await;
+    Json(serde_json::json!({"ok": true, "model": model}))
+}
+
+async fn cognitive_health() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "health": crate::cognitive_metrics::health_report().await}))
+}
+
+async fn calibration_stats() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "calibration": crate::uncertainty::get_calibration().await}))
+}
+
+async fn meta_learn() -> Json<serde_json::Value> {
+    Json(serde_json::json!({"ok": true, "meta_learning": crate::meta_reasoning::meta_learn().await}))
+}
+
 // ─── Router ───
 
 pub fn router() -> Router {
@@ -2127,6 +2162,12 @@ pub fn router() -> Router {
         .route("/perception/observe", post(perception_observe)).route("/perception/recent", get(perception_recent)).route("/perception/stats", get(perception_stats))
         .route("/language/summarize", post(language_summarize)).route("/language/extract", post(language_extract))
         .route("/language/glossary", get(language_glossary).post(language_add_term)).route("/language/stats", get(language_stats))
+        // Mental Models + Cognitive Depth (v0.37.0)
+        .route("/mental-models", get(mental_models_list).post(mental_models_create))
+        .route("/mental-models/:id", get(mental_models_get))
+        .route("/cognitive-health", get(cognitive_health))
+        .route("/calibration", get(calibration_stats))
+        .route("/meta-learn", get(meta_learn))
         // Middleware
         .layer(axum::middleware::from_fn(crate::auth::auth_middleware))
         .layer(TraceLayer::new_for_http())

@@ -93,6 +93,42 @@ pub async fn compute() {
 
 pub async fn get() -> CognitiveMetricsState { METRICS.read().await.clone() }
 
+/// Cognitive Health Report — aggregates all metrics into a single health assessment
+pub async fn health_report() -> serde_json::Value {
+    let m = METRICS.read().await;
+
+    let overall_health = (
+        m.decision_quality * 0.2
+        + m.planning_accuracy * 0.15
+        + m.prediction_accuracy * 0.1
+        + m.goal_completion_rate * 0.1
+        + (1.0 - m.hallucination_rate) * 0.15
+        + m.autonomy_score * 0.1
+        + m.risk_avoidance * 0.1
+        + m.learning_rate * 0.1
+    ).clamp(0.0, 1.0);
+
+    // Compute trends from history
+    let trend = if m.history.len() >= 5 {
+        let recent_avg = m.history.iter().rev().take(5).map(|s| s.decision_quality).sum::<f32>() / 5.0;
+        let older_avg = m.history.iter().rev().skip(5).take(5).map(|s| s.decision_quality).sum::<f32>() / m.history.iter().rev().skip(5).take(5).count().max(1) as f32;
+        if recent_avg > older_avg + 0.02 { "improving" } else if recent_avg < older_avg - 0.02 { "declining" } else { "stable" }
+    } else { "insufficient_data" };
+
+    serde_json::json!({
+        "overall_health": overall_health,
+        "health_grade": if overall_health > 0.8 { "excellent" } else if overall_health > 0.6 { "good" } else if overall_health > 0.4 { "fair" } else { "poor" },
+        "trend": trend,
+        "decision_quality": m.decision_quality,
+        "planning_accuracy": m.planning_accuracy,
+        "prediction_accuracy": m.prediction_accuracy,
+        "hallucination_rate": m.hallucination_rate,
+        "autonomy_score": m.autonomy_score,
+        "learning_rate": m.learning_rate,
+        "history_points": m.history.len(),
+    })
+}
+
 pub async fn persist() { let s = METRICS.read().await.clone(); if let Some(pool) = crate::memory::pool() { let json = match serde_json::to_value(&s) { Ok(v) => v, Err(_) => return }; let _ = sqlx::query("INSERT INTO cognitive_metrics_store (id, state, updated_at) VALUES (1, $1, NOW()) ON CONFLICT (id) DO UPDATE SET state = $1, updated_at = NOW()").bind(&json).execute(pool).await; } }
 pub async fn restore() { if let Some(pool) = crate::memory::pool() { let row: Option<(serde_json::Value,)> = sqlx::query_as("SELECT state FROM cognitive_metrics_store WHERE id = 1").fetch_optional(pool).await.unwrap_or(None); if let Some((json,)) = row { if let Ok(r) = serde_json::from_value::<CognitiveMetricsState>(json) { let mut s = METRICS.write().await; *s = r; } } } }
 pub async fn init_table() { if let Some(pool) = crate::memory::pool() { let _ = sqlx::query("CREATE TABLE IF NOT EXISTS cognitive_metrics_store (id INTEGER PRIMARY KEY, state JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())").execute(pool).await; } }

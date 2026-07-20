@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
         .with(tracing_subscriber::fmt::layer().json())
         .init();
 
-    tracing::info!("RedNode-OS v0.36.0 – CNS starting – the computer becomes the intelligence");
+    tracing::info!("RedNode-OS v0.37.0 – CNS starting – the computer becomes the intelligence");
 
     // ── 1. Event Bus – must be first, everything publishes to it ──
     events::init();
@@ -44,7 +44,8 @@ async fn main() -> anyhow::Result<()> {
     restore_all_state().await;
 
     // ── 8. Start consciousness loop ──
-    rednode_core::consciousness::start_consciousness_loop();
+    // ── 8. Start multi-speed cognitive clocks ──
+    start_cognitive_clocks();
 
     // ── 9. HTTP API + WebSocket ──
     let app = api::router();
@@ -114,12 +115,13 @@ async fn init_all_tables() {
     adaptive_arch::init_table().await;
     collective_governance::init_table().await;
 
-    // Phase 6: Enhancement (v0.36.0)
+    // Phase 6: Enhancement (v0.37.0)
     cognitive_bus::init_table().await;
     perception::init_table().await;
     language::init_table().await;
+    mental_models::init_table().await;
 
-    tracing::info!("All module tables initialized (56 tables)");
+    tracing::info!("All module tables initialized (57 tables)");
 }
 
 /// Restore persisted state from PostgreSQL for all cognitive modules.
@@ -177,6 +179,66 @@ async fn restore_all_state() {
     cognitive_bus::restore().await;
     perception::restore().await;
     language::restore().await;
+    mental_models::restore().await;
 
     tracing::info!("All module state restored from database");
+}
+
+/// Multi-speed cognitive clocks — different subsystems at different cadences
+fn start_cognitive_clocks() {
+    use rednode_core::*;
+
+    // Fast loop (2s): attention, perception, event processing
+    tokio::spawn(async {
+        tracing::info!("Fast cognitive clock started (2s)");
+        loop {
+            attention::tick().await;
+            cognitive_bus::tick().await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+    });
+
+    // Medium loop (10s): consciousness, context, emotional state
+    tokio::spawn(async {
+        tracing::info!("Medium cognitive clock started (10s)");
+        loop {
+            consciousness::tick().await;
+            emotional_state::update_from_system().await;
+            episodic_memory::tick().await;
+            world_model::tick().await;
+            economy::tick().await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        }
+    });
+
+    // Slow loop (5min): reflection, metrics, capability checks
+    tokio::spawn(async {
+        tracing::info!("Slow cognitive clock started (5min)");
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(300)).await;
+            reflection::tick().await;
+            cognitive_metrics::compute().await;
+            capability_registry::tick().await;
+            time_intel::tick().await;
+            immune::tick().await;
+        }
+    });
+
+    // Background loop (1h): dreaming, research, evolution, calibration
+    tokio::spawn(async {
+        tracing::info!("Background cognitive clock started (1h)");
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+            if let Some(trigger) = dreaming::should_dream().await {
+                dreaming::start_dream(trigger).await;
+            }
+            if curiosity::tick().await {
+                curiosity::build_exploration_queue().await;
+            }
+            distillation::tick().await;
+            forgetting::tick().await;
+        }
+    });
+
+    tracing::info!("Multi-speed cognitive clocks active: fast(2s) + medium(10s) + slow(5min) + background(1h)");
 }

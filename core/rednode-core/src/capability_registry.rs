@@ -89,6 +89,41 @@ pub async fn list() -> Vec<Capability> { REGISTRY.read().await.capabilities.clon
 pub async fn get(id: &str) -> Option<Capability> { REGISTRY.read().await.capabilities.iter().find(|c| c.id == id).cloned() }
 pub async fn can_do(name: &str) -> bool { REGISTRY.read().await.capabilities.iter().any(|c| c.name == name && c.confidence > 0.3 && !c.stale) }
 
+/// Infer new capabilities from combinations of existing ones (emergent skills)
+pub async fn infer_capabilities() -> Vec<(String, String, Vec<String>)> {
+    let reg = REGISTRY.read().await;
+    let mut inferred = Vec::new();
+
+    // Define inference rules: if you have A + B, you can probably do C
+    let rules: Vec<(&[&str], &str, &str)> = vec![
+        (&["Network monitoring", "Service health checks"], "Network troubleshooting", "infrastructure"),
+        (&["Threat detection", "Vulnerability scanning"], "Security assessment", "security"),
+        (&["Web research", "Document ingestion"], "Knowledge synthesis", "knowledge"),
+        (&["Task planning", "Pipeline execution"], "Workflow orchestration", "automation"),
+        (&["Network monitoring", "Threat detection"], "Network security monitoring", "security"),
+    ];
+
+    let cap_names: Vec<String> = reg.capabilities.iter()
+        .filter(|c| c.confidence > 0.5 && !c.stale)
+        .map(|c| c.name.clone())
+        .collect();
+
+    for (prereqs, inferred_name, domain) in &rules {
+        let has_all = prereqs.iter().all(|p| cap_names.iter().any(|c| c == p));
+        let already_exists = reg.capabilities.iter().any(|c| c.name == *inferred_name);
+
+        if has_all && !already_exists {
+            inferred.push((
+                inferred_name.to_string(),
+                domain.to_string(),
+                prereqs.iter().map(|s| s.to_string()).collect(),
+            ));
+        }
+    }
+
+    inferred
+}
+
 pub async fn persist() { let s = REGISTRY.read().await.clone(); if let Some(pool) = crate::memory::pool() { let json = match serde_json::to_value(&s) { Ok(v) => v, Err(_) => return }; let _ = sqlx::query("INSERT INTO capability_registry_store (id, state, updated_at) VALUES (1, $1, NOW()) ON CONFLICT (id) DO UPDATE SET state = $1, updated_at = NOW()").bind(&json).execute(pool).await; } }
 pub async fn restore() { if let Some(pool) = crate::memory::pool() { let row: Option<(serde_json::Value,)> = sqlx::query_as("SELECT state FROM capability_registry_store WHERE id = 1").fetch_optional(pool).await.unwrap_or(None); if let Some((json,)) = row { if let Ok(r) = serde_json::from_value::<CapabilityRegistry>(json) { let mut s = REGISTRY.write().await; *s = r; } } } }
 pub async fn init_table() { if let Some(pool) = crate::memory::pool() { let _ = sqlx::query("CREATE TABLE IF NOT EXISTS capability_registry_store (id INTEGER PRIMARY KEY, state JSONB NOT NULL, updated_at TIMESTAMPTZ DEFAULT NOW())").execute(pool).await; } }

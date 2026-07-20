@@ -442,6 +442,30 @@ pub async fn tick() {
         mind.awareness.curiosity = (mind.awareness.curiosity + 0.002).min(0.8);
     }
 
+    // ── Self-Question Generation (periodically, ~every 50th tick = ~8min) ──
+    let should_question = mind.uptime_secs % 500 < 10; // roughly every 500s
+    if should_question && mind.active_tasks.is_empty() {
+        let questions = vec![
+            "What assumptions am I currently making?",
+            "What changed in the infrastructure recently?",
+            "What am I ignoring that I should be monitoring?",
+            "What knowledge might be becoming outdated?",
+            "What am I most uncertain about right now?",
+            "What should I investigate next?",
+        ];
+        // Pick one based on uptime to cycle through them
+        let idx = (mind.uptime_secs / 500) as usize % questions.len();
+        let question = questions[idx];
+
+        mind.next_actions.push(PlannedAction {
+            description: format!("Self-question: {}", question),
+            reason: "Periodic introspective questioning".into(),
+            priority: 0.3,
+            source: "self_reflection".into(),
+            auto_execute: false,
+        });
+    }
+
     // ── Awareness Recovery ──
     // When urgency drops and no recent failures, actively boost awareness
     if mind.awareness.urgency < 0.1

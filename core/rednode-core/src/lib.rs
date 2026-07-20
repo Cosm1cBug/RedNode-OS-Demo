@@ -44,6 +44,7 @@ pub mod intent_router;
 pub mod knowledge_lifecycle;
 pub mod language;
 pub mod memory;
+pub mod mental_models;
 pub mod memory_optimizer;
 pub mod memory_safety;
 pub mod meta_reasoning;
