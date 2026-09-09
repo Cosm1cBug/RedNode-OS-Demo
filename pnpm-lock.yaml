@@ -87,8 +87,8 @@ importers:
         specifier: ^2.24.0
         version: 2.29.3
       nodemailer:
-        specifier: ^6.9.13
-        version: 6.10.1
+        specifier: ^9.1.1
+        version: 9.1.1
       tsdav:
         specifier: ^2.2.2
         version: 2.2.2
@@ -261,15 +261,8 @@ importers:
   agents/shared:
     dependencies:
       nats:
-        specifier: ^2.24.0
+        specifier: ^2.28.0
         version: 2.29.3
-    devDependencies:
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.20.0
-      typescript:
-        specifier: ^5.5.0
-        version: 5.9.3
 
   agents/signal-bot:
     dependencies:
@@ -1040,12 +1033,12 @@ packages:
     resolution: {integrity: sha512-tB/a0shZL5UZWSwsoeyqfTszONTt4k2YS0tuQioMOD180+MbombYVgzDUYHlx+gejYK6rgf08n/2Df99WY0Sxg==}
     engines: {node: '>=10.0.0'}
 
-  nodemailer@6.10.1:
-    resolution: {integrity: sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA==}
-    engines: {node: '>=6.0.0'}
-
   nodemailer@9.0.1:
     resolution: {integrity: sha512-Gwv8SQewT616ZM/URn0H54b8PWo/Wum7md3EW2aWy1lO27+WZCX+Xyak3J+NlmHUjDh5ME+uesJUDRbR3Ye8Bw==}
+    engines: {node: '>=6.0.0'}
+
+  nodemailer@9.1.1:
+    resolution: {integrity: sha512-izw9mVKFix6YSnC9eLgV6g1opl9DUlRio9ZNcq+Wu9Ujn2UwF+8Nl0B8nz22kEC+CTZCvinkxwJ0DeFbb6NwcQ==}
     engines: {node: '>=6.0.0'}
 
   nth-check@2.1.1:
@@ -1870,9 +1863,9 @@ snapshots:
     dependencies:
       tweetnacl: 1.0.3
 
-  nodemailer@6.10.1: {}
-
   nodemailer@9.0.1: {}
+
+  nodemailer@9.1.1: {}
 
   nth-check@2.1.1:
     dependencies:
